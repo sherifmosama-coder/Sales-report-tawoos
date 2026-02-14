@@ -34,9 +34,9 @@ function openDashboard() {
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
-      .evaluate()
-      .setTitle('Advanced Sales Dashboard')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .evaluate()
+    .setTitle('Sales Dashboard')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function getDataFromSheet() {
@@ -49,15 +49,17 @@ function getDataFromSheet() {
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
   dataRows.forEach(row => {
-    const clientName = row[1]; 
-    const clientType = row[2]; 
-    const lastDate   = row[3]; 
+    // UPDATED: Shifted indices to ignore Column B. Data now starts at Column C (index 2).
+    const clientName = row[2]; 
+    const clientType = row[3]; 
+    const lastDate   = row[4]; 
     
     if (!clientName) return;
 
     // Create a record for each year
     years.forEach((year, index) => {
-      const colIdx = 4 + (index * 3);
+      // UPDATED: Shifted start index from 4 to 5 (Column F)
+      const colIdx = 5 + (index * 3);
       const totalQty = parseNumber(row[colIdx]);
       const orderCount = parseNumber(row[colIdx+1]);
       const avgQty = parseNumber(row[colIdx+2]);
@@ -87,4 +89,80 @@ function parseNumber(val) {
   const clean = val.toString().replace(/,/g, '');
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
+}
+
+// NEW: Ultra-Fast Logic reading from "Dashboard_Cache"
+function getDataFromAllData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Dashboard_Cache");
+  
+  if (!sheet) return []; // Return empty if missing
+
+  const lastRow = sheet.getLastRow();
+  // Adjust startRow to 2 if you have headers in Row 1
+  if (lastRow < 2) return [];
+
+  // Fetch Cols A to F (1 to 6)
+  // Col A: Client, B: Type, C: Year, D: Qty, E: Orders, F: Max Date
+  const rawData = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  
+  // Use Script TimeZone for consistent formatting
+  const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
+
+  const clientMap = {};
+
+  rawData.forEach(row => {
+    const client = row[0];
+    const type   = row[1];
+    const year   = row[2];
+    const qty    = Number(row[3]) || 0;
+    const orders = Number(row[4]) || 0;
+    const rawDate= row[5]; 
+
+    // Skip invalid rows
+    if (!client || !year) return;
+
+    // --- DATE CONVERSION (Strict String) ---
+    let dateStr = "";
+    if (rawDate instanceof Date) {
+      // Convert Date Object -> String "YYYY-MM-DD"
+      dateStr = Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd");
+    } else if (typeof rawDate === 'string' && rawDate.length >= 10) {
+      // Convert "2023/05/20" -> "2023-05-20"
+      dateStr = rawDate.replace(/\//g, "-").slice(0, 10);
+    }
+    // ---------------------------------------
+
+    if (!clientMap[client]) {
+      // Initialize with "0000-00-00" so comparison works
+      clientMap[client] = { type: type, lastTx: "0000-00-00", years: {} };
+    }
+
+    // Keep the most recent date string
+    if (dateStr > clientMap[client].lastTx) {
+      clientMap[client].lastTx = dateStr;
+    }
+
+    clientMap[client].years[year] = { qty: qty, orders: orders };
+  });
+
+  // Flatten Output
+  const output = [];
+  for (const [name, data] of Object.entries(clientMap)) {
+    for (const [year, stats] of Object.entries(data.years)) {
+      output.push({
+        client: name,
+        type: data.type,
+        year: year,
+        qty: stats.qty,
+        orders: stats.orders,
+        avg: stats.orders > 0 ? Math.round(stats.qty / stats.orders) : 0,
+        
+        // CRITICAL FIX: The frontend expects 'lastTx', NOT 'lastDate'
+        lastTx: data.lastTx === "0000-00-00" ? "" : data.lastTx
+      });
+    }
+  }
+  
+  return output;
 }
