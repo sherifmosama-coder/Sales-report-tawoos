@@ -50,57 +50,34 @@ function getDashboardData() {
   // Adjust startRow to 2 if you have headers in Row 1
   if (lastRow < 2) return [];
 
-  // Fetch Cols A to F (1 to 6)
-  // Col A: Client, B: Type, C: Year, D: Qty, E: Orders, F: Max Date
-  const rawData = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+  // Fetch Cols A to G (1 to 7)
+  // Col A: Main Client, B: Branch, C: Type, D: Year, E: Qty, F: Orders, G: Max Date
+  const rawData = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
   
   const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
-  const clientMap = {};
 
-  rawData.forEach(row => {
-    const client = row[0];
-    const type   = row[1];
-    const year   = row[2];
-    const qty    = Number(row[3]) || 0;
-    const orders = Number(row[4]) || 0;
-    const rawDate= row[5]; 
-
-    if (!client || !year) return;
-
-    // --- DATE CONVERSION (Strict String) ---
+  // Map rows to Objects (No Aggregation here - we send detailed data)
+  const output = rawData.map(row => {
+    const rawDate = row[6];
     let dateStr = "";
+    
+    // Date Formatting
     if (rawDate instanceof Date) {
       dateStr = Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd");
     } else if (typeof rawDate === 'string' && rawDate.length >= 10) {
       dateStr = rawDate.replace(/\//g, "-").slice(0, 10);
     }
 
-    if (!clientMap[client]) {
-      clientMap[client] = { type: type, lastTx: "0000-00-00", years: {} };
-    }
-
-    if (dateStr > clientMap[client].lastTx) {
-      clientMap[client].lastTx = dateStr;
-    }
-
-    clientMap[client].years[year] = { qty: qty, orders: orders };
-  });
-
-  // Flatten Output
-  const output = [];
-  for (const [name, data] of Object.entries(clientMap)) {
-    for (const [year, stats] of Object.entries(data.years)) {
-      output.push({
-        client: name,
-        type: data.type,
-        year: year,
-        qty: stats.qty,
-        orders: stats.orders,
-        avg: stats.orders > 0 ? Math.round(stats.qty / stats.orders) : 0,
-        lastTx: data.lastTx === "0000-00-00" ? "" : data.lastTx
-      });
-    }
-  }
+    return {
+      client: row[0],   // Main Client (Group Key)
+      branch: row[1],   // Branch Name (Detail Key)
+      type: row[2],
+      year: row[3],
+      qty: Number(row[4]) || 0,
+      orders: Number(row[5]) || 0,
+      lastTx: dateStr
+    };
+  }).filter(item => item.client && item.year); // Filter empty rows
   
   return output;
 }
