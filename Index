@@ -61,9 +61,48 @@
 
     .section-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; margin-top: 20px; letter-spacing: 1px;}
     .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-  </style>
+  /* Landing Screen Overlay */
+      #landing-screen {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #f8f9fa; z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .landing-card {
+        background: white; padding: 40px; border-radius: 15px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center;
+        width: 300px; transition: transform 0.2s; cursor: pointer;
+      }
+      .landing-card:hover { transform: translateY(-5px); }
+      .landing-icon { font-size: 3rem; margin-bottom: 15px; }
+    </style>
 </head>
 <body>
+  <div id="landing-screen">
+    <div class="container">
+      <h1 class="text-center mb-5 text-secondary">📊 Sales Dashboard Portal</h1>
+      <div class="row justify-content-center g-4">
+        
+        <div class="col-md-auto">
+          <div class="landing-card" onclick="loadSource('old')">
+            <div class="landing-icon">📁</div>
+            <h4 class="text-muted">Legacy Source</h4>
+            <p class="text-muted small">Data from "ALL YEARS"</p>
+            <button class="btn btn-outline-secondary w-100 mt-3">Launch Legacy</button>
+          </div>
+        </div>
+
+        <div class="col-md-auto">
+          <div class="landing-card border border-primary" onclick="loadSource('new')">
+            <div class="landing-icon">🚀</div>
+            <h4 class="text-primary">New Source</h4>
+            <p class="text-muted small">Live Data from "All Data"</p>
+            <button class="btn btn-primary w-100 mt-3">Launch New</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
 
   <div id="loader" class="loading-overlay">
     <div class="spinner-border text-primary mb-3" role="status"></div>
@@ -174,16 +213,42 @@
       modalChartInstance: null
     };
 
-    window.onload = init;
-    function init() {
+    // No auto-init. Wait for user selection.
+    window.onload = function() {
+       console.log("App Loaded. Waiting for source selection...");
+       
+       // FIX: Hide the loader so the Landing Screen is visible
+       document.getElementById('loader').style.display = 'none'; 
+    };
+
+    function loadSource(mode) {
+      // 1. Hide Landing Screen
+      document.getElementById('landing-screen').style.display = 'none';
+      
+      // 2. Show Loader
       document.getElementById('loader').style.display = 'flex';
-      google.script.run.withSuccessHandler(data => {
+
+      // 3. Define Success Handler
+      const handler = google.script.run.withSuccessHandler(data => {
+        if (!data || !Array.isArray(data)) {
+           alert("Error: Received empty or invalid data from Server. Please check the 'getDataFromAllData' function in Code.gs");
+           document.getElementById('loader').style.display = 'none';
+           return;
+        }
         appState.rawData = data;
         renderDashboard();
         document.getElementById('loader').style.display = 'none';
-      }).getDataFromSheet();
-    }
+      });
 
+      // 4. Call appropriate backend function
+      if (mode === 'new') {
+        console.log("Fetching NEW data...");
+        handler.getDataFromAllData();
+      } else {
+        console.log("Fetching LEGACY data...");
+        handler.getDataFromSheet();
+      }
+    }
     function renderDashboard() {
       renderYearToggles();
       renderTypeToggles();
@@ -501,7 +566,25 @@
     }
 
     function formatK(n) { return n>=1000?(n/1000).toFixed(1)+'k':n.toLocaleString(); }
-    function parseDate(s) { if(!s)return null; const m={"يناير":0,"فبراير":1,"مارس":2,"أبريل":3,"مايو":4,"يونيو":5,"يوليو":6,"أغسطس":7,"سبتمبر":8,"أكتوبر":9,"نوفمبر":10,"ديسمبر":11}; try{const p=s.split('-');return p.length===3?new Date(p[2],m[p[1]]||0,p[0]):new Date(s);}catch{return null;}}
+    function parseDate(s) { 
+      if (!s || s === "0000-00-00") return null; 
+
+      // 1. Standard ISO Date (YYYY-MM-DD) - Coming from New Source
+      // We check if it starts with 4 digits followed by dash or slash
+      if (/^\d{4}[-\/]\d{2}[-\/]\d{2}/.test(s)) {
+        // Create date explicitly to avoid Timezone shifts
+        const parts = s.split(/[-\/]/); // Split by - or /
+        // new Date(Year, MonthIndex, Day) -> Month is 0-11
+        return new Date(parts[0], parts[1] - 1, parts[2]); 
+      }
+      
+      // 2. Legacy Arabic Format (DD-MonthName-YYYY)
+      const m={"يناير":0,"فبراير":1,"مارس":2,"أبريل":3,"مايو":4,"يونيو":5,"يوليو":6,"أغسطس":7,"سبتمبر":8,"أكتوبر":9,"نوفمبر":10,"ديسمبر":11};
+      try {
+        const p = s.split('-');
+        return p.length===3 ? new Date(p[2], m[p[1]]||0, p[0]) : new Date(s);
+      } catch (e) { return null; }
+    }
   </script>
 </body>
 </html>
