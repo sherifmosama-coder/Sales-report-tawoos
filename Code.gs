@@ -35,68 +35,16 @@ function openDashboard() {
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('Sales Dashboard')
+    .setTitle('Sales Analytics Portal') // Generic Portal Title
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-function getDataFromSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName("ALL YEARS");
-  const values = sheet.getDataRange().getDisplayValues(); 
-  const dataRows = values.slice(3); 
-  
-  const cleanData = [];
-  const years = [2021, 2022, 2023, 2024, 2025, 2026];
-  
-  dataRows.forEach(row => {
-    // UPDATED: Shifted indices to ignore Column B. Data now starts at Column C (index 2).
-    const clientName = row[2]; 
-    const clientType = row[3]; 
-    const lastDate   = row[4]; 
-    
-    if (!clientName) return;
-
-    // Create a record for each year
-    years.forEach((year, index) => {
-      // UPDATED: Shifted start index from 4 to 5 (Column F)
-      const colIdx = 5 + (index * 3);
-      const totalQty = parseNumber(row[colIdx]);
-      const orderCount = parseNumber(row[colIdx+1]);
-      const avgQty = parseNumber(row[colIdx+2]);
-      
-      // We push ALL years (even with 0 sales) to help with "Declining" calculation, 
-      // but we will hide empty rows in the UI later if needed.
-      if (clientName) {
-        cleanData.push({
-          client: clientName,
-          type: clientType || "Other",
-          lastTx: lastDate,
-          year: year,
-          qty: totalQty,
-          orders: orderCount,
-          avg: avgQty
-        });
-      }
-    });
-  });
-  
-  return cleanData;
-}
-
-function parseNumber(val) {
-  if (!val) return 0;
-  if (val.toString().includes("#DIV/0!")) return 0;
-  const clean = val.toString().replace(/,/g, '');
-  const num = parseFloat(clean);
-  return isNaN(num) ? 0 : num;
-}
-
-// NEW: Ultra-Fast Logic reading from "Dashboard_Cache"
-function getDataFromAllData() {
+// SINGLE SOURCE OF TRUTH: Reading from Dashboard_Cache
+function getDashboardData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Dashboard_Cache");
   
-  if (!sheet) return []; // Return empty if missing
+  if (!sheet) return []; 
 
   const lastRow = sheet.getLastRow();
   // Adjust startRow to 2 if you have headers in Row 1
@@ -106,9 +54,7 @@ function getDataFromAllData() {
   // Col A: Client, B: Type, C: Year, D: Qty, E: Orders, F: Max Date
   const rawData = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
   
-  // Use Script TimeZone for consistent formatting
   const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
-
   const clientMap = {};
 
   rawData.forEach(row => {
@@ -119,26 +65,20 @@ function getDataFromAllData() {
     const orders = Number(row[4]) || 0;
     const rawDate= row[5]; 
 
-    // Skip invalid rows
     if (!client || !year) return;
 
     // --- DATE CONVERSION (Strict String) ---
     let dateStr = "";
     if (rawDate instanceof Date) {
-      // Convert Date Object -> String "YYYY-MM-DD"
       dateStr = Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd");
     } else if (typeof rawDate === 'string' && rawDate.length >= 10) {
-      // Convert "2023/05/20" -> "2023-05-20"
       dateStr = rawDate.replace(/\//g, "-").slice(0, 10);
     }
-    // ---------------------------------------
 
     if (!clientMap[client]) {
-      // Initialize with "0000-00-00" so comparison works
       clientMap[client] = { type: type, lastTx: "0000-00-00", years: {} };
     }
 
-    // Keep the most recent date string
     if (dateStr > clientMap[client].lastTx) {
       clientMap[client].lastTx = dateStr;
     }
@@ -157,12 +97,18 @@ function getDataFromAllData() {
         qty: stats.qty,
         orders: stats.orders,
         avg: stats.orders > 0 ? Math.round(stats.qty / stats.orders) : 0,
-        
-        // CRITICAL FIX: The frontend expects 'lastTx', NOT 'lastDate'
         lastTx: data.lastTx === "0000-00-00" ? "" : data.lastTx
       });
     }
   }
   
   return output;
+}
+
+function parseNumber(val) {
+  if (!val) return 0;
+  if (val.toString().includes("#DIV/0!")) return 0;
+  const clean = val.toString().replace(/,/g, '');
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
 }
