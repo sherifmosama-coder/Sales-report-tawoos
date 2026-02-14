@@ -173,7 +173,7 @@
   <div class="container-fluid px-3 pt-3">
     
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <h4 class="fw-bold m-0" style="color:#1e293b"><i class="bi bi-pie-chart-fill text-primary"></i> Sales Intel</h4>
+      <h4 class="fw-bold m-0" style="color:#1e293b"><i class="bi bi-pie-chart-fill text-primary"></i> Clients across years</h4>
       <button class="btn btn-light btn-sm rounded-circle shadow-sm" onclick="init()"><i class="bi bi-arrow-clockwise"></i></button>
     </div>
 
@@ -241,11 +241,21 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-           <canvas id="modalChart" style="max-height: 200px; margin-bottom: 20px;"></canvas>
-           <table class="table table-sm text-center small align-middle">
+           <canvas id="modalChart" style="max-height: 180px; margin-bottom: 20px;"></canvas>
+           
+           <h6 class="section-title mt-0 mb-2">Yearly Performance</h6>
+           <table class="table table-sm text-center small align-middle mb-4">
              <thead class="table-light"><tr><th>Year</th><th>Qty</th><th>Orders</th><th>Avg</th></tr></thead>
              <tbody id="modalBody"></tbody>
            </table>
+
+           <h6 class="section-title mb-2">Branch Breakdown</h6>
+           <div style="max-height: 150px; overflow-y: auto;">
+             <table class="table table-sm text-center small align-middle table-hover">
+               <thead class="table-light sticky-top"><tr><th class="text-start">Branch</th><th>Total Qty</th><th>Last Tx</th></tr></thead>
+               <tbody id="modalBranchBody"></tbody>
+             </table>
+           </div>
         </div>
       </div>
     </div>
@@ -255,7 +265,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  <script>
+<script>
     // --- COLORS ---
     const COLORS = {
       'All Years': '#1e293b', '2026': '#dc3545', '2025': '#198754', '2024': '#0d6efd', '2023': '#6f42c1', '2022': '#fd7e14', '2021': '#6c757d',
@@ -293,7 +303,6 @@
     // No auto-init. Wait for user selection.
     window.onload = function() {
        console.log("App Loaded. Waiting for source selection...");
-       
        // FIX: Hide the loader so the Landing Screen is visible
        document.getElementById('loader').style.display = 'none'; 
     };
@@ -319,6 +328,7 @@
         document.getElementById('loader').style.display = 'none';
       }).getDashboardData();
     }
+    
     function renderDashboard() {
       renderYearToggles();
       renderTypeToggles();
@@ -340,19 +350,40 @@
     function setGroup(v) { appState.groupBy = v; renderList(); }
 
     // --- SHARED DATA PROCESSOR (For UI & Export) ---
+    // --- SHARED DATA PROCESSOR (For UI & Export) ---
     function getProcessedData() {
-        const container = document.getElementById('clientList');
+        // Safety Check
+        const rawData = (appState.rawData && Array.isArray(appState.rawData)) ? appState.rawData : [];
+
         const riskMode = document.getElementById('riskFilter').value;
         const searchVal = document.getElementById('search').value.toLowerCase();
         
         // 1. Base Aggregation
-        let list = aggregateForList();
+        let list = aggregateForList(rawData);
 
         // 2. Filters
         list = list.filter(c => {
-           if (riskMode === 'Stopped' && !c.isStopped) return false;
-           if (riskMode === 'Declining' && !c.isDeclining) return false;
+           // --- NEW: Client Segment Filter (Connects Top Toggles to List) ---
+           if (appState.selectedType !== 'All' && c.type !== appState.selectedType) return false;
+           // -----------------------------------------------------------------
+
+           // Risk Filter
+           if (riskMode === 'Stopped') {
+               // Calculate "Stopped" dynamically (No transaction in last 6 months)
+               const sixMonthsAgo = new Date();
+               sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+               const lastDate = c.lastTx ? new Date(c.lastTx) : new Date('2000-01-01');
+               if (lastDate > sixMonthsAgo) return false; // It is active, so skip
+           }
+           
+           // Declining Logic: Growth is negative (worse than -5%)
+           if (riskMode === 'Declining') {
+               if (c.growth === null || c.growth >= -0.05) return false;
+           }
+           
+           // Search Filter
            if (searchVal && !c.client.toLowerCase().includes(searchVal)) return false;
+           
            return true;
         });
 
@@ -365,7 +396,6 @@
         };
 
         // 4. Grouping Structure
-        // Returns an Array of items. If Grouping is ON, inserts "HEADER_ROW" objects in the array.
         let finalOutput = [];
         
         if (appState.groupBy !== 'None') {
@@ -380,9 +410,7 @@
 
              sortedKeys.forEach(key => {
                 const groupTotal = groups[key].reduce((s,i)=>s+i.qty,0);
-                // Push Header Object
                 finalOutput.push({ isHeader: true, title: key, count: groups[key].length, total: groupTotal });
-                // Push Sorted Items
                 finalOutput.push(...groups[key].sort(sortFn));
              });
         } else {
@@ -433,29 +461,59 @@
           </div>`;
     }
 
-    function aggregateForList() {
-      if (appState.selectedYear !== 'All') {
-         return appState.rawData.filter(d => d.year == appState.selectedYear && (appState.selectedType === 'All' || d.type === appState.selectedType))
-         .map(d => ({...d, growth: null, lastTxStr: d.lastTx }));
+    function aggregateForList(data) {
+      // SAFETY CHECK: If data is missing, return empty list to prevent crash
+      if (!data || !Array.isArray(data)) {
+        console.warn("aggregateForList received invalid data:", data);
+        return [];
       }
+
       const map = {};
-      const cutoff = new Date(); cutoff.setMonth(new Date().getMonth() - 6);
-      appState.rawData.forEach(d => {
-         if (appState.selectedType !== 'All' && d.type !== appState.selectedType) return;
-         if (!map[d.client]) map[d.client] = { client:d.client, type:d.type, qty:0, orders:0, q24:0, q25:0, lastTx:null, lastTxStr:'' };
-         const c = map[d.client];
-         c.qty += d.qty;
-         c.orders += d.orders;
-         if (d.year==2024) c.q24=d.qty; 
-         if (d.year==2025) c.q25=d.qty;
-         const dt = parseDate(d.lastTx);
-         if(dt && (!c.lastTx || dt > c.lastTx)) { c.lastTx = dt; c.lastTxStr = d.lastTx; }
+      
+      // DYNAMIC YEAR CALCULATION
+      // If today is in 2026, we compare 2025 (Full) vs 2024 (Full)
+      const currentYear = new Date().getFullYear(); 
+      const lastFinishedYear = currentYear - 1;     // e.g., 2025
+      const previousFinishedYear = currentYear - 2; // e.g., 2024
+
+      data.forEach(d => {
+        // Group by Main Client (d.client)
+        if (!map[d.client]) {
+          map[d.client] = { 
+            name: d.client, 
+            client: d.client, // Ensure 'client' property exists for compatibility
+            type: d.type, 
+            qty: 0, 
+            orders: 0, 
+            lastTx: '',
+            qLast: 0, // Store qty for Last Finished Year
+            qPrev: 0  // Store qty for Year Before Last
+          };
+        }
+        
+        const c = map[d.client];
+        
+        // Aggregate Totals (All Years)
+        c.qty += d.qty;
+        c.orders += d.orders;
+        if (d.lastTx > c.lastTx) c.lastTx = d.lastTx;
+
+        // Capture Specific Years for Growth Calculation
+        if (d.year == lastFinishedYear) c.qLast += d.qty;
+        if (d.year == previousFinishedYear) c.qPrev += d.qty;
       });
+
       return Object.values(map).map(c => {
-         c.growth = c.q24>0 ? (c.q25-c.q24)/c.q24 : null;
-         c.isStopped = c.lastTx && c.lastTx < cutoff;
-         c.isDeclining = c.q24>0 && c.q25 < c.q24;
-         return c;
+        c.avg = c.orders > 0 ? Math.round(c.qty / c.orders) : 0;
+        
+        // GROWTH LOGIC: Compare Last Finished vs Previous Finished
+        // e.g., (2025 - 2024) / 2024
+        c.growth = c.qPrev > 0 ? (c.qLast - c.qPrev) / c.qPrev : null;
+        
+        // Helper string for last transaction
+        c.lastTxStr = c.lastTx;
+
+        return c;
       });
     }
 
@@ -518,10 +576,10 @@
              const details = clientDetails[c.client] || {};
              
              let growthStr = '-';
-             if(c.q24 > 0) {
-                const g = (c.q25 - c.q24) / c.q24;
-                const color = g>=0 ? '#166534' : '#b91c1c';
-                growthStr = `<span style="color:${color}; font-weight:bold">${(g*100).toFixed(0)}%</span>`;
+             if(c.qPrev > 0) {
+                 const g = c.growth;
+                 const color = g>=0 ? '#166534' : '#b91c1c';
+                 growthStr = `<span style="color:${color}; font-weight:bold">${(g*100).toFixed(0)}%</span>`;
              }
 
              table += `<tr>
@@ -639,17 +697,65 @@
        const m = new bootstrap.Modal(document.getElementById('detailModal'));
        document.getElementById('modalTitle').innerText = name;
        const b = document.getElementById('modalSubtitle'); b.innerText = type; b.style.backgroundColor = getColor(type);
-       const h = appState.rawData.filter(d => d.client === name);
+
+       // 1. Get all raw rows for this Main Client (includes all branches)
+       const clientRows = appState.rawData.filter(d => d.client === name);
+
+       // 2. Aggregate by YEAR for the Chart & Top Table
+       const yearMap = {};
+       clientRows.forEach(r => {
+          if (!yearMap[r.year]) yearMap[r.year] = { qty: 0, orders: 0 };
+          yearMap[r.year].qty += r.qty;
+          yearMap[r.year].orders += r.orders;
+       });
+
+       // Render Top Table (Yearly Performance)
        const tbody = document.getElementById('modalBody'); tbody.innerHTML = '';
        let lbl=[], dta=[], bg=[];
+       
        [2021,2022,2023,2024,2025,2026].forEach(y => {
-          const r = h.find(d => d.year == y);
-          const q = r?r.qty:0, o = r?r.orders:0;
-          if(q>0||o>0) {
+          const d = yearMap[y];
+          const q = d ? d.qty : 0;
+          const o = d ? d.orders : 0;
+          
+          if(q > 0 || o > 0) {
              lbl.push(y); dta.push(q); bg.push(COLORS[y]);
-             tbody.innerHTML += `<tr><td style="color:${COLORS[y]}; font-weight:bold">${y}</td><td>${q}</td><td>${o}</td><td>${o>0?(q/o).toFixed(0):0}</td></tr>`;
+             tbody.innerHTML += `<tr>
+                <td style="color:${COLORS[y]}; font-weight:bold">${y}</td>
+                <td>${formatK(q)}</td>
+                <td>${o}</td>
+                <td>${o>0 ? (q/o).toFixed(0) : 0}</td>
+             </tr>`;
           }
        });
+
+       // 3. Aggregate by BRANCH for the Bottom Table
+       const branchMap = {};
+       clientRows.forEach(r => {
+          if (!branchMap[r.branch]) branchMap[r.branch] = { name: r.branch, qty: 0, orders: 0, lastTx: '' };
+          const b = branchMap[r.branch];
+          b.qty += r.qty;
+          b.orders += r.orders;
+          if (r.lastTx > b.lastTx) b.lastTx = r.lastTx;
+       });
+       
+       // Sort branches by Volume
+       const sortedBranches = Object.values(branchMap).sort((a,b) => b.qty - a.qty);
+
+       // Render Branch Table
+       const branchTable = document.getElementById('modalBranchBody');
+       if (branchTable) {
+           branchTable.innerHTML = '';
+           sortedBranches.forEach(b => {
+               branchTable.innerHTML += `<tr>
+                  <td class="text-start fw-bold text-secondary">${b.name}</td>
+                  <td>${formatK(b.qty)}</td>
+                  <td class="small text-muted" dir="ltr">${b.lastTx}</td>
+               </tr>`;
+           });
+       }
+
+       // Render Chart
        const ctx = document.getElementById('modalChart').getContext('2d');
        if(appState.modalChartInstance) appState.modalChartInstance.destroy();
        appState.modalChartInstance = new Chart(ctx, { type:'bar', data:{labels:lbl, datasets:[{label:'Qty', data:dta, backgroundColor:bg}]}, options:{plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}}}}});
