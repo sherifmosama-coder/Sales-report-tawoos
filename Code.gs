@@ -52,13 +52,13 @@ function getDashboardData() {
 
   // Fetch Cols A to G (1 to 7)
   // Col A: Main Client, B: Branch, C: Type, D: Year, E: Qty, F: Orders, G: Max Date
-  const rawData = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  const rawData = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
   
   const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
 
   // Map rows to Objects (No Aggregation here - we send detailed data)
   const output = rawData.map(row => {
-    const rawDate = row[6];
+    const rawDate = row[7]; // Adjusted Index for Col H
     let dateStr = "";
     
     // Date Formatting
@@ -74,7 +74,8 @@ function getDashboardData() {
       type: row[2],
       year: row[3],
       qty: Number(row[4]) || 0,
-      orders: Number(row[5]) || 0,
+      rev: Number(row[5]) || 0, // New Revenue Field
+      orders: Number(row[6]) || 0,
       lastTx: dateStr
     };
   }).filter(item => item.client && item.year); // Filter empty rows
