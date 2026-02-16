@@ -59,6 +59,15 @@
     .control-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
     .form-select-xs { font-size: 0.8rem; padding: 0.25rem 2rem 0.25rem 0.5rem; background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 600; color: #475569; }
 
+/* --- MODE SWITCHER --- */
+    .mode-switcher { background: white; padding: 4px; border-radius: 50rem; border: 1px solid #e2e8f0; display: inline-flex; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    .mode-btn { border: none; border-radius: 50rem; padding: 8px 24px; font-weight: 700; color: #64748b; display: flex; align-items: center; gap: 8px; transition: all 0.2s ease; font-size: 0.9rem; }
+    .mode-btn:hover { background-color: #f8fafc; color: #475569; }
+    
+    /* Active States */
+    #vmode1:checked + label { background-color: #eff6ff; color: #2563eb; box-shadow: 0 2px 4px rgba(37,99,235,0.1); }
+    #vmode2:checked + label { background-color: #f0fdf4; color: #16a34a; box-shadow: 0 2px 4px rgba(22,163,74,0.1); }
+
     .section-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; margin-top: 20px; letter-spacing: 1px;}
     .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
   /* --- PORTAL LANDING SCREEN --- */
@@ -172,14 +181,19 @@
 
   <div class="container-fluid px-3 pt-3">
     
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h4 class="fw-bold m-0" style="color:#1e293b"><i class="bi bi-pie-chart-fill text-primary"></i> Sales Intel</h4>
+    <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+      <h4 class="fw-bold m-0" style="color:#1e293b"><i class="bi bi-pie-chart-fill text-primary"></i> Clients across Years</h4>
       
-      <div class="btn-group shadow-sm" role="group">
+      <div class="mode-switcher">
         <input type="radio" class="btn-check" name="vmode" id="vmode1" autocomplete="off" checked onclick="setView('qty')">
-        <label class="btn btn-outline-primary btn-sm fw-bold" for="vmode1">📦 Qty</label>
+        <label class="btn mode-btn" for="vmode1">
+           <i class="fas fa-cubes"></i> Quantity
+        </label>
+
         <input type="radio" class="btn-check" name="vmode" id="vmode2" autocomplete="off" onclick="setView('rev')">
-        <label class="btn btn-outline-success btn-sm fw-bold" for="vmode2">💰 Rev</label>
+        <label class="btn mode-btn" for="vmode2">
+           <i class="fas fa-sack-dollar"></i> Revenue
+        </label>
       </div>
     </div>
 
