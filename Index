@@ -173,8 +173,14 @@
   <div class="container-fluid px-3 pt-3">
     
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <h4 class="fw-bold m-0" style="color:#1e293b"><i class="bi bi-pie-chart-fill text-primary"></i> Clients across years</h4>
-      <button class="btn btn-light btn-sm rounded-circle shadow-sm" onclick="init()"><i class="bi bi-arrow-clockwise"></i></button>
+      <h4 class="fw-bold m-0" style="color:#1e293b"><i class="bi bi-pie-chart-fill text-primary"></i> Sales Intel</h4>
+      
+      <div class="btn-group shadow-sm" role="group">
+        <input type="radio" class="btn-check" name="vmode" id="vmode1" autocomplete="off" checked onclick="setView('qty')">
+        <label class="btn btn-outline-primary btn-sm fw-bold" for="vmode1">📦 Qty</label>
+        <input type="radio" class="btn-check" name="vmode" id="vmode2" autocomplete="off" onclick="setView('rev')">
+        <label class="btn btn-outline-success btn-sm fw-bold" for="vmode2">💰 Rev</label>
+      </div>
     </div>
 
     <div class="section-title">Timeline Scope</div>
@@ -293,7 +299,8 @@
     let appState = {
       rawData: [],
       selectedYear: 'All',
-      selectedType: 'All',
+      selectedType: 'All', 
+      viewMode: 'qty',
       sortBy: 'qty',
       groupBy: 'None',
       chartInstance: null,
@@ -348,6 +355,17 @@
     }
     function setSort(v) { appState.sortBy = v; renderList(); }
     function setGroup(v) { appState.groupBy = v; renderList(); }
+    
+    function setView(mode) {
+       appState.viewMode = mode;
+       appState.sortBy = mode; 
+       renderDashboard();
+    }
+    
+    function formatVal(n) {
+       if (appState.viewMode === 'rev') return n >= 1000000 ? (n/1000000).toFixed(1) + 'M' : (n/1000).toFixed(0) + 'k';
+       return formatK(n);
+    }
 
     // --- SHARED DATA PROCESSOR (For UI & Export) ---
     // --- SHARED DATA PROCESSOR (For UI & Export) ---
@@ -403,13 +421,13 @@
              list.forEach(item => { const k = item[appState.groupBy]||'Other'; if(!groups[k]) groups[k]=[]; groups[k].push(item); });
              
              const sortedKeys = Object.keys(groups).sort((k1, k2) => {
-                const sum1 = groups[k1].reduce((s,i)=>s+i.qty,0);
-                const sum2 = groups[k2].reduce((s,i)=>s+i.qty,0);
+                const sum1 = groups[k1].reduce((s,i)=>s+i[appState.viewMode],0);
+                const sum2 = groups[k2].reduce((s,i)=>s+i[appState.viewMode],0);;
                 return sum2 - sum1;
              });
 
              sortedKeys.forEach(key => {
-                const groupTotal = groups[key].reduce((s,i)=>s+i.qty,0);
+                const groupTotal = groups[key].reduce((s,i)=>[appState.viewMode],0);;
                 finalOutput.push({ isHeader: true, title: key, count: groups[key].length, total: groupTotal });
                 finalOutput.push(...groups[key].sort(sortFn));
              });
@@ -457,7 +475,7 @@
               <div class="client-meta">${getSegmentHTML(c.type)} ${dateHtml}</div>
               <div class="client-meta mt-1"><span class="text-dark fw-bold small">${c.orders} Ord</span>${trendHtml}</div>
             </div>
-            <div class="client-val">${formatK(c.qty)}</div>
+            <div class="client-val">${formatVal(c[appState.viewMode])}</div>
           </div>`;
     }
 
@@ -483,24 +501,21 @@
             name: d.client, 
             client: d.client, // Ensure 'client' property exists for compatibility
             type: d.type, 
-            qty: 0, 
-            orders: 0, 
-            lastTx: '',
-            qLast: 0, // Store qty for Last Finished Year
-            qPrev: 0  // Store qty for Year Before Last
+            qty: 0, rev: 0, orders: 0, lastTx: '',
+            qLast: 0, qPrev: 0, rLast: 0, rPrev: 0 
           };
         }
         
         const c = map[d.client];
         
         // Aggregate Totals (All Years)
-        c.qty += d.qty;
+        c.qty += d.qty; c.rev += d.rev;
         c.orders += d.orders;
         if (d.lastTx > c.lastTx) c.lastTx = d.lastTx;
 
         // Capture Specific Years for Growth Calculation
-        if (d.year == lastFinishedYear) c.qLast += d.qty;
-        if (d.year == previousFinishedYear) c.qPrev += d.qty;
+        if (d.year == lastFinishedYear) { c.qLast += d.qty; c.rLast += d.rev; }
+        if (d.year == previousFinishedYear) { c.qPrev += d.qty; c.rPrev += d.rev; }
       });
 
       return Object.values(map).map(c => {
@@ -508,7 +523,11 @@
         
         // GROWTH LOGIC: Compare Last Finished vs Previous Finished
         // e.g., (2025 - 2024) / 2024
-        c.growth = c.qPrev > 0 ? (c.qLast - c.qPrev) / c.qPrev : null;
+        if (appState.viewMode === 'rev') {
+           c.growth = c.rPrev > 0 ? (c.rLast - c.rPrev) / c.rPrev : null;
+        } else {
+           c.growth = c.qPrev > 0 ? (c.qLast - c.qPrev) / c.qPrev : null;
+        }
         
         // Helper string for last transaction
         c.lastTxStr = c.lastTx;
@@ -619,10 +638,10 @@
     function renderYearToggles() {
       const years = [2021, 2022, 2023, 2024, 2025, 2026];
       const container = document.getElementById('yearToggles');
-      const totalAll = appState.rawData.reduce((s, r) => s + r.qty, 0);
+      const totalAll = appState.rawData.reduce((s, r) => s + (r[appState.viewMode]||0), 0);
       let html = createToggle('All Years', totalAll, appState.selectedYear === 'All', 'setYear', "'All'", COLORS['All Years']);
       years.forEach(y => {
-        const total = appState.rawData.filter(r => r.year == y).reduce((s, r) => s + r.qty, 0);
+        const total = appState.rawData.filter(r => r.year == y).reduce((s, r) => s + (r[appState.viewMode]||0), 0);
         html += createToggle(y, total, appState.selectedYear == y, 'setYear', y, COLORS[y]);
       });
       container.innerHTML = html;
@@ -634,7 +653,7 @@
       if (appState.selectedYear !== 'All') activeData = appState.rawData.filter(d => d.year == appState.selectedYear);
       const typeMap = {};
       let grandTotal = 0;
-      activeData.forEach(d => { const t = d.type || 'Other'; typeMap[t] = (typeMap[t]||0) + d.qty; grandTotal += d.qty; });
+      activeData.forEach(d => { const t = d.type || 'Other'; typeMap[t] = (typeMap[t]||0) + (d[appState.viewMode]||0); grandTotal += (d[appState.viewMode]||0); });
       const sorted = Object.keys(typeMap).sort((a,b) => typeMap[b] - typeMap[a]);
       let html = createToggle('All Types', grandTotal, appState.selectedType === 'All', 'setType', "'All'", COLORS['All Types']);
       sorted.forEach(t => { html += createToggle(t, typeMap[t], appState.selectedType === t, 'setType', `'${t}'`, getColor(t)); });
@@ -662,7 +681,7 @@
       return `<div class="smart-toggle ${act?'active':''}" style="--theme-color: ${col}" onclick="${fn}(${arg})">
          ${icon}
          <span class="label">${lbl}</span>
-         <span class="value">${formatK(val)}</span>
+         <span class="value">${formatVal(val)}</span>
       </div>`;
     }
 
@@ -675,20 +694,20 @@
       if (appState.selectedYear === 'All') {
          type = 'line';
          [2021,2022,2023,2024,2025,2026].forEach(y => {
-            const v = appState.rawData.filter(d => d.year==y && (appState.selectedType==='All'||d.type===appState.selectedType)).reduce((s,r)=>s+r.qty,0);
+            const v = appState.rawData.filter(d => d.year==y && (appState.selectedType==='All'||d.type===appState.selectedType)).reduce((s,r)=>s+(r[appState.viewMode]||0),0);
             labels.push(y); data.push(v); bg.push(COLORS[y]);
          });
       } else {
          type = 'doughnut';
          const yrData = appState.rawData.filter(d => d.year==appState.selectedYear);
-         const map={}; yrData.forEach(d=>{const t=d.type||'Other'; map[t]=(map[t]||0)+d.qty;});
+         const map={}; yrData.forEach(d=>{const t=d.type||'Other'; map[t]=(map[t]||0)+(d[appState.viewMode]||0);});
          const s = Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,6);
          labels=s.map(x=>x[0]); data=s.map(x=>x[1]); bg=labels.map(l=>getColor(l));
       }
 
       appState.chartInstance = new Chart(ctx, {
          type: type,
-         data: { labels: labels, datasets: [{ label:'Qty', data:data, backgroundColor:bg, borderColor: type==='line'?'#334155':'white', pointBackgroundColor:bg, fill:true, tension:0.3 }] },
+         data: { labels: labels, datasets: [{ label: appState.viewMode==='rev'?'Revenue':'Qty', data:data, backgroundColor:bg, borderColor: type==='line'?'#334155':'white', pointBackgroundColor:bg, fill:true, tension:0.3 }] },
          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:type==='doughnut', position:'right'}}, scales:{x:{grid:{display:false}}, y:{display:type!=='doughnut', grid:{display:false}}} }
       });
     }
