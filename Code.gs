@@ -90,3 +90,38 @@ function parseNumber(val) {
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
 }
+
+// NEW: Fetch Product Data for Performance Dashboard
+function getProductData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Product_Cache");
+  if (!sheet) return [];
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  // Fetch Cols B to I (Indices 2 to 9)
+  // Col B=Date, C=Item, D=Qty, E=Rev, F=Year, G=Month, H=Line, I=Category
+  const rawData = sheet.getRange(2, 2, lastRow - 1, 8).getValues();
+  const timeZone = ss.getSpreadsheetTimeZone();
+
+  return rawData.map(row => {
+    let dateStr = "";
+    if (row[0] instanceof Date) {
+      dateStr = Utilities.formatDate(row[0], timeZone, "yyyy-MM-dd");
+    } else {
+      dateStr = String(row[0]).substring(0, 10);
+    }
+
+    return {
+      date: dateStr,
+      item: row[1],
+      qty: Number(row[2]) || 0,
+      rev: Number(row[3]) || 0,
+      year: String(row[4]),
+      month: String(row[5]),
+      line: row[6],
+      category: row[7]
+    };
+  }).filter(r => r.item && r.date);
+}
