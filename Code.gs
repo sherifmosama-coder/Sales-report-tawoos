@@ -91,37 +91,104 @@ function parseNumber(val) {
   return isNaN(num) ? 0 : num;
 }
 
-// NEW: Fetch Product Data for Performance Dashboard
+// NEW: Fetch Product Data (Hybrid Cache)
 function getProductData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Product_Cache");
-  if (!sheet) return [];
+  let liveData = [];
+  
+  // 1. Fetch ONLY Live Year (2026) from Sheet
+  if (sheet && sheet.getLastRow() >= 2) {
+    // Fetch Cols B to I (Indices 0 to 7)
+    const rawData = sheet.getRange(2, 2, sheet.getLastRow() - 1, 8).getValues();
+    const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
+    const currentYear = new Date().getFullYear(); // e.g., 2026
 
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
+    rawData.forEach(row => {
+      // row[0]=Date, row[1]=Item, row[2]=Qty, row[3]=Rev, row[4]=Year, row[5]=Month, row[6]=Line, row[7]=Category
+      let rowYear = Number(row[4]);
+      
+      if (rowYear >= currentYear) { // Only grab LIVE year
+        let rawDate = row[0];
+        let dateStr = (rawDate instanceof Date) ? Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd") : String(rawDate).substring(0, 10);
+        
+        if (row[1] && dateStr) {
+          liveData.push({
+            date: dateStr, item: String(row[1]), 
+            qty: Number(row[2]) || 0, rev: Number(row[3]) || 0,
+            year: String(rowYear), month: String(row[5]), 
+            line: String(row[6]), category: String(row[7])
+          });
+        }
+      }
+    });
+  }
 
-  // Fetch Cols B to I (Indices 2 to 9)
-  // Col B=Date, C=Item, D=Qty, E=Rev, F=Year, G=Month, H=Line, I=Category
-  const rawData = sheet.getRange(2, 2, lastRow - 1, 8).getValues();
-  const timeZone = ss.getSpreadsheetTimeZone();
+  // 2. Fetch Static Archive (2021-2025) directly as a fast String
+  let archiveString = "[]";
+  const fileId = PropertiesService.getScriptProperties().getProperty('ARCHIVE_FILE_ID');
+  if (fileId) {
+     try {
+       const file = DriveApp.getFileById(fileId);
+       archiveString = file.getBlob().getDataAsString();
+     } catch(e) { archiveString = "[]"; }
+  }
 
-  return rawData.map(row => {
-    let dateStr = "";
-    if (row[0] instanceof Date) {
-      dateStr = Utilities.formatDate(row[0], timeZone, "yyyy-MM-dd");
-    } else {
-      dateStr = String(row[0]).substring(0, 10);
+  // Return separately to prevent serialization timeouts
+  return { liveData: liveData, archiveString: archiveString };
+}
+
+// NEW: Sync Historical Data to JSON File
+function syncHistoricalArchive() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Product_Cache");
+  if (!sheet || sheet.getLastRow() < 2) return "No data found in Product_Cache.";
+
+  // Fetch Cols B to I
+  const rawData = sheet.getRange(2, 2, sheet.getLastRow() - 1, 8).getValues();
+  const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
+  const currentYear = new Date().getFullYear();
+  let archive = [];
+
+  rawData.forEach(row => {
+    let rowYear = Number(row[4]);
+    
+    // Grab everything STRICTLY BEFORE the current year (e.g., 2021 - 2025)
+    if (rowYear < currentYear && rowYear > 2000) { 
+      let rawDate = row[0];
+      let dateStr = (rawDate instanceof Date) ? Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd") : String(rawDate).substring(0, 10);
+      
+      let q = Number(row[2]) || 0;
+      let r = Number(row[3]) || 0;
+      
+      // Ensure we don't save completely empty Qty/Rev rows to save space
+      if (row[1] && dateStr && (q !== 0 || r !== 0)) {
+         archive.push({
+           date: dateStr, item: String(row[1]), 
+           qty: q, rev: r,
+           year: String(rowYear), month: String(row[5]), 
+           line: String(row[6]), category: String(row[7])
+         });
+      }
     }
+  });
 
-    return {
-      date: dateStr,
-      item: row[1],
-      qty: Number(row[2]) || 0,
-      rev: Number(row[3]) || 0,
-      year: String(row[4]),
-      month: String(row[5]),
-      line: row[6],
-      category: row[7]
-    };
-  }).filter(r => r.item && r.date);
+  const fileName = "Tawoos_Product_Archive.json";
+  
+  // 🔴 IMPORTANT: Paste your personal Folder ID here again!
+  const FOLDER_ID = "1nKJ6hIXx200DrywN4AtGFTHugMvdQjuJ"; 
+  const folder = DriveApp.getFolderById(FOLDER_ID);
+  
+  const files = folder.getFilesByName(fileName);
+  let file;
+  
+  if (files.hasNext()) {
+    file = files.next();
+    file.setContent(JSON.stringify(archive));
+  } else {
+    file = folder.createFile(fileName, JSON.stringify(archive), MimeType.PLAIN_TEXT);
+  }
+  
+  PropertiesService.getScriptProperties().setProperty('ARCHIVE_FILE_ID', file.getId());
+  return "Archive synchronized successfully! " + archive.length + " historical records packaged.";
 }
