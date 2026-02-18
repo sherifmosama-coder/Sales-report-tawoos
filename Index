@@ -145,15 +145,30 @@
       <div class="row justify-content-center g-4">
         
         <div class="col-md-6 col-lg-5 col-xl-4">
-          <div class="report-card" onclick="loadSource()">
+          <div class="report-card" onclick="loadSource('client')">
             <div class="card-icon-box">
               <i class="fas fa-users-viewfinder"></i>
             </div>
-            <h3 class="h4 fw-bold mb-3">Clients across Years</h3>
+            <h3 class="h4 fw-bold mb-3">Clients Report</h3>
             <p class="text-muted mb-4">
               Longitudinal analysis of client retention, ordering frequency, and volume distribution across fiscal years.
             </p>
             <div class="d-flex align-items-center text-primary fw-bold small">
+              OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-5 col-xl-4">
+          <div class="report-card" onclick="loadSource('product')">
+            <div class="card-icon-box" style="background: #ecfdf5; color: #059669;">
+              <i class="fas fa-chart-line"></i>
+            </div>
+            <h3 class="h4 fw-bold mb-3">Product Performance</h3>
+            <p class="text-muted mb-4">
+              Daily tracking with YTD/MTD comparisons, category drill-downs, and trend analysis.
+            </p>
+            <div class="d-flex align-items-center fw-bold small" style="color: #059669;">
               OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
             </div>
           </div>
@@ -179,9 +194,116 @@
     <div class="text-muted fw-bold">Loading Data...</div>
   </div>
 
-  <div class="container-fluid px-3 pt-3">
+  <div class="container-fluid px-3 pt-3" id="main-dashboard" style="display:none;">
+
+    <div id="product-controls" style="display: none;">
+        
+        <div class="row mb-3 align-items-center">
+           <div class="col-md-4">
+              <h4 class="fw-bold mb-0 text-dark"><i class="fas fa-cubes me-2 text-success"></i>Product Analytics</h4>
+              <p class="text-muted small mb-0">Apple-to-Apple Performance Tracker</p>
+           </div>
+           <div class="col-md-8 d-flex justify-content-md-end gap-2 flex-wrap">
+              <div class="input-group input-group-sm shadow-sm w-auto">
+                <span class="input-group-text bg-white fw-bold">Ref Date:</span>
+                <input type="date" id="report-date" class="form-control" onchange="renderProductDashboard()">
+              </div>
+              
+              <div class="btn-group shadow-sm" role="group">
+                <input type="radio" class="btn-check" name="timeframe" id="tf-year" value="year" checked onchange="renderProductDashboard()">
+                <label class="btn btn-outline-secondary btn-sm" for="tf-year">YTD (Year)</label>
+                
+                <input type="radio" class="btn-check" name="timeframe" id="tf-qtr" value="quarter" onchange="renderProductDashboard()">
+                <label class="btn btn-outline-secondary btn-sm" for="tf-qtr">QTD (Qtr)</label>
+                
+                <input type="radio" class="btn-check" name="timeframe" id="tf-month" value="month" onchange="renderProductDashboard()">
+                <label class="btn btn-outline-secondary btn-sm" for="tf-month">MTD (Month)</label>
+              </div>
+
+              <div class="btn-group shadow-sm" role="group">
+                 <input type="radio" class="btn-check" name="measure" id="meas-qty" value="qty" checked onchange="renderProductDashboard()">
+                 <label class="btn btn-outline-success btn-sm" for="meas-qty">Qty</label>
+                 <input type="radio" class="btn-check" name="measure" id="meas-rev" value="rev" onchange="renderProductDashboard()">
+                 <label class="btn btn-outline-success btn-sm" for="meas-rev">Rev</label>
+              </div>
+           </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4 bg-light">
+           <div class="card-body py-2">
+              
+              <div class="d-flex align-items-center gap-2 mb-2 overflow-auto" id="filter-category-container">
+                 <span class="badge bg-secondary">CAT</span>
+                 </div>
+              
+              <div class="d-flex gap-3 flex-wrap">
+                 <div class="btn-group btn-group-sm" role="group" id="filter-line-group">
+                    <input type="radio" class="btn-check" name="filter-line" id="line-all" value="All" checked onchange="updateProductState('line', 'All')">
+                    <label class="btn btn-outline-secondary border-0" for="line-all">All Lines</label>
+                    
+                    <input type="radio" class="btn-check" name="filter-line" id="line-own" value="Own" onchange="updateProductState('line', 'Own')">
+                    <label class="btn btn-outline-secondary border-0" for="line-own">Own Brand</label>
+                    
+                    <input type="radio" class="btn-check" name="filter-line" id="line-private" value="Private" onchange="updateProductState('line', 'Private')">
+                    <label class="btn btn-outline-secondary border-0" for="line-private">Private Label</label>
+                 </div>
+
+                 <div class="flex-grow-1" style="min-width: 200px;">
+                    <select id="filter-product" class="form-select form-select-sm border-0 shadow-none" style="background:#fff;" onchange="updateProductState('item', this.value)">
+                       <option value="All">All Products</option>
+                       </select>
+                 </div>
+              </div>
+
+           </div>
+        </div>
+      </div>
+
+    <div id="product-content-area" style="display: none;">
+         
+         <div class="row g-3 mb-4">
+            <div class="col-md-4">
+               <div class="card border-0 shadow-sm h-100 p-3">
+                  <div class="text-muted small fw-bold text-uppercase">Current Period</div>
+                  <h3 class="fw-bold mb-0 text-dark" id="kpi-curr">-</h3>
+                  <div class="small text-muted" id="kpi-range-curr">Jan 1 - Feb 18, 2026</div>
+               </div>
+            </div>
+            <div class="col-md-4">
+               <div class="card border-0 shadow-sm h-100 p-3">
+                  <div class="text-muted small fw-bold text-uppercase">Previous Period</div>
+                  <h3 class="fw-bold mb-0 text-secondary" id="kpi-prev">-</h3>
+                  <div class="small text-muted" id="kpi-range-prev">Jan 1 - Feb 18, 2025</div>
+               </div>
+            </div>
+            <div class="col-md-4">
+               <div class="card border-0 shadow-sm h-100 p-3">
+                  <div class="text-muted small fw-bold text-uppercase">Growth</div>
+                  <h3 class="fw-bold mb-0" id="kpi-growth">-</h3>
+                  <div class="small text-muted">Apple-to-Apple</div>
+               </div>
+            </div>
+         </div>
+
+         <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+               <h6 class="fw-bold text-muted small mb-3">Performance Trend (Cumulative)</h6>
+               <div style="height: 250px;">
+                  <canvas id="productTrendChart"></canvas>
+               </div>
+            </div>
+         </div>
+
+         <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold m-0 text-secondary">Top Products Breakdown</h6>
+         </div>
+         <div id="product-list-container" class="row g-2"></div>
+
+      </div>
+
+    <div id="client-view-container">
     
-    <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+      <div id="client-controls" class="d-flex flex-wrap align-items-center gap-3 mb-2">
       <h4 class="fw-bold m-0" style="color:#1e293b"><i class="bi bi-pie-chart-fill text-primary"></i> Clients across Years</h4>
       
       <div class="mode-switcher">
@@ -247,10 +369,9 @@
     </div>
 
     <div id="clientList"></div>
+    </div>   </div>
 
-  </div>
-
-  <div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal fade" id="detailModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
         <div class="modal-header border-0 pb-0">
@@ -311,10 +432,14 @@
     }
 
     let appState = {
+      mode: 'client', // 'client' or 'product'
       rawData: [],
+      productData: [],
       selectedYear: 'All',
-      selectedType: 'All', 
+      selectedType: 'All',
       viewMode: 'qty',
+      pFilters: { category: 'All', line: 'All', item: 'All' },
+      pChart: null,
       sortBy: 'qty',
       groupBy: 'None',
       chartInstance: null,
@@ -328,26 +453,119 @@
        document.getElementById('loader').style.display = 'none'; 
     };
 
-    function loadSource() {
-      // 1. UI Transition
-      document.getElementById('landing-screen').style.opacity = '0';
-      setTimeout(() => {
-        document.getElementById('landing-screen').style.display = 'none';
-      }, 300); // Smooth fade out
+    function loadSource(mode = 'client') {
+      appState.mode = mode;
       
+      // UI Reset
+      document.getElementById('landing-screen').style.opacity = '0';
+      setTimeout(() => document.getElementById('landing-screen').style.display = 'none', 300);
       document.getElementById('loader').style.display = 'flex';
 
-      // 2. Fetch Data
+      // Determine Backend Function
+      const isProduct = mode === 'product';
+      const backendFn = isProduct ? 'getProductData' : 'getDashboardData';
+
       google.script.run.withSuccessHandler(data => {
+        document.getElementById('loader').style.display = 'none';
+        
         if (!data || !Array.isArray(data)) {
            alert("System Alert: Unable to retrieve dataset. Please contact support.");
-           document.getElementById('loader').style.display = 'none';
            return;
         }
-        appState.rawData = data;
-        renderDashboard();
-        document.getElementById('loader').style.display = 'none';
-      }).getDashboardData();
+
+        if (isProduct) {
+           appState.productData = data;
+           // Set Default Date to Today
+           document.getElementById('report-date').valueAsDate = new Date();
+           initProductView();
+        } else {
+           appState.rawData = data;
+           initClientView();
+        }
+      })[backendFn]();
+    }
+
+    function initClientView() {
+       document.getElementById('main-dashboard').style.display = 'block';
+       
+       // Show Client Container
+       document.getElementById('client-view-container').style.display = 'block';
+       
+       // Hide Product Container
+       document.getElementById('product-controls').style.display = 'none';
+       document.getElementById('product-content-area').style.display = 'none';
+
+       renderDashboard(); 
+    }
+
+    function initProductView() {
+       document.getElementById('main-dashboard').style.display = 'block';
+       
+       // Hide Client Container
+       document.getElementById('client-view-container').style.display = 'none';
+       
+       // Show Product Container
+       document.getElementById('product-controls').style.display = 'block';
+       document.getElementById('product-content-area').style.display = 'block';
+
+       // Init Filters if empty
+       const categories = [...new Set(appState.productData.map(d => d.category))].sort();
+       const catContainer = document.getElementById('filter-category-container');
+       
+       if (catContainer.children.length <= 1) { // Only fill if empty (has only the badge)
+           let html = `<button class="btn btn-sm btn-dark rounded-pill px-3" onclick="updateProductState('category','All')">All</button>`;
+           categories.forEach(c => {
+             html += `<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 border-0" style="background:#e2e8f0" onclick="updateProductState('category','${c}')">${c}</button>`;
+           });
+           catContainer.innerHTML = `<span class="badge bg-secondary">CAT</span>` + html;
+       }
+       
+       updateProductFiltersUI();
+       renderProductDashboard();
+    }
+
+    function updateProductState(key, val) {
+       appState.pFilters[key] = val;
+       
+       // Reset child filters if parent changes
+       if(key === 'category') {
+          appState.pFilters.line = 'All';
+          appState.pFilters.item = 'All';
+          // Update UI Active State for Category
+          const container = document.getElementById('filter-category-container');
+          Array.from(container.children).forEach(btn => {
+             btn.className = (btn.innerText === val || (val === 'All' && btn.innerText === 'All')) 
+                ? 'btn btn-sm btn-dark rounded-pill px-3' 
+                : 'btn btn-sm btn-outline-secondary rounded-pill px-3 border-0';
+             if(btn.className.includes('outline')) btn.style.background = '#e2e8f0';
+          });
+          // Reset Line UI
+          document.getElementById('line-all').checked = true;
+       }
+       
+       if(key === 'line') {
+          appState.pFilters.item = 'All';
+       }
+
+       updateProductFiltersUI();
+       renderProductDashboard();
+    }
+
+    function updateProductFiltersUI() {
+       // Populate Product Dropdown based on Cat + Line
+       const { category, line } = appState.pFilters;
+       const filtered = appState.productData.filter(d => {
+          if (category !== 'All' && d.category !== category) return false;
+          const isPrivate = (d.line === true || String(d.line).toUpperCase() === 'TRUE');
+          if (line === 'Own' && isPrivate) return false;
+          if (line === 'Private' && !isPrivate) return false;
+          return true;
+       });
+
+       const items = [...new Set(filtered.map(d => d.item))].sort();
+       const select = document.getElementById('filter-product');
+       select.innerHTML = '<option value="All">All Products</option>' + 
+          items.map(i => `<option value="${i}" ${appState.pFilters.item === i ? 'selected' : ''}>${i}</option>`).join('');
     }
     
     function renderDashboard() {
@@ -814,6 +1032,168 @@
         const p = s.split('-');
         return p.length===3 ? new Date(p[2], m[p[1]]||0, p[0]) : new Date(s);
       } catch (e) { return null; }
+    }
+
+    // --- PRODUCT DASHBOARD ENGINE ---
+    function renderProductDashboard() {
+      const data = appState.productData;
+      if (!data || data.length === 0) return;
+
+      const dateInput = document.getElementById('report-date').value;
+      if (!dateInput) return;
+      const refDate = new Date(dateInput);
+      
+      const timeframe = document.querySelector('input[name="timeframe"]:checked').value;
+      const measure = document.querySelector('input[name="measure"]:checked').value;
+      const { category, line, item } = appState.pFilters;
+
+      // 1. Define Time Ranges (Apple-to-Apple)
+      const currentYear = refDate.getFullYear();
+      let startCurr, endCurr, startPrev, endPrev;
+
+      if (timeframe === 'year') {
+         startCurr = new Date(currentYear, 0, 1);
+         endCurr = refDate;
+         startPrev = new Date(currentYear - 1, 0, 1);
+         endPrev = new Date(currentYear - 1, refDate.getMonth(), refDate.getDate());
+      } 
+      else if (timeframe === 'quarter') {
+         const q = Math.floor(refDate.getMonth() / 3);
+         startCurr = new Date(currentYear, q * 3, 1);
+         endCurr = refDate;
+         startPrev = new Date(currentYear - 1, q * 3, 1);
+         endPrev = new Date(currentYear - 1, refDate.getMonth(), refDate.getDate());
+      } 
+      else { // Month
+         startCurr = new Date(currentYear, refDate.getMonth(), 1);
+         endCurr = refDate;
+         startPrev = new Date(currentYear - 1, refDate.getMonth(), 1);
+         endPrev = new Date(currentYear - 1, refDate.getMonth(), refDate.getDate());
+      }
+
+      // 2. Filter Data (Hierarchy + Time)
+      const isMatch = (d, start, end) => {
+         // Hierarchy Filter
+         if (category !== 'All' && d.category !== category) return false;
+         const isPrivate = (d.line === true || String(d.line).toUpperCase() === 'TRUE');
+         if (line === 'Own' && isPrivate) return false;
+         if (line === 'Private' && !isPrivate) return false;
+         if (item !== 'All' && d.item !== item) return false;
+         
+         // Date Filter
+         const dDate = new Date(d.date); // d.date is "YYYY-MM-DD"
+         dDate.setHours(0,0,0,0); // normalize
+         return dDate >= start && dDate <= end;
+      };
+
+      let currTotal = 0, prevTotal = 0;
+      let currItems = {}, prevItems = {};
+      let currTrend = {}, prevTrend = {};
+
+      data.forEach(d => {
+         const val = measure === 'qty' ? d.qty : d.rev;
+         
+         // Current Period
+         if (isMatch(d, startCurr, endCurr)) {
+            currTotal += val;
+            if(!currItems[d.item]) currItems[d.item] = 0;
+            currItems[d.item] += val;
+            
+            // Trend (Day of Period)
+            const dayKey = d.date.substring(5); // MM-DD
+            if(!currTrend[dayKey]) currTrend[dayKey] = 0;
+            currTrend[dayKey] += val;
+         }
+         
+         // Previous Period
+         if (isMatch(d, startPrev, endPrev)) {
+            prevTotal += val;
+            const dayKey = d.date.substring(5);
+            if(!prevTrend[dayKey]) prevTrend[dayKey] = 0;
+            prevTrend[dayKey] += val;
+         }
+      });
+
+      // 3. Update KPIs
+      const fmt = (n) => measure === 'rev' ? 
+        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits:0 }).format(n) : 
+        formatK(n);
+      
+      const growth = prevTotal > 0 ? ((currTotal - prevTotal) / prevTotal) * 100 : 0;
+      const color = growth >= 0 ? 'text-success' : 'text-danger';
+      
+      document.getElementById('kpi-curr').innerText = fmt(currTotal);
+      document.getElementById('kpi-prev').innerText = fmt(prevTotal);
+      document.getElementById('kpi-growth').innerHTML = `<span class="${color}">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growth).toFixed(1)}%</span>`;
+      
+      const dateFmt = (d) => d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', year: 'numeric' });
+      document.getElementById('kpi-range-curr').innerText = `${dateFmt(startCurr)} - ${dateFmt(endCurr)}`;
+      document.getElementById('kpi-range-prev').innerText = `${dateFmt(startPrev)} - ${dateFmt(endPrev)}`;
+
+      // 4. Update Chart (Cumulative)
+      updateProductChart(currTrend, prevTrend, startCurr, endCurr);
+
+      // 5. Update Product List
+      updateProductList(currItems, measure);
+    }
+
+    function updateProductChart(currTrend, prevTrend, start, end) {
+       const ctx = document.getElementById('productTrendChart').getContext('2d');
+       if(appState.pChart) appState.pChart.destroy();
+       
+       // Generate Labels (Days in range)
+       let labels = [];
+       let cData = [], pData = [];
+       let cAcc = 0, pAcc = 0;
+       
+       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const key = ('0' + (d.getMonth()+1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+          labels.push(key);
+          
+          cAcc += (currTrend[key] || 0);
+          pAcc += (prevTrend[key] || 0);
+          cData.push(cAcc);
+          pData.push(pAcc);
+       }
+
+       appState.pChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+             labels: labels,
+             datasets: [
+                { label: 'Current', data: cData, borderColor: '#16a34a', backgroundColor: 'rgba(22, 163, 74, 0.1)', fill: true, tension: 0.3 },
+                { label: 'Previous', data: pData, borderColor: '#94a3b8', borderDash: [5, 5], fill: false, tension: 0.3 }
+             ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { display: false } } }
+       });
+    }
+
+    function updateProductList(itemsMap, measure) {
+       const container = document.getElementById('product-list-container');
+       const sorted = Object.entries(itemsMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
+       
+       if (sorted.length === 0) {
+          container.innerHTML = `<div class="col-12 text-center text-muted py-3">No data for this selection</div>`;
+          return;
+       }
+
+       let html = '';
+       sorted.forEach(([name, val]) => {
+          const displayVal = measure === 'rev' ? 
+             new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits:0 }).format(val) : 
+             formatK(val);
+             
+          html += `
+             <div class="col-md-6 col-lg-4">
+                <div class="p-2 border rounded bg-white d-flex align-items-center justify-content-between shadow-sm">
+                   <div class="text-truncate" style="font-size:0.9rem; font-weight:600; color:#334155;">${name}</div>
+                   <div class="badge bg-light text-dark border">${displayVal}</div>
+                </div>
+             </div>
+          `;
+       });
+       container.innerHTML = html;
     }
   </script>
 </body>
