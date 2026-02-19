@@ -232,6 +232,89 @@
         display: inline-flex;
         align-items: center;
       }
+
+      /* --- FLOATING NAVIGATOR --- */
+    .floating-nav {
+       position: fixed;
+       bottom: 25px;
+       left: 50%;
+       transform: translateX(-50%);
+       background: rgba(255, 255, 255, 0.85);
+       backdrop-filter: blur(12px);
+       border: 1px solid rgba(226, 232, 240, 0.8);
+       padding: 6px;
+       border-radius: 50rem;
+       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+       display: flex;
+       gap: 4px;
+       z-index: 1050;
+       transition: all 0.3s ease;
+    }
+    .floating-nav .nav-btn {
+       border: none;
+       background: transparent;
+       padding: 8px 20px;
+       border-radius: 50rem;
+       font-weight: 700;
+       font-size: 0.85rem;
+       color: #64748b;
+       transition: all 0.2s;
+    }
+    .floating-nav .nav-btn:hover { color: #0f172a; }
+    .floating-nav .nav-btn.active {
+       background: #0f172a;
+       color: white;
+       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    /* --- SMART ANIMATED LOADER --- */
+    .smart-loader-overlay {
+       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+       background: rgba(248, 250, 252, 0.95);
+       backdrop-filter: blur(8px);
+       display: flex; flex-direction: column; align-items: center; justify-content: center;
+       z-index: 2000;
+    }
+    .loader-icon-container {
+       width: 80px; height: 80px;
+       background: white;
+       border-radius: 20px;
+       display: flex; align-items: center; justify-content: center;
+       font-size: 2.5rem;
+       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+       margin-bottom: 20px;
+       position: relative;
+    }
+    .loader-icon-container::after {
+       content: ''; position: absolute; top: -4px; left: -4px; right: -4px; bottom: -4px;
+       border-radius: 24px;
+       border: 2px solid transparent;
+       border-top-color: #3b82f6; border-bottom-color: #3b82f6;
+       animation: spin 1.5s linear infinite;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    .insight-text-box {
+       height: 30px; overflow: hidden; position: relative; width: 300px; text-align: center;
+    }
+    .insight-text {
+       position: absolute; width: 100%; left: 0;
+       font-weight: 600; font-size: 0.9rem; color: #475569;
+       opacity: 0; transform: translateY(10px);
+       transition: all 0.4s ease;
+    }
+    .insight-text.active { opacity: 1; transform: translateY(0); }
+    
+    /* --- INTERACTIVE KPI CARDS --- */
+    .kpi-clickable {
+       cursor: pointer;
+       transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .kpi-clickable:hover {
+       transform: translateY(-4px);
+       box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.15) !important;
+       z-index: 10;
+    }
     </style>
 </head>
 <body>
@@ -290,43 +373,62 @@
     </div>
   </div>
 
-  <div id="loader" class="loading-overlay">
-    <div class="spinner-border text-primary mb-3" role="status"></div>
-    <div class="text-muted fw-bold">Loading Data...</div>
+  <div id="smart-loader" class="smart-loader-overlay" style="display: none;">
+     <div class="loader-icon-container text-primary" id="loader-icon-box">
+        <i class="fas fa-server" id="loader-icon"></i>
+     </div>
+     <h4 class="fw-bold text-dark mb-1" id="loader-title">System Initialization</h4>
+     <div class="insight-text-box mt-2">
+        <div class="insight-text active" id="loader-insight">Establishing secure connection...</div>
+     </div>
+     <div class="d-flex gap-2 mt-4 opacity-25">
+        <div class="spinner-grow spinner-grow-sm text-primary" role="status"></div>
+        <div class="spinner-grow spinner-grow-sm text-primary" style="animation-delay: 0.2s" role="status"></div>
+        <div class="spinner-grow spinner-grow-sm text-primary" style="animation-delay: 0.4s" role="status"></div>
+     </div>
+  </div>
+
+  <div id="floating-navigator" class="floating-nav" style="display: none;">
+     <button class="nav-btn" id="nav-btn-client" onclick="switchModule('client')"><i class="fas fa-users-viewfinder me-2"></i>Clients</button>
+     <button class="nav-btn" id="nav-btn-product" onclick="switchModule('product')"><i class="fas fa-cubes me-2"></i>Products</button>
   </div>
 
   <div class="container-fluid px-3 pt-3" id="main-dashboard" style="display:none;">
 
     <div id="product-controls" class="control-deck" style="display: none;">
         
-        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
-           <div>
-              <div class="d-flex align-items-center gap-3">
-                 <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-cubes me-2 text-success"></i>Product Analytics</h4>
-                 <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm border-0 bg-light" onclick="openSyncModal()">
-                    <i class="fas fa-database text-muted"></i> Sync Archive
-                 </button>
-              </div>
-              <div class="d-flex align-items-center gap-2 mt-1">
-                 <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3">Apple-to-Apple</span>
-                 <span class="text-muted small"><i class="fas fa-bolt me-1 text-warning"></i>Hybrid Cache Active</span>
+        <div class="row align-items-center mb-4 gy-3">
+           
+           <div class="col-md-4 order-1 text-center text-md-start">
+              <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-cubes me-2 text-success"></i>Product Analytics</h4>
+              <div class="mt-1">
+                 <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Equivalent Periods</span>
               </div>
            </div>
 
-           <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-4 border shadow-sm">
-              <div class="input-group input-group-sm border-end pe-2">
-                 <span class="input-group-text bg-transparent border-0 text-muted"><i class="far fa-calendar-alt"></i></span>
-                 <input type="date" id="report-date" class="form-control border-0 fw-bold text-secondary" style="width: 130px;" onchange="renderProductDashboard()">
-              </div>
-              
-              <div class="segmented-control">
-                 <input type="radio" class="btn-check" name="measure" id="meas-qty" value="qty" checked onchange="renderProductDashboard()">
-                 <label for="meas-qty"><i class="fas fa-box me-1"></i>Qty</label>
+           <div class="col-md-4 order-3 order-md-2 d-flex justify-content-center">
+              <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-4 border shadow-sm flex-wrap justify-content-center">
+                 <div class="input-group input-group-sm border-end pe-2" style="width: auto;">
+                    <span class="input-group-text bg-transparent border-0 text-muted"><i class="far fa-calendar-alt"></i></span>
+                    <input type="date" id="report-date" class="form-control border-0 fw-bold text-secondary" style="width: 125px;" onchange="renderProductDashboard()">
+                 </div>
                  
-                 <input type="radio" class="btn-check" name="measure" id="meas-rev" value="rev" onchange="renderProductDashboard()">
-                 <label for="meas-rev"><i class="fas fa-dollar-sign me-1"></i>Rev</label>
+                 <div class="segmented-control">
+                    <input type="radio" class="btn-check" name="measure" id="meas-qty" value="qty" checked onchange="renderProductDashboard()">
+                    <label for="meas-qty" class="mb-0"><i class="fas fa-box me-1"></i>Qty</label>
+                    
+                    <input type="radio" class="btn-check" name="measure" id="meas-rev" value="rev" onchange="renderProductDashboard()">
+                    <label for="meas-rev" class="mb-0"><i class="fas fa-dollar-sign me-1"></i>Rev</label>
+                 </div>
               </div>
            </div>
+
+           <div class="col-md-4 order-2 order-md-3 d-flex justify-content-center justify-content-md-end">
+              <button class="btn btn-sm btn-outline-secondary rounded-pill px-4 shadow-sm border-0 bg-white fw-bold text-muted" onclick="openSyncModal()">
+                 <i class="fas fa-database me-1"></i> Sync Archive
+              </button>
+           </div>
+           
         </div>
 
         <div class="row g-3">
@@ -373,61 +475,34 @@
 
     <div id="product-content-area" style="display: none;">
          
-         <div class="row g-3 mb-4">
-            <div class="col-md-4">
-               <div class="kpi-modern">
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                     <div>
-                        <div class="text-uppercase text-muted fw-bold small mb-1">Current Period</div>
-                        <div class="badge bg-primary bg-opacity-10 text-primary" id="kpi-range-curr">-</div>
-                     </div>
-                     <div class="icon-box bg-blue-100 text-primary rounded-circle p-2">
-                        <i class="fas fa-calendar-check"></i>
-                     </div>
-                  </div>
-                  <h2 class="fw-bold text-dark mb-0 display-6" id="kpi-curr">-</h2>
-                  <i class="fas fa-chart-area kpi-icon-bg"></i>
-               </div>
+         <div class="row g-3 mb-4" id="dynamic-kpi-section">
             </div>
-
-            <div class="col-md-4">
-               <div class="kpi-modern" style="background: #f8fafc;">
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                     <div>
-                        <div class="text-uppercase text-muted fw-bold small mb-1">Previous Period</div>
-                        <div class="badge bg-secondary bg-opacity-10 text-secondary" id="kpi-range-prev">-</div>
-                     </div>
-                     <div class="icon-box bg-gray-200 text-secondary rounded-circle p-2">
-                        <i class="fas fa-history"></i>
-                     </div>
-                  </div>
-                  <h2 class="fw-bold text-secondary mb-0 display-6" id="kpi-prev">-</h2>
-                  <i class="fas fa-clock kpi-icon-bg"></i>
-               </div>
-            </div>
-
-            <div class="col-md-4">
-               <div class="kpi-modern">
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                     <div class="text-uppercase text-muted fw-bold small">Performance</div>
-                     <div class="icon-box bg-green-100 text-success rounded-circle p-2">
-                        <i class="fas fa-percentage"></i>
-                     </div>
-                  </div>
-                  <h2 class="fw-bold mb-1 display-6" id="kpi-growth">-</h2>
-                  <div class="small text-muted">vs Same Period Last Year</div>
-                  <i class="fas fa-rocket kpi-icon-bg"></i>
-               </div>
-            </div>
-         </div>
 
          <div class="row g-4">
             <div class="col-lg-8">
                <div class="card border-0 shadow-sm h-100 rounded-4">
                   <div class="card-body p-4">
-                     <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h5 class="fw-bold m-0"><i class="fas fa-chart-line me-2 text-primary"></i>Cumulative Trend</h5>
-                        <button class="btn btn-sm btn-light rounded-pill" onclick="renderProductDashboard()"><i class="fas fa-sync-alt"></i></button>
+                     <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+                        <div>
+                           <h5 class="fw-bold m-0 mb-2"><i class="fas fa-chart-line me-2 text-primary"></i>Performance Trend</h5>
+                           <div id="compare-years-toggles" class="d-flex flex-wrap gap-2 align-items-center">
+                              </div>
+                           <div class="mt-2 text-muted" style="font-size: 0.75rem;">
+                              <i class="fas fa-bullseye text-warning me-1"></i> 
+                              <span id="target-note-text">Target: +25% YoY (Established) | +30% MoM (New)</span>
+                              <button class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" onclick="openTargetConfig()"><i class="fas fa-cog"></i> Config</button>
+                           </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                           <div class="segmented-control shadow-sm">
+                              <input type="radio" class="btn-check" name="chart-view-mode" id="cv-detailed" value="detailed" checked onchange="setChartViewMode('detailed')">
+                              <label for="cv-detailed" class="px-3"><i class="fas fa-chart-line me-1"></i>Detailed</label>
+                              <input type="radio" class="btn-check" name="chart-view-mode" id="cv-periodic" value="periodic" onchange="setChartViewMode('periodic')">
+                              <label for="cv-periodic" class="px-3"><i class="fas fa-chart-bar me-1"></i>Periodic</label>
+                           </div>
+                           <button class="btn btn-sm btn-light rounded-pill shadow-sm border bg-white" onclick="renderProductDashboard()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+                        </div>
+                     </div>
                      </div>
                      <div style="height: 300px;">
                         <canvas id="productTrendChart"></canvas>
@@ -520,7 +595,87 @@
 
     <div id="clientList"></div>
     </div>   </div>
+    <div class="modal fade" id="drillDownModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header border-0 pb-0">
+              <h5 class="modal-title fw-bold" id="drillDownTitle"><i class="fas fa-search-plus text-primary me-2"></i>Detailed Pacing</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+              <div style="height: 350px;">
+                  <canvas id="drillDownChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
+      <div class="modal fade" id="kpiModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header border-0 pb-0">
+              <h5 class="modal-title fw-bold" id="kpiModalTitle"><i class="fas fa-chart-pie text-primary me-2"></i>Detailed Breakdown</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+              <div class="d-flex justify-content-center mb-4">
+                  <div class="segmented-control shadow-sm" id="kpiModalToggles">
+                    </div>
+              </div>
+              
+              <div id="kpiModalPieContainer" style="height: 350px; display: none;">
+                  <canvas id="kpiPieChart"></canvas>
+              </div>
+              
+              <div id="kpiModalTableContainer" style="max-height: 400px; overflow-y: auto; display: none;" class="border rounded-3 shadow-sm">
+                  <table class="table table-hover table-borderless align-middle mb-0">
+                    <thead class="table-light border-bottom">
+                        <tr>
+                          <th class="fw-bold text-muted ps-3">Name</th>
+                          <th class="fw-bold text-muted text-end">Current</th>
+                          <th class="fw-bold text-muted text-end" id="kpiTableBaseHeader">Baseline</th>
+                          <th class="fw-bold text-muted text-end pe-3">Growth</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kpiModalTableBody">
+                        </tbody>
+                  </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal fade" id="targetConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="fas fa-sliders-h text-warning me-2"></i>Target Config</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+           <div class="mb-3">
+              <label class="form-label small fw-bold text-muted mb-1">Established Products (YoY %)</label>
+              <div class="input-group input-group-sm">
+                 <input type="number" id="conf-yoy" class="form-control fw-bold" value="25">
+                 <span class="input-group-text bg-light">%</span>
+              </div>
+           </div>
+           <div>
+              <label class="form-label small fw-bold text-muted mb-1">New Products (MoM %)</label>
+              <div class="input-group input-group-sm">
+                 <input type="number" id="conf-mom" class="form-control fw-bold" value="30">
+                 <span class="input-group-text bg-light">%</span>
+              </div>
+              <div class="small text-muted mt-1" style="font-size: 0.7rem;">First active month defaults to 100% of actuals.</div>
+           </div>
+        </div>
+        <div class="modal-footer border-0 pt-0 justify-content-center">
+          <button class="btn btn-warning rounded-pill px-4 shadow-sm fw-bold w-100" onclick="saveTargetConfig()">Save & Recalculate</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="modal fade" id="syncModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
@@ -627,30 +782,129 @@
       sortBy: 'qty',
       groupBy: 'None',
       chartInstance: null,
-      modalChartInstance: null
+      modalChartInstance: null,
+      pCompareYears: [], // Dynamic array of selected past years
+      pChartViewMode: 'detailed', // Default view
+      pYearlyTrend: null, // Holds data for the Drill Down
+      pCompareTarget: false, // Target Toggle
+      targetConfig: { yoy: 25, mom: 30 },
+      pMasterItems: {}, // NEW: Holds detailed item data for the modal
+      kpiModalState: { type: 'value', targetId: 'current', viewLevel: 'category' } // NEW
     };
 
+    function toggleCompareTarget() {
+       appState.pCompareTarget = !appState.pCompareTarget;
+       renderProductDashboard();
+    }
+
+    function openTargetConfig() {
+       document.getElementById('conf-yoy').value = appState.targetConfig.yoy;
+       document.getElementById('conf-mom').value = appState.targetConfig.mom;
+       new bootstrap.Modal(document.getElementById('targetConfigModal')).show();
+    }
+
+    function saveTargetConfig() {
+       appState.targetConfig.yoy = parseFloat(document.getElementById('conf-yoy').value) || 0;
+       appState.targetConfig.mom = parseFloat(document.getElementById('conf-mom').value) || 0;
+       document.getElementById('target-note-text').innerText = `Target: +${appState.targetConfig.yoy}% YoY (Established) | +${appState.targetConfig.mom}% MoM (New)`;
+       bootstrap.Modal.getInstance(document.getElementById('targetConfigModal')).hide();
+       renderProductDashboard();
+    }
+
+    function setChartViewMode(mode) {
+       appState.pChartViewMode = mode;
+       renderProductDashboard();
+    }
+
+function toggleCompareYear(year) {
+       const idx = appState.pCompareYears.indexOf(year);
+       if (idx > -1) {
+          if (appState.pCompareYears.length > 1) appState.pCompareYears.splice(idx, 1); // Always keep at least 1 selected
+       } else {
+          appState.pCompareYears.push(year);
+       }
+       appState.pCompareYears.sort((a, b) => b - a); // Sort descending
+       renderProductDashboard();
+    }
+    
     // No auto-init. Wait for user selection.
     window.onload = function() {
        console.log("App Loaded. Waiting for source selection...");
        // FIX: Hide the loader so the Landing Screen is visible
-       document.getElementById('loader').style.display = 'none'; 
+       document.getElementById('smart-loader').style.display = 'none';
     };
 
-    function loadSource(mode = 'client') {
+    let loaderInterval;
+    
+    function switchModule(mode) {
+       // Prevent reloading if already on that module
+       if (appState.mode === mode && document.getElementById('main-dashboard').style.display === 'block') return;
+       loadSource(mode);
+    }
+
+    function loadSource(mode) {
+      document.getElementById('landing-screen').style.display = 'none';
+      document.getElementById('main-dashboard').style.display = 'none'; // Hide dashboard while loading
+      document.getElementById('floating-navigator').style.display = 'none'; // Hide nav while loading
       appState.mode = mode;
+
+      // 1. Configure the Smart Loader based on Context
+      const loader = document.getElementById('smart-loader');
+      const icon = document.getElementById('loader-icon');
+      const title = document.getElementById('loader-title');
+      const insightEl = document.getElementById('loader-insight');
       
-      // UI Reset
-      document.getElementById('landing-screen').style.opacity = '0';
-      setTimeout(() => document.getElementById('landing-screen').style.display = 'none', 300);
-      document.getElementById('loader').style.display = 'flex';
+      let insights = [];
+
+      if (mode === 'client') {
+         icon.className = 'fas fa-users-viewfinder text-primary';
+         document.getElementById('loader-icon-box').style.color = '#3b82f6';
+         title.innerText = "Audience Intelligence";
+         insights = [
+            "Mapping client retention cohorts...",
+            "Analyzing longitudinal order frequencies...",
+            "Calculating risk of churn models...",
+            "Rendering client behavior segments..."
+         ];
+      } else {
+         icon.className = 'fas fa-chart-line text-success';
+         document.getElementById('loader-icon-box').style.color = '#10b981';
+         title.innerText = "Financial & Supply Analytics";
+         insights = [
+            "Aggregating SKU-level transaction volumes...",
+            "Reconciling historical comparison periods...",
+            "Projecting dynamic baseline targets...",
+            "Compiling periodic trend horizons..."
+         ];
+      }
+
+      loader.style.display = 'flex';
+      
+      // 2. Start Simulated Insights Cycle
+      let insightIdx = 0;
+      insightEl.innerText = insights[0];
+      clearInterval(loaderInterval);
+      loaderInterval = setInterval(() => {
+         insightEl.classList.remove('active');
+         setTimeout(() => {
+            insightIdx = (insightIdx + 1) % insights.length;
+            insightEl.innerText = insights[insightIdx];
+            insightEl.classList.add('active');
+         }, 400); // Wait for fade out
+      }, 2500); // Change text every 2.5 seconds
 
       // Determine Backend Function
       const isProduct = mode === 'product';
       const backendFn = isProduct ? 'getProductData' : 'getDashboardData';
 
       google.script.run.withSuccessHandler(response => {
-        document.getElementById('loader').style.display = 'none';
+        clearInterval(loaderInterval); // Stop cycling text
+        document.getElementById('smart-loader').style.display = 'none';
+        
+        // Setup Floating Navigator
+        document.getElementById('floating-navigator').style.display = 'flex';
+        document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
+        document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
         
         if (!response) {
            alert("System Alert: Unable to retrieve dataset.");
@@ -703,6 +957,11 @@
        const categories = [...new Set(appState.productData.map(d => d.category))].sort();
        const catContainer = document.getElementById('filter-category-container');
        
+       // Default comparison to just Last Year if empty
+       if (appState.pCompareYears.length === 0) {
+          appState.pCompareYears = [new Date().getFullYear() - 1];
+       }
+
        if (catContainer.children.length === 0) { 
            let html = `<div class="filter-chip active" onclick="updateProductState('category','All')"><i class="fas fa-layer-group"></i> All</div>`;
            categories.forEach(c => {
@@ -1225,7 +1484,7 @@
       } catch (e) { return null; }
     }
 
-    // --- PRODUCT DASHBOARD ENGINE ---
+// --- PRODUCT DASHBOARD ENGINE ---
     function renderProductDashboard() {
       const data = appState.productData;
       if (!data || data.length === 0) return;
@@ -1238,131 +1497,360 @@
       const measure = document.querySelector('input[name="measure"]:checked').value;
       const { category, line, item } = appState.pFilters;
 
-      // 1. Define Time Ranges (Apple-to-Apple)
       const currentYear = refDate.getFullYear();
-      let startCurr, endCurr, startPrev, endPrev;
 
+      // 1. Define Current Time Range (For KPIs & Detailed View)
+      let startCurr, endCurr;
       if (timeframe === 'year') {
-         startCurr = new Date(currentYear, 0, 1);
-         endCurr = refDate;
-         startPrev = new Date(currentYear - 1, 0, 1);
-         endPrev = new Date(currentYear - 1, refDate.getMonth(), refDate.getDate());
-      } 
-      else if (timeframe === 'quarter') {
+         startCurr = new Date(currentYear, 0, 1); endCurr = refDate;
+      } else if (timeframe === 'quarter') {
          const q = Math.floor(refDate.getMonth() / 3);
-         startCurr = new Date(currentYear, q * 3, 1);
-         endCurr = refDate;
-         startPrev = new Date(currentYear - 1, q * 3, 1);
-         endPrev = new Date(currentYear - 1, refDate.getMonth(), refDate.getDate());
-      } 
-      else { // Month
-         startCurr = new Date(currentYear, refDate.getMonth(), 1);
-         endCurr = refDate;
-         startPrev = new Date(currentYear - 1, refDate.getMonth(), 1);
-         endPrev = new Date(currentYear - 1, refDate.getMonth(), refDate.getDate());
+         startCurr = new Date(currentYear, q * 3, 1); endCurr = refDate;
+      } else { // Month
+         startCurr = new Date(currentYear, refDate.getMonth(), 1); endCurr = refDate;
       }
 
-      // 2. Filter Data (Hierarchy + Time)
-      const isMatch = (d, start, end) => {
-         // Hierarchy Filter
+      // 2. Define Comparison Ranges (For KPIs & Detailed View)
+      let comparisons = appState.pCompareYears.map(y => {
+         let s, e;
+         if (timeframe === 'year') {
+            s = new Date(y, 0, 1); e = new Date(y, refDate.getMonth(), refDate.getDate());
+         } else if (timeframe === 'quarter') {
+            const q = Math.floor(refDate.getMonth() / 3);
+            s = new Date(y, q * 3, 1); e = new Date(y, refDate.getMonth(), refDate.getDate());
+         } else {
+            s = new Date(y, refDate.getMonth(), 1); e = new Date(y, refDate.getMonth(), refDate.getDate());
+         }
+         return { year: y, start: s, end: e, total: 0, trend: {} };
+      });
+
+      // 3. Prepare Periodic & Global Trend Structures
+      let periodicBuckets = [];
+      const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      
+      if (timeframe === 'year') periodicBuckets = ['YTD'];
+      if (timeframe === 'quarter') {
+         const currentQ = Math.floor(refDate.getMonth() / 3) + 1;
+         for(let i=1; i<=currentQ; i++) periodicBuckets.push('Q'+i);
+      }
+      if (timeframe === 'month') {
+         for(let i=0; i<=refDate.getMonth(); i++) periodicBuckets.push(mNames[i]);
+      }
+
+      let pData = { curr: {} };
+      let yTrend = { curr: {}, comp: {} };
+      comparisons.forEach(c => { pData[c.year] = {}; yTrend.comp[c.year] = {}; });
+
+      const getBucket = (d) => {
+         if (timeframe === 'year') return 'YTD';
+         if (timeframe === 'quarter') return 'Q' + (Math.floor(d.getMonth() / 3) + 1);
+         return mNames[d.getMonth()];
+      };
+
+      // 4. Filter, Aggregate, and Calculate Target Profiles
+      let currTotal = 0; let currItems = {}; let currTrend = {};
+      let itemProfiles = {}; // For Old vs New target logic
+      appState.pMasterItems = {}; // Reset Master Tracker for Modal
+
+      const initMasterItem = (name, cat, line) => {
+         if (!appState.pMasterItems[name]) {
+            appState.pMasterItems[name] = { name: name, category: cat, line: line, curr: 0, target: 0, comp: {} };
+         }
+      };
+
+      const isMatch = (d) => {
          if (category !== 'All' && d.category !== category) return false;
          const isPrivate = (d.line === true || String(d.line).toUpperCase() === 'TRUE');
          if (line === 'Own' && isPrivate) return false;
          if (line === 'Private' && !isPrivate) return false;
          if (item !== 'All' && d.item !== item) return false;
-         
-         // Date Filter
-         const dDate = new Date(d.date); // d.date is "YYYY-MM-DD"
-         dDate.setHours(0,0,0,0); // normalize
-         return dDate >= start && dDate <= end;
+         return true;
       };
 
-      let currTotal = 0, prevTotal = 0;
-      let currItems = {}, prevItems = {};
-      let currTrend = {}, prevTrend = {};
-
       data.forEach(d => {
+         if (!isMatch(d)) return;
          const val = measure === 'qty' ? d.qty : d.rev;
-         
-         // Current Period
-         if (isMatch(d, startCurr, endCurr)) {
+         const dDate = new Date(d.date); dDate.setHours(0,0,0,0);
+         const dayKey = ('0' + (dDate.getMonth()+1)).slice(-2) + '-' + ('0' + dDate.getDate()).slice(-2);
+         const dYear = dDate.getFullYear();
+
+         // Track Item Profiles (Old vs New)
+         if (!itemProfiles[d.item]) itemProfiles[d.item] = { name: d.item, category: d.category, line: d.line, prevDaily: {}, currMonthly: Array(12).fill(0), isOld: false };
+         if (dYear === currentYear - 1) {
+            itemProfiles[d.item].prevDaily[dayKey] = (itemProfiles[d.item].prevDaily[dayKey] || 0) + val;
+            if (val > 0) itemProfiles[d.item].isOld = true;
+         }
+         if (dYear === currentYear) {
+            itemProfiles[d.item].currMonthly[dDate.getMonth()] += val;
+         }
+
+         // Detailed Math (KPIs)
+         if (dDate >= startCurr && dDate <= endCurr) {
             currTotal += val;
             if(!currItems[d.item]) currItems[d.item] = 0;
             currItems[d.item] += val;
-            
-            // Trend (Day of Period)
-            const dayKey = d.date.substring(5); // MM-DD
-            if(!currTrend[dayKey]) currTrend[dayKey] = 0;
-            currTrend[dayKey] += val;
+            currTrend[dayKey] = (currTrend[dayKey] || 0) + val;
+            initMasterItem(d.item, d.category, d.line);
+            appState.pMasterItems[d.item].curr += val;
          }
-         
-         // Previous Period
-         if (isMatch(d, startPrev, endPrev)) {
-            prevTotal += val;
-            const dayKey = d.date.substring(5);
-            if(!prevTrend[dayKey]) prevTrend[dayKey] = 0;
-            prevTrend[dayKey] += val;
+         comparisons.forEach(comp => {
+            if (dDate >= comp.start && dDate <= comp.end) {
+               comp.total += val;
+               comp.trend[dayKey] = (comp.trend[dayKey] || 0) + val;
+               initMasterItem(d.item, d.category, d.line);
+               appState.pMasterItems[d.item].comp[comp.year] = (appState.pMasterItems[d.item].comp[comp.year] || 0) + val;
+            }
+         });
+
+         // Periodic Math (Full Horizon)
+         if (dYear === currentYear && dDate <= refDate && dDate >= new Date(currentYear, 0, 1)) {
+            const b = getBucket(dDate);
+            pData.curr[b] = (pData.curr[b] || 0) + val;
+            yTrend.curr[dayKey] = (yTrend.curr[dayKey] || 0) + val;
+         }
+         comparisons.forEach(comp => {
+            const compCutoff = new Date(comp.year, refDate.getMonth(), refDate.getDate());
+            if (dYear === comp.year && dDate <= compCutoff && dDate >= new Date(comp.year, 0, 1)) {
+               const b = getBucket(dDate);
+               pData[comp.year][b] = (pData[comp.year][b] || 0) + val;
+               yTrend.comp[comp.year][dayKey] = (yTrend.comp[comp.year][dayKey] || 0) + val;
+            }
+         });
+      });
+
+      // 4.5 Build Dynamic Target (Old = +25% YoY, New = +30% MoM)
+      let tTotal = 0; let tTrend = {}; let pDataTarget = {};
+      const yoyMult = 1 + (appState.targetConfig.yoy / 100);
+      const momMult = 1 + (appState.targetConfig.mom / 100);
+
+      Object.values(itemProfiles).forEach(profile => {
+         if (profile.isOld) {
+            // Established Product: Apply YoY to previous year's daily pacing
+            Object.keys(profile.prevDaily).forEach(dayKey => {
+               const tVal = profile.prevDaily[dayKey] * yoyMult;
+               const [mm, dd] = dayKey.split('-');
+               const dDate = new Date(currentYear, parseInt(mm)-1, parseInt(dd));
+               
+               tTrend[dayKey] = (tTrend[dayKey] || 0) + tVal;
+               if (dDate >= startCurr && dDate <= endCurr) {
+                  tTotal += tVal;
+                  initMasterItem(profile.name, profile.category, profile.line);
+                  appState.pMasterItems[profile.name].target += tVal;
+               }
+               if (dDate <= refDate && dDate >= new Date(currentYear, 0, 1)) {
+                  pDataTarget[getBucket(dDate)] = (pDataTarget[getBucket(dDate)] || 0) + tVal;
+               }
+            });
+         } else {
+            // New Product: Apply MoM compound starting from 1st active month
+            const firstM = profile.currMonthly.findIndex(v => v > 0);
+            if (firstM !== -1) {
+               let currT = profile.currMonthly[firstM];
+               for (let m = firstM; m <= 11; m++) {
+                  if (m > firstM) currT *= momMult;
+                  const daysInM = new Date(currentYear, m + 1, 0).getDate();
+                  const dailyVal = currT / daysInM; // Distribute month evenly to days
+
+                  for (let day = 1; day <= daysInM; day++) {
+                     const dDate = new Date(currentYear, m, day);
+                     const dayKey = ('0' + (m+1)).slice(-2) + '-' + ('0' + day).slice(-2);
+                     
+                     tTrend[dayKey] = (tTrend[dayKey] || 0) + dailyVal;
+                     if (dDate >= startCurr && dDate <= endCurr) {
+                        tTotal += dailyVal;
+                        initMasterItem(profile.name, profile.category, profile.line);
+                        appState.pMasterItems[profile.name].target += dailyVal;
+                     }
+                     if (dDate <= refDate && dDate >= new Date(currentYear, 0, 1)) {
+                        pDataTarget[getBucket(dDate)] = (pDataTarget[getBucket(dDate)] || 0) + dailyVal;
+                     }
+                  }
+               }
+            }
          }
       });
 
-      // 3. Update KPIs
-      const fmt = (n) => measure === 'rev' ? 
-        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits:0 }).format(n) : 
-        formatK(n);
-      
-      const growth = prevTotal > 0 ? ((currTotal - prevTotal) / prevTotal) * 100 : 0;
-      const color = growth >= 0 ? 'text-success' : 'text-danger';
-      
-      document.getElementById('kpi-curr').innerText = fmt(currTotal);
-      document.getElementById('kpi-prev').innerText = fmt(prevTotal);
-      document.getElementById('kpi-growth').innerHTML = `<span class="${color}">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growth).toFixed(1)}%</span>`;
-      
-      const dateFmt = (d) => d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', year: 'numeric' });
-      document.getElementById('kpi-range-curr').innerText = `${dateFmt(startCurr)} - ${dateFmt(endCurr)}`;
-      document.getElementById('kpi-range-prev').innerText = `${dateFmt(startPrev)} - ${dateFmt(endPrev)}`;
+      const targetData = { active: appState.pCompareTarget, total: tTotal, trend: tTrend, pData: pDataTarget };
+      appState.pYearlyTrend = yTrend; // Store for Modal
 
-      // 4. Update Chart (Cumulative)
-      updateProductChart(currTrend, prevTrend, startCurr, endCurr);
-
-      // 5. Update Product List
+      // 5. Render UI
+      renderCompareToggles(currentYear);
+      renderDynamicKPIs(currTotal, comparisons, startCurr, endCurr, measure, targetData);
+      updateProductChart(currTrend, comparisons, startCurr, endCurr, periodicBuckets, pData, currentYear, targetData);
       updateProductList(currItems, measure);
     }
 
-    function updateProductChart(currTrend, prevTrend, start, end) {
+        // --- SUB-RENDERERS ---
+
+    function renderCompareToggles(currentYear) {
+       const container = document.getElementById('compare-years-toggles');
+       let html = `<button class="btn btn-sm ${appState.pCompareTarget ? 'btn-warning text-dark border-warning' : 'btn-outline-warning text-dark bg-white border-warning-subtle'} rounded-pill shadow-sm px-3 fw-bold" onclick="toggleCompareTarget()"><i class="fas fa-bullseye me-1"></i> Target</button> <div class="vr mx-1"></div>`;
+       
+       for (let i = 1; i <= 5; i++) {
+          const y = currentYear - i;
+          if (y < 2021) continue; 
+          const isActive = appState.pCompareYears.includes(y);
+          const btnClass = isActive ? 'btn-primary' : 'btn-outline-secondary bg-white';
+          html += `<button class="btn btn-sm ${btnClass} rounded-pill shadow-sm px-3 fw-bold border-0" onclick="toggleCompareYear(${y})">${y}</button>`;
+       }
+       container.innerHTML = html;
+    }
+
+    function renderDynamicKPIs(currTotal, comparisons, startCurr, endCurr, measure, targetData) {
+       const container = document.getElementById('dynamic-kpi-section');
+       const dateFmt = (d) => d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+       const fmt = (n) => measure === 'rev' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits:0 }).format(n) : formatK(n);
+       const currStr = `${dateFmt(startCurr)} - ${dateFmt(endCurr)}, ${startCurr.getFullYear()}`;
+
+       let html = '';
+       const isMorphing = comparisons.length + (targetData.active ? 1 : 0) > 1;
+
+       if (!isMorphing) {
+          // 3-Card View (Rich Visuals)
+          const isTarget = targetData.active;
+          const comp = isTarget 
+             ? { name: 'Target', val: targetData.total, icon: 'fa-bullseye', color: 'warning', bg: '#fffbeb', badge: 'Dynamic Baseline' } 
+             : { name: comparisons[0].year, val: comparisons[0].total, icon: 'fa-history', color: 'secondary', bg: '#f8fafc', badge: `${dateFmt(comparisons[0].start)} - ${dateFmt(comparisons[0].end)}, ${comparisons[0].year}` };
+          
+          const growth = comp.val > 0 ? ((currTotal - comp.val) / comp.val) * 100 : 0;
+          const gColor = growth >= 0 ? 'text-success' : 'text-danger';
+
+          html = `
+            <div class="col-md-4">
+               <div class="kpi-modern kpi-clickable" onclick="openKpiModal('value', 'current')">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                     <div>
+                        <div class="text-uppercase text-muted fw-bold small mb-1">Current Period</div>
+                        <div class="badge bg-primary bg-opacity-10 text-primary">${currStr}</div>
+                     </div>
+                     <div class="icon-box bg-light text-primary rounded-circle p-2"><i class="fas fa-calendar-check"></i></div>
+                  </div>
+                  <h2 class="fw-bold text-dark mb-0 display-6">${fmt(currTotal)}</h2>
+                  <i class="fas fa-chart-area kpi-icon-bg"></i>
+               </div>
+            </div>
+            <div class="col-md-4">
+               <div class="kpi-modern kpi-clickable" style="background: ${comp.bg};" onclick="openKpiModal('value', '${isTarget ? 'target' : comp.name}')">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                     <div>
+                        <div class="text-uppercase text-${comp.color} fw-bold small mb-1">${comp.name}</div>
+                        <div class="badge bg-${comp.color} bg-opacity-10 text-${comp.color}">${comp.badge}</div>
+                     </div>
+                     <div class="icon-box bg-white text-${comp.color} rounded-circle p-2 shadow-sm"><i class="fas ${comp.icon}"></i></div>
+                  </div>
+                  <h2 class="fw-bold text-${isTarget ? 'dark' : 'secondary'} mb-0 display-6">${fmt(comp.val)}</h2>
+                  <i class="fas ${comp.icon} kpi-icon-bg"></i>
+               </div>
+            </div>
+            <div class="col-md-4">
+               <div class="kpi-modern kpi-clickable" onclick="openKpiModal('growth', '${isTarget ? 'target' : comp.name}')">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                     <div class="text-uppercase text-muted fw-bold small">Performance</div>
+                     <div class="icon-box bg-light text-${growth >= 0 ? 'success' : 'danger'} rounded-circle p-2"><i class="fas fa-percentage"></i></div>
+                  </div>
+                  <h2 class="fw-bold mb-1 display-6"><span class="${gColor}">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growth).toFixed(1)}%</span></h2>
+                  <div class="small text-muted">vs ${comp.name}</div>
+                  <i class="fas fa-rocket kpi-icon-bg"></i>
+               </div>
+            </div>`;
+       } else {
+          // Morphing List View (Rich Visuals + Hover Slide)
+          let compCardsHtml = '';
+          if (targetData.active) {
+             const tGr = targetData.total > 0 ? ((currTotal - targetData.total) / targetData.total) * 100 : 0;
+             compCardsHtml += `
+             <div class="p-3 bg-warning bg-opacity-10 border border-warning rounded-3 shadow-sm d-flex justify-content-between align-items-center mb-2 kpi-clickable" onclick="openKpiModal('growth', 'target')">
+                <div><div class="fw-bold text-dark"><i class="fas fa-bullseye text-warning me-1"></i> Target</div><div class="small fw-bold">${fmt(targetData.total)}</div></div>
+                <div class="fw-bold ${tGr >= 0 ? 'text-success' : 'text-danger'} fs-5">${tGr >= 0 ? '↑' : '↓'} ${Math.abs(tGr).toFixed(1)}%</div>
+             </div>`;
+          }
+          comparisons.forEach(comp => {
+             const growth = comp.total > 0 ? ((currTotal - comp.total) / comp.total) * 100 : 0;
+             compCardsHtml += `
+             <div class="p-3 bg-white border rounded-3 shadow-sm d-flex justify-content-between align-items-center mb-2 kpi-clickable" onclick="openKpiModal('growth', '${comp.year}')">
+                <div><div class="fw-bold text-secondary"><i class="fas fa-history text-secondary me-1"></i> ${comp.year}</div><div class="small text-muted">${fmt(comp.total)}</div></div>
+                <div class="fw-bold ${growth >= 0 ? 'text-success' : 'text-danger'} fs-5">${growth >= 0 ? '↑' : '↓'} ${Math.abs(growth).toFixed(1)}%</div>
+             </div>`;
+          });
+
+          html = `
+            <div class="col-md-6">
+               <div class="kpi-modern kpi-clickable h-100" onclick="openKpiModal('value', 'current')">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                     <div>
+                        <div class="text-uppercase text-muted fw-bold small mb-1">Current Period</div>
+                        <div class="badge bg-primary bg-opacity-10 text-primary">${currStr}</div>
+                     </div>
+                     <div class="icon-box bg-light text-primary rounded-circle p-2"><i class="fas fa-calendar-check"></i></div>
+                  </div>
+                  <h2 class="fw-bold text-dark mb-0 display-4 mt-3">${fmt(currTotal)}</h2>
+                  <i class="fas fa-chart-area kpi-icon-bg"></i>
+               </div>
+            </div>
+            <div class="col-md-6">
+               <div class="h-100 d-flex flex-column justify-content-start" style="max-height: 180px; overflow-y: auto; padding-right: 5px;">
+                  <div class="text-uppercase text-muted fw-bold small mb-2 flex-shrink-0 pt-1">Historical Benchmarks</div>
+                  ${compCardsHtml}
+               </div>
+            </div>`;
+       }
+       container.innerHTML = html;
+    }
+    function updateProductChart(currTrend, comparisons, start, end, pBuckets, pData, currentYear, targetData) {
        const ctx = document.getElementById('productTrendChart').getContext('2d');
        if(appState.pChart) appState.pChart.destroy();
        
-       // Generate Labels (Days in range)
-       let labels = [];
-       let cData = [], pData = [];
-       let cAcc = 0, pAcc = 0;
-       
-       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          const key = ('0' + (d.getMonth()+1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
-          labels.push(key);
-          
-          cAcc += (currTrend[key] || 0);
-          pAcc += (prevTrend[key] || 0);
-          cData.push(cAcc);
-          pData.push(pAcc);
+       const histColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
+       let datasets = []; let labels = [];
+
+       if (appState.pChartViewMode === 'detailed') {
+          let cData = []; let cAcc = 0; let tData = []; let tAcc = 0;
+          comparisons.forEach(comp => { comp.dataArray = []; comp.acc = 0; });
+
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+             const key = ('0' + (d.getMonth()+1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+             labels.push(key);
+             cAcc += (currTrend[key] || 0); cData.push(cAcc);
+             if (targetData.active) { tAcc += (targetData.trend[key] || 0); tData.push(tAcc); }
+             comparisons.forEach(comp => { comp.acc += (comp.trend[key] || 0); comp.dataArray.push(comp.acc); });
+          }
+
+          datasets.push({ label: `Current (${start.getFullYear()})`, data: cData, borderColor: '#16a34a', backgroundColor: 'rgba(22, 163, 74, 0.1)', fill: true, tension: 0.3, borderWidth: 3 });
+          if (targetData.active) datasets.push({ label: '🎯 Target', data: tData, borderColor: '#f59e0b', borderDash: [8, 4], fill: false, tension: 0.3, borderWidth: 3 });
+          comparisons.forEach((comp, idx) => datasets.push({ label: `Past (${comp.year})`, data: comp.dataArray, borderColor: histColors[idx % histColors.length], borderDash: [4, 4], fill: false, tension: 0.3, borderWidth: 2 }));
+       } else {
+          labels = pBuckets;
+          datasets.push({ label: `Current (${currentYear})`, data: pBuckets.map(b => pData.curr[b] || 0), backgroundColor: '#16a34a', borderRadius: 4 });
+          if (targetData.active) datasets.push({ label: '🎯 Target', data: pBuckets.map(b => targetData.pData[b] || 0), backgroundColor: '#fbbf24', borderColor: '#d97706', borderWidth: 2, borderRadius: 4 });
+          comparisons.forEach((comp, idx) => datasets.push({ label: `Past (${comp.year})`, data: pBuckets.map(b => pData[comp.year][b] || 0), backgroundColor: histColors[idx % histColors.length] + 'CC', borderRadius: 4 }));
        }
 
        appState.pChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-             labels: labels,
-             datasets: [
-                { label: 'Current', data: cData, borderColor: '#16a34a', backgroundColor: 'rgba(22, 163, 74, 0.1)', fill: true, tension: 0.3 },
-                { label: 'Previous', data: pData, borderColor: '#94a3b8', borderDash: [5, 5], fill: false, tension: 0.3 }
-             ]
-          },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { display: false } } }
+          type: appState.pChartViewMode === 'detailed' ? 'line' : 'bar',
+          data: { labels: labels, datasets: datasets },
+          options: { 
+             responsive: true, 
+             maintainAspectRatio: false, 
+             plugins: { legend: { position: 'top' } }, 
+             scales: { x: { display: appState.pChartViewMode !== 'detailed' } },
+             onClick: (e, elements) => {
+                if (appState.pChartViewMode === 'periodic' && elements.length) {
+                   // Pass the Target Data to the drill-down modal!
+                   openDrillDown(labels[elements[0].index], currentYear, comparisons, targetData);
+                }
+             },
+             onHover: (e, elements) => { 
+                if (appState.pChartViewMode === 'periodic') {
+                   e.native.target.style.cursor = elements.length ? 'pointer' : 'default'; 
+                }
+             }
+          }
        });
     }
 
     function updateProductList(itemsMap, measure) {
        const container = document.getElementById('product-list-container');
-       const sorted = Object.entries(itemsMap).sort((a,b) => b[1] - a[1]).slice(0, 50); // Show top 50 scrollable
+       const sorted = Object.entries(itemsMap).sort((a,b) => b[1] - a[1]).slice(0, 50); 
        
        if (sorted.length === 0) {
           container.innerHTML = `<div class="text-center text-muted py-4"><i class="fas fa-inbox fa-2x mb-2 opacity-25"></i><p class="small">No data found</p></div>`;
@@ -1372,24 +1860,21 @@
        let html = '';
        sorted.forEach(([name, val], index) => {
           const displayVal = measure === 'rev' ? 
-             new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits:0 }).format(val) : 
-             formatK(val);
+             new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits:0 }).format(val) : formatK(val);
              
-          // Rank Logic: 1=Gold, 2=Silver, 3=Bronze
           let rankColor = 'bg-light text-muted';
           if (index === 0) rankColor = 'bg-warning text-dark';
           if (index === 1) rankColor = 'bg-secondary text-white';
-          if (index === 2) rankColor = 'bg-brown text-white'; // Custom style needed or use standard
+          if (index === 2) rankColor = 'bg-dark text-white'; 
 
           html += `
              <div class="prod-list-item">
-                <div class="d-flex align-items-center overflow-hidden">
+                <div class="d-flex align-items-center overflow-hidden pe-2">
                    <div class="rank-badge ${rankColor}">${index + 1}</div>
-                   <div class="text-truncate fw-bold text-dark" style="font-size:0.85rem;">${name}</div>
+                   <div class="text-truncate fw-bold text-dark" style="font-size:0.85rem;" title="${name}">${name}</div>
                 </div>
-                <div class="fw-bold text-primary small ms-2">${displayVal}</div>
-             </div>
-          `;
+                <div class="fw-bold text-primary small">${displayVal}</div>
+             </div>`;
        });
        container.innerHTML = html;
     }
@@ -1419,6 +1904,180 @@
           document.getElementById('sync-msg').innerHTML = `<i class="fas fa-exclamation-triangle text-danger me-1"></i> Error: ${err.message}`;
           document.getElementById('btn-sync-cancel').style.display = 'inline-block';
        }).syncHistoricalArchive();
+    }
+
+    // --- DRILL DOWN MODAL ENGINE ---
+    let drillChart = null;
+    function openDrillDown(bucket, currentYear, comparisons, targetData) {
+       const m = new bootstrap.Modal(document.getElementById('drillDownModal'));
+       document.getElementById('drillDownTitle').innerHTML = `<i class="fas fa-search-plus text-primary me-2"></i>Detailed Pacing: ${bucket}`;
+       m.show();
+
+       // Determine Start & End Dates for this bucket
+       const refDate = new Date(document.getElementById('report-date').value);
+       let validMonths = [];
+       if (bucket === 'YTD') validMonths = [0,1,2,3,4,5,6,7,8,9,10,11];
+       else if (bucket.startsWith('Q')) {
+          const q = parseInt(bucket.replace('Q',''));
+          validMonths = [(q-1)*3, (q-1)*3 + 1, (q-1)*3 + 2];
+       } else {
+          const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          validMonths = [mNames.indexOf(bucket)];
+       }
+
+       let startD = new Date(currentYear, validMonths[0], 1);
+       let endD = new Date(currentYear, validMonths[validMonths.length-1] + 1, 0); 
+       if (endD > refDate) endD = refDate; // Cap at reference date
+
+       // Generate Chart Data
+       let labels = [];
+       let cData = []; let cAcc = 0;
+       let tData = []; let tAcc = 0; // For Target Line
+       comparisons.forEach(comp => { comp.drillArray = []; comp.drillAcc = 0; });
+
+       for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+          const key = ('0' + (d.getMonth()+1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+          labels.push(key);
+          
+          cAcc += (appState.pYearlyTrend.curr[key] || 0);
+          cData.push(cAcc);
+
+          if (targetData && targetData.active) {
+             tAcc += (targetData.trend[key] || 0);
+             tData.push(tAcc);
+          }
+
+          comparisons.forEach(comp => {
+             comp.drillAcc += (appState.pYearlyTrend.comp[comp.year][key] || 0);
+             comp.drillArray.push(comp.drillAcc);
+          });
+       }
+
+       const ctx = document.getElementById('drillDownChart').getContext('2d');
+       if(drillChart) drillChart.destroy();
+
+       let datasets = [{ label: `Current (${currentYear})`, data: cData, borderColor: '#16a34a', backgroundColor: 'rgba(22, 163, 74, 0.1)', fill: true, tension: 0.3, borderWidth: 3 }];
+       
+       if (targetData && targetData.active) {
+          datasets.push({ label: '🎯 Target', data: tData, borderColor: '#f59e0b', borderDash: [8, 4], fill: false, tension: 0.3, borderWidth: 3 });
+       }
+
+       const histColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
+       comparisons.forEach((comp, idx) => {
+          datasets.push({ label: `Past (${comp.year})`, data: comp.drillArray, borderColor: histColors[idx % histColors.length], borderDash: [4, 4], fill: false, tension: 0.3, borderWidth: 2 });
+       });
+
+       drillChart = new Chart(ctx, {
+          type: 'line',
+          data: { labels: labels, datasets: datasets },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { display: false } } }
+       });
+    }
+
+    // --- SMART KPI MODAL ENGINE (PIE & GROWTH TABLE) ---
+    let kpiPieChartInstance = null;
+
+    function openKpiModal(type, targetId) {
+       appState.kpiModalState.type = type;
+       appState.kpiModalState.targetId = targetId;
+       
+       // Determine initial view level based on current filters
+       let defaultLevel = 'category';
+       if (appState.pFilters.category !== 'All') defaultLevel = 'line';
+       if (appState.pFilters.line !== 'All') defaultLevel = 'item';
+       appState.kpiModalState.viewLevel = defaultLevel;
+
+       // Set Titles
+       const titleEl = document.getElementById('kpiModalTitle');
+       let titlePrefix = type === 'value' ? '<i class="fas fa-chart-pie text-primary me-2"></i> Distribution' : '<i class="fas fa-rocket text-success me-2"></i> Growth Breakdown';
+       let scopeStr = targetId === 'current' ? 'Current Period' : (targetId === 'target' ? 'vs Target' : `vs ${targetId}`);
+       titleEl.innerHTML = `${titlePrefix} (${scopeStr})`;
+
+       renderKpiModalContent();
+       new bootstrap.Modal(document.getElementById('kpiModal')).show();
+    }
+
+    function setKpiModalLevel(level) {
+       appState.kpiModalState.viewLevel = level;
+       renderKpiModalContent();
+    }
+
+    function renderKpiModalContent() {
+       const { type, targetId, viewLevel } = appState.kpiModalState;
+       
+       // 1. Build Smart Toggles
+       let toggleHtml = '';
+       if (appState.pFilters.category === 'All') {
+          toggleHtml += `<input type="radio" class="btn-check" name="kpi-level" id="kpi-cat" ${viewLevel==='category'?'checked':''} onchange="setKpiModalLevel('category')"><label for="kpi-cat" class="px-3">Category</label>`;
+       }
+       if (appState.pFilters.line === 'All') {
+          toggleHtml += `<input type="radio" class="btn-check" name="kpi-level" id="kpi-brand" ${viewLevel==='line'?'checked':''} onchange="setKpiModalLevel('line')"><label for="kpi-brand" class="px-3">Brand/Line</label>`;
+       }
+       toggleHtml += `<input type="radio" class="btn-check" name="kpi-level" id="kpi-prod" ${viewLevel==='item'?'checked':''} onchange="setKpiModalLevel('item')"><label for="kpi-prod" class="px-3">Product</label>`;
+       document.getElementById('kpiModalToggles').innerHTML = toggleHtml;
+
+       // 2. Aggregate Data based on View Level
+       let aggData = {};
+       Object.values(appState.pMasterItems).forEach(item => {
+          let key = viewLevel === 'category' ? item.category : (viewLevel === 'line' ? (String(item.line).toUpperCase()==='TRUE'?'Private Label':'Own Brand') : item.name);
+          if (!key || key === 'undefined') key = 'Unknown';
+          
+          if (!aggData[key]) aggData[key] = { name: key, curr: 0, baseline: 0 };
+          aggData[key].curr += (item.curr || 0);
+          
+          if (targetId === 'target') aggData[key].baseline += (item.target || 0);
+          else if (targetId !== 'current') aggData[key].baseline += (item.comp[targetId] || 0);
+       });
+
+       const sortedArr = Object.values(aggData).sort((a, b) => b.curr - a.curr);
+       const measure = document.querySelector('input[name="measure"]:checked').value;
+       const fmt = (n) => measure === 'rev' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits:0 }).format(n) : formatK(n);
+
+       // 3. Render View
+       if (type === 'value') {
+          document.getElementById('kpiModalTableContainer').style.display = 'none';
+          document.getElementById('kpiModalPieContainer').style.display = 'block';
+          
+          // Determine which value to plot in the pie
+          let labels = []; let dataPts = [];
+          sortedArr.forEach(d => {
+             const val = targetId === 'current' ? d.curr : d.baseline;
+             if (val > 0) { labels.push(d.name); dataPts.push(val); }
+          });
+
+          const ctx = document.getElementById('kpiPieChart').getContext('2d');
+          if(kpiPieChartInstance) kpiPieChartInstance.destroy();
+          kpiPieChartInstance = new Chart(ctx, {
+             type: 'doughnut',
+             data: {
+                labels: labels,
+                datasets: [{ data: dataPts, backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ec4899','#8b5cf6','#64748b','#14b8a6','#f43f5e'], borderWidth: 2, borderColor: '#fff' }]
+             },
+             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, cutout: '60%' }
+          });
+
+       } else {
+          // Growth Table
+          document.getElementById('kpiModalPieContainer').style.display = 'none';
+          document.getElementById('kpiModalTableContainer').style.display = 'block';
+          document.getElementById('kpiTableBaseHeader').innerText = targetId === 'target' ? 'Target' : targetId;
+          
+          let tableHtml = '';
+          sortedArr.forEach(d => {
+             if (d.curr === 0 && d.baseline === 0) return;
+             const growth = d.baseline > 0 ? ((d.curr - d.baseline) / d.baseline) * 100 : 0;
+             const gColor = growth >= 0 ? 'text-success' : 'text-danger';
+             
+             tableHtml += `
+                <tr>
+                   <td class="fw-bold text-dark ps-3 py-3">${d.name}</td>
+                   <td class="text-end fw-bold text-primary">${fmt(d.curr)}</td>
+                   <td class="text-end text-muted">${fmt(d.baseline)}</td>
+                   <td class="text-end pe-3 fw-bold ${gColor}">${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%</td>
+                </tr>`;
+          });
+          document.getElementById('kpiModalTableBody').innerHTML = tableHtml || `<tr><td colspan="4" class="text-center py-4 text-muted">No data available for this breakdown.</td></tr>`;
+       }
     }
   </script>
 </body>
