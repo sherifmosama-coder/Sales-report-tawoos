@@ -19,15 +19,20 @@
 
     .smart-toggle {
       flex: 0 0 auto;
-      min-width: 100px;
-      background: white;
-      border: 1px solid #e2e8f0;
+      min-width: 110px;
+      background: #f8fafc;
+      border: 1px solid #f1f5f9;
       border-left: 4px solid var(--theme-color, #cbd5e1);
       border-radius: 12px;
-      padding: 10px;
+      padding: 12px 14px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       text-align: center;
+    }
+    .smart-toggle:hover {
+      background: white;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      transform: translateY(-2px);
     }
     .smart-toggle:active { transform: scale(0.97); }
     .smart-toggle.active { background-color: var(--theme-color, #2563eb); color: white; border-color: var(--theme-color); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
@@ -140,7 +145,24 @@
     }
 
     /* --- LIST & CARDS --- */
-    .client-card { background: white; border-radius: 12px; padding: 12px 15px; margin-bottom: 8px; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; border-left: 3px solid transparent; transition: transform 0.1s; }
+    .client-card { 
+       background: white; 
+       border-radius: 12px;
+       padding: 14px 18px; 
+       margin-bottom: 8px; 
+       border: 1px solid #e2e8f0; 
+       display: flex; 
+       align-items: center; 
+       justify-content: space-between; 
+       border-left: 4px solid transparent;
+       transition: all 0.2s ease; 
+       cursor: pointer;
+    }
+    .client-card:hover { 
+       transform: translateY(-2px) translateX(2px);
+       box-shadow: 0 8px 15px -3px rgba(0,0,0,0.08);
+       border-color: #cbd5e1;
+    }
     .client-card:active { transform: scale(0.99); }
     
     .client-name { font-weight: 600; color: var(--text-dark); margin-bottom: 4px; font-size: 0.95rem; }
@@ -154,7 +176,21 @@
     .date-span { direction: rtl; unicode-bidi: embed; color: #94a3b8; font-size: 0.7rem; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; }
 
     /* --- GROUP HEADER --- */
-    .group-header { background: #e2e8f0; color: #475569; padding: 8px 12px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; margin-top: 15px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .group-header { 
+       background: #f8fafc;
+       color: #334155; 
+       padding: 10px 16px; 
+       border-radius: 10px; 
+       font-weight: 800; 
+       font-size: 0.9rem; 
+       margin-top: 20px; 
+       margin-bottom: 12px; 
+       display: flex; 
+       justify-content: space-between;
+       align-items: center; 
+       border: 1px solid #e2e8f0;
+       box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
 
     /* --- CONTROLS --- */
     .control-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
@@ -526,75 +562,98 @@
 
       </div>
 
-    <div id="client-view-container">
+  <div id="client-view-container">
     
-      <div id="client-controls" class="d-flex flex-wrap align-items-center gap-3 mb-2">
-      <h4 class="fw-bold m-0" style="color:#1e293b"><i class="bi bi-pie-chart-fill text-primary"></i> Clients across Years</h4>
-      
-      <div class="mode-switcher">
-        <input type="radio" class="btn-check" name="vmode" id="vmode1" autocomplete="off" checked onclick="setView('qty')">
-        <label class="btn mode-btn" for="vmode1">
-           <i class="fas fa-cubes"></i> Quantity
-        </label>
-
-        <input type="radio" class="btn-check" name="vmode" id="vmode2" autocomplete="off" onclick="setView('rev')">
-        <label class="btn mode-btn" for="vmode2">
-           <i class="fas fa-sack-dollar"></i> Revenue
-        </label>
+      <div class="row align-items-center mb-4 gy-3">
+         <div class="col-md-6 order-1 text-center text-md-start">
+            <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-users-viewfinder me-2 text-primary"></i>Clients' Sales across Years</h4>
+            <div class="mt-1">
+               <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Client Retention & Growth</span>
+            </div>
+         </div>
+         <div class="col-md-6 order-2 d-flex justify-content-center justify-content-md-end">
+            <div class="segmented-control shadow-sm bg-white border">
+               <input type="radio" class="btn-check" name="vmode" id="vmode1" autocomplete="off" checked onchange="setView('qty')">
+               <label for="vmode1" class="mb-0 px-4"><i class="fas fa-box me-1"></i> Volume</label>
+               <input type="radio" class="btn-check" name="vmode" id="vmode2" autocomplete="off" onchange="setView('rev')">
+               <label for="vmode2" class="mb-0 px-4"><i class="fas fa-dollar-sign me-1"></i> Revenue</label>
+            </div>
+         </div>
       </div>
+
+      <div class="row g-4 mb-4">
+         <div class="col-xl-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+               <div class="card-body p-3">
+                  <h6 class="fw-bold text-muted small mb-3 text-uppercase"><i class="far fa-calendar-alt me-2"></i>Timeline Scope</h6>
+                  <div class="toggle-container pb-1" id="yearToggles"></div>
+               </div>
+            </div>
+         </div>
+         <div class="col-xl-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+               <div class="card-body p-3">
+                  <h6 class="fw-bold text-muted small mb-3 text-uppercase"><i class="fas fa-layer-group me-2"></i>Client Segments</h6>
+                  <div class="toggle-container pb-1" id="typeToggles"></div>
+               </div>
+            </div>
+         </div>
+      </div>
+
+      <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+         <div class="card-body p-4">
+            <h6 class="fw-bold m-0 mb-3"><i class="fas fa-chart-area me-2 text-primary"></i>Visual Analysis</h6>
+            <div style="height: 320px;">
+               <canvas id="mainChart"></canvas>
+            </div>
+         </div>
+      </div>
+
+      <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+         <div class="card-header bg-transparent border-0 pt-4 pb-0 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <h5 class="fw-bold m-0"><i class="fas fa-list-ol me-2 text-primary"></i>Client Directory</h5>
+            <div class="d-flex gap-2">
+               <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold shadow-sm" onclick="exportData('excel')">
+                 <i class="fas fa-file-excel me-1"></i> Excel
+               </button>
+               <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" onclick="exportData('pdf')">
+                 <i class="fas fa-file-pdf me-1"></i> PDF
+               </button>
+            </div>
+         </div>
+         <div class="card-body p-4">
+            <div class="d-flex align-items-center gap-3 bg-light p-2 rounded-4 border mb-4 flex-wrap">
+               <div class="input-group input-group-sm border-end pe-2" style="width: auto; flex-grow: 1; min-width: 200px;">
+                  <span class="input-group-text bg-transparent border-0 text-muted"><i class="fas fa-search"></i></span>
+                  <input type="text" id="search" class="form-control border-0 bg-transparent fw-bold text-secondary" placeholder="Search clients..." onkeyup="renderList()">
+               </div>
+               
+               <select id="sortBy" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-secondary px-3" style="width: auto; cursor: pointer;" onchange="setSort(this.value)">
+                  <option value="qty">📈 Sort: High Vol</option>
+                  <option value="growth">🚀 Sort: Growth %</option>
+                  <option value="orders">🛒 Sort: Orders</option>
+                  <option value="lastTx">⏱️ Sort: Recent</option>
+                  <option value="name">🔤 Sort: A-Z</option>
+               </select>
+               
+               <select id="groupBy" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-secondary px-3" style="width: auto; cursor: pointer;" onchange="setGroup(this.value)">
+                  <option value="None">🏢 Group: None</option>
+                  <option value="type">📂 Group: Segment</option>
+               </select>
+               
+               <select id="riskFilter" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-danger px-3" style="width: auto; cursor: pointer;" onchange="renderList()">
+                  <option value="None">🟢 Status: All</option>
+                  <option value="Stopped">⚠️ Stopped (>6mo)</option> 
+                  <option value="Declining">📉 Declining</option>
+               </select>
+            </div>
+
+            <div id="clientList" class="d-flex flex-column gap-2"></div>
+         </div>
+      </div>
+
     </div>
-
-    <div class="section-title">Timeline Scope</div>
-    <div class="toggle-container" id="yearToggles"></div>
-
-    <div class="section-title">Client Segment</div>
-    <div class="toggle-container" id="typeToggles"></div>
-
-    <div class="section-title">Visual Analysis</div>
-    <div class="chart-card">
-      <canvas id="mainChart"></canvas>
-    </div>
-
-    <div class="d-flex justify-content-between align-items-end mt-4 mb-2">
-       <div class="section-title m-0">Client Analysis</div>
-    </div>
-    
-    <div class="control-bar">
-       <div class="d-flex gap-2 flex-grow-1 flex-wrap">
-         <input type="text" id="search" class="form-control form-control-sm" style="max-width: 150px;" placeholder="Search..." onkeyup="renderList()">
-         
-         <select id="sortBy" class="form-select form-select-xs w-auto" onchange="setSort(this.value)">
-            <option value="qty">Sort: High Vol</option>
-            <option value="growth">Sort: Growth %</option>
-            <option value="orders">Sort: Order Count</option>
-            <option value="lastTx">Sort: Recent Active</option>
-            <option value="name">Sort: A-Z</option>
-         </select>
-         
-         <select id="groupBy" class="form-select form-select-xs w-auto" onchange="setGroup(this.value)">
-            <option value="None">Group: None</option>
-            <option value="type">Group: Type</option>
-         </select>
-         
-         <select id="riskFilter" class="form-select form-select-xs w-auto text-danger border-danger-subtle" onchange="renderList()">
-            <option value="None">Status: All</option>
-            <option value="Stopped">⚠️ Stopped (>6mo)</option> 
-            <option value="Declining">📉 Declining</option>
-         </select>
-       </div>
-
-       <div class="d-flex gap-2 mt-2 mt-md-0">
-          <button class="btn btn-success btn-sm" style="font-size: 0.8rem; border-radius: 8px;" onclick="exportData('excel')">
-            <i class="bi bi-file-earmark-excel-fill"></i> Excel
-          </button>
-          <button class="btn btn-danger btn-sm" style="font-size: 0.8rem; border-radius: 8px;" onclick="exportData('pdf')">
-            <i class="bi bi-file-earmark-pdf-fill"></i> PDF
-          </button>
-       </div>
-    </div>
-
-    <div id="clientList"></div>
-    </div>   </div>
+</div>
     <div class="modal fade" id="drillDownModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
           <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
@@ -859,17 +918,17 @@ function toggleCompareYear(year) {
       if (mode === 'client') {
          icon.className = 'fas fa-users-viewfinder text-primary';
          document.getElementById('loader-icon-box').style.color = '#3b82f6';
-         title.innerText = "Audience Intelligence";
+         title.innerText = "Clients' Sales across Years";
          insights = [
-            "Mapping client retention cohorts...",
+            "Mapping client Orders...",
             "Analyzing longitudinal order frequencies...",
-            "Calculating risk of churn models...",
+            "Calculating risk of losing clients...",
             "Rendering client behavior segments..."
          ];
       } else {
          icon.className = 'fas fa-chart-line text-success';
          document.getElementById('loader-icon-box').style.color = '#10b981';
-         title.innerText = "Financial & Supply Analytics";
+         title.innerText = "SKUs Analytics across Years";
          insights = [
             "Aggregating SKU-level transaction volumes...",
             "Reconciling historical comparison periods...",
@@ -1145,19 +1204,30 @@ function toggleCompareYear(year) {
     function createClientCard(c) {
         const typeColor = getColor(c.type);
         let trendHtml = '';
+        
+        // Only show growth % if we are looking at 'All Years' 
         if (appState.selectedYear === 'All' && c.growth !== null) {
            const isUp = c.growth >= 0;
-           trendHtml = `<span class="${isUp ? 'trend-up' : 'trend-down'} fw-bold ms-1"><i class="bi bi-graph-${isUp?'up':'down'}-arrow"></i> ${Math.abs(c.growth * 100).toFixed(0)}%</span>`;
+           const colorClass = isUp ? 'text-success' : 'text-danger';
+           const bgClass = isUp ? 'bg-success' : 'bg-danger';
+           const icon = isUp ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+           
+           // Ultra-modern translucent badge
+           trendHtml = `<span class="badge ${bgClass} bg-opacity-10 ${colorClass} border border-${isUp ? 'success' : 'danger'} border-opacity-25 ms-2 px-2 py-1"><i class="fas ${icon} me-1"></i>${Math.abs(c.growth * 100).toFixed(0)}%</span>`;
         }
-        const dateHtml = c.lastTxStr ? `<span class="date-span"><i class="bi bi-clock"></i> ${c.lastTxStr}</span>` : '';
+        
+        const dateHtml = c.lastTxStr ? `<span class="badge bg-light text-secondary border ms-1"><i class="far fa-clock text-muted me-1"></i>${c.lastTxStr}</span>` : '';
+        
         return `
           <div class="client-card" style="border-left-color: ${typeColor}" onclick="openModal('${c.client}', '${c.type}')">
-            <div>
-              <div class="client-name text-truncate" style="max-width: 180px;">${c.client}</div>
-              <div class="client-meta">${getSegmentHTML(c.type)} ${dateHtml}</div>
-              <div class="client-meta mt-1"><span class="text-dark fw-bold small">${c.orders} Ord</span>${trendHtml}</div>
+            <div class="d-flex flex-column gap-2">
+              <div class="client-name text-truncate fw-bold text-dark m-0" style="max-width: 200px; font-size: 1.05rem;">${c.client}</div>
+              <div class="d-flex align-items-center flex-wrap gap-1">${getSegmentHTML(c.type)}${dateHtml}</div>
             </div>
-            <div class="client-val">${formatVal(c[appState.viewMode])}</div>
+            <div class="d-flex flex-column align-items-end justify-content-center">
+              <div class="client-val fw-bold text-primary mb-2" style="font-size: 1.15rem;">${formatVal(c[appState.viewMode])}</div>
+              <div class="d-flex align-items-center"><span class="badge bg-light text-dark border"><i class="fas fa-shopping-cart text-muted me-1"></i>${c.orders} Ord</span>${trendHtml}</div>
+            </div>
           </div>`;
     }
 
@@ -1816,7 +1886,7 @@ function toggleCompareYear(year) {
           }
 
           datasets.push({ label: `Current (${start.getFullYear()})`, data: cData, borderColor: '#16a34a', backgroundColor: 'rgba(22, 163, 74, 0.1)', fill: true, tension: 0.3, borderWidth: 3 });
-          if (targetData.active) datasets.push({ label: '🎯 Target', data: tData, borderColor: '#f59e0b', borderDash: [8, 4], fill: false, tension: 0.3, borderWidth: 3 });
+          if (targetData.active) datasets.push({ label: '🎯 Target', data: tData, borderColor: '#f59e0b', fill: false, tension: 0.3, borderWidth: 3 });
           comparisons.forEach((comp, idx) => datasets.push({ label: `Past (${comp.year})`, data: comp.dataArray, borderColor: histColors[idx % histColors.length], borderDash: [4, 4], fill: false, tension: 0.3, borderWidth: 2 }));
        } else {
           labels = pBuckets;
@@ -2053,7 +2123,54 @@ function toggleCompareYear(year) {
                 labels: labels,
                 datasets: [{ data: dataPts, backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ec4899','#8b5cf6','#64748b','#14b8a6','#f43f5e'], borderWidth: 2, borderColor: '#fff' }]
              },
-             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } }, cutout: '60%' }
+             options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                cutout: '55%',
+                plugins: { 
+                   legend: { position: 'right' },
+                   tooltip: {
+                      callbacks: {
+                         label: function(context) {
+                            let total = context.chart._metasets[context.datasetIndex].total;
+                            let percent = ((context.raw / total) * 100).toFixed(1) + '%';
+                            return ` ${context.label}: ${fmt(context.raw)} (${percent})`;
+                         }
+                      }
+                   }
+                } 
+             },
+             plugins: [{
+                id: 'slicePercentages',
+                afterDatasetsDraw(chart) {
+                   const { ctx } = chart;
+                   chart.data.datasets.forEach((dataset, i) => {
+                      const meta = chart.getDatasetMeta(i);
+                      let total = dataset.data.reduce((a, b) => a + b, 0);
+                      meta.data.forEach((element, index) => {
+                         const val = dataset.data[index];
+                         const ratio = val / total;
+                         // Only draw text if the slice is large enough (> 4%) to prevent messy overlaps
+                         if (ratio > 0.04) {
+                            const percent = (ratio * 100).toFixed(0) + '%';
+                            const { x, y } = element.tooltipPosition();
+                            
+                            ctx.save();
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 12px "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            // Add a subtle drop shadow to make the white text pop on light colors
+                            ctx.shadowColor = 'rgba(0,0,0,0.4)';
+                            ctx.shadowBlur = 4;
+                            
+                            ctx.fillText(percent, x, y);
+                            ctx.restore();
+                         }
+                      });
+                   });
+                }
+             }]
           });
 
        } else {
