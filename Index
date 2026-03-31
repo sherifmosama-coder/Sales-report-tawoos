@@ -312,7 +312,8 @@
        z-index: 2000;
     }
     .loader-icon-container {
-       width: 80px; height: 80px;
+       width: 80px;
+       height: 80px;
        background: white;
        border-radius: 20px;
        display: flex; align-items: center; justify-content: center;
@@ -320,15 +321,13 @@
        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
        margin-bottom: 20px;
        position: relative;
+       animation: pulse-glow 2s infinite ease-in-out;
     }
-    .loader-icon-container::after {
-       content: ''; position: absolute; top: -4px; left: -4px; right: -4px; bottom: -4px;
-       border-radius: 24px;
-       border: 2px solid transparent;
-       border-top-color: #3b82f6; border-bottom-color: #3b82f6;
-       animation: spin 1.5s linear infinite;
+    @keyframes pulse-glow {
+       0% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2); }
+       50% { transform: scale(1.05); box-shadow: 0 20px 35px -5px rgba(59, 130, 246, 0.4); }
+       100% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2); }
     }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     
     .insight-text-box {
        height: 30px; overflow: hidden; position: relative; width: 300px; text-align: center;
@@ -350,6 +349,61 @@
        transform: translateY(-4px);
        box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.15) !important;
        z-index: 10;
+    }
+
+    /* --- OVERRIDE BOOTSTRAP MODAL Z-INDEX --- */
+    /* Forces modals and their dark backgrounds to appear ABOVE the landing screen (z-index: 2000) */
+    .modal { z-index: 2050 !important; }
+    .modal-backdrop { z-index: 2040 !important; }
+
+    /* --- EXPANDING SYNC BUTTON --- */
+    .btn-sync-archive {
+       display: inline-flex;
+       align-items: center;
+       background: #ffffff;
+       border: 1px solid #e2e8f0;
+       color: #64748b;
+       border-radius: 50rem;
+       height: 32px;
+       padding: 0 12px; /* Small padding for just the icon */
+       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+       font-size: 0.75rem;
+       font-weight: 700;
+       white-space: nowrap;
+       cursor: pointer;
+       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .btn-sync-archive i {
+       font-size: 0.85rem;
+       transition: color 0.3s ease;
+    }
+    .btn-sync-archive .sync-text {
+       display: inline-block;
+       max-width: 0;
+       opacity: 0;
+       overflow: hidden;
+       margin-left: 0;
+       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+       vertical-align: middle;
+    }
+    
+    /* Hover Effects */
+    .btn-sync-archive:hover {
+       background: #f8fafc;
+       border-color: #94a3b8;
+       color: #0f172a;
+       box-shadow: 0 4px 10px -2px rgba(0,0,0,0.1);
+    }
+    .btn-sync-archive:hover i {
+       color: #3b82f6; /* Icon turns primary blue on hover */
+    }
+    .btn-sync-archive:hover .sync-text {
+       max-width: 100px; /* Expands to fit text */
+       opacity: 1;
+       margin-left: 6px;
+    }
+    .btn-sync-archive:active {
+       transform: scale(0.95);
     }
     </style>
 </head>
@@ -381,6 +435,7 @@
 
         <div class="col-md-6 col-lg-5 col-xl-4">
           <div class="report-card" onclick="loadSource('product')">
+           
             <div class="card-icon-box" style="background: #ecfdf5; color: #059669;">
               <i class="fas fa-chart-line"></i>
             </div>
@@ -388,8 +443,13 @@
             <p class="text-muted mb-4">
               Daily tracking with YTD/MTD comparisons, category drill-downs, and trend analysis.
             </p>
-            <div class="d-flex align-items-center fw-bold small" style="color: #059669;">
-              OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
+            <div class="d-flex justify-content-between align-items-center">
+               <div class="d-flex align-items-center fw-bold small" style="color: #059669;">
+                 OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
+               </div>
+               <button class="btn-sync-archive" onclick="handleSyncClick(event)" title="Sync Archive">
+                  <i class="fas fa-database"></i><span class="sync-text">Sync Archive</span>
+               </button>
             </div>
           </div>
         </div>
@@ -417,10 +477,10 @@
      <div class="insight-text-box mt-2">
         <div class="insight-text active" id="loader-insight">Establishing secure connection...</div>
      </div>
-     <div class="d-flex gap-2 mt-4 opacity-25">
-        <div class="spinner-grow spinner-grow-sm text-primary" role="status"></div>
-        <div class="spinner-grow spinner-grow-sm text-primary" style="animation-delay: 0.2s" role="status"></div>
-        <div class="spinner-grow spinner-grow-sm text-primary" style="animation-delay: 0.4s" role="status"></div>
+     <div class="w-100 px-5 mt-4" style="max-width: 400px;">
+        <div class="progress shadow-sm" style="height: 6px; border-radius: 10px; background-color: #e2e8f0;">
+           <div id="loader-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%; transition: width 0.2s linear;"></div>
+        </div>
      </div>
   </div>
 
@@ -451,19 +511,16 @@
                  
                  <div class="segmented-control">
                     <input type="radio" class="btn-check" name="measure" id="meas-qty" value="qty" checked onchange="renderProductDashboard()">
-                    <label for="meas-qty" class="mb-0"><i class="fas fa-box me-1"></i>Qty</label>
+                    <label for="meas-qty" class="mb-0"><i class="fas fa-box me-1"></i> Qty</label>
                     
                     <input type="radio" class="btn-check" name="measure" id="meas-rev" value="rev" onchange="renderProductDashboard()">
-                    <label for="meas-rev" class="mb-0"><i class="fas fa-dollar-sign me-1"></i>Rev</label>
+                    <label for="meas-rev" class="mb-0"><i class="fa-solid fa-sack-dollar"></i> Rev</label>
                  </div>
               </div>
            </div>
 
            <div class="col-md-4 order-2 order-md-3 d-flex justify-content-center justify-content-md-end">
-              <button class="btn btn-sm btn-outline-secondary rounded-pill px-4 shadow-sm border-0 bg-white fw-bold text-muted" onclick="openSyncModal()">
-                 <i class="fas fa-database me-1"></i> Sync Archive
-              </button>
-           </div>
+              </div>
            
         </div>
 
@@ -576,7 +633,7 @@
                <input type="radio" class="btn-check" name="vmode" id="vmode1" autocomplete="off" checked onchange="setView('qty')">
                <label for="vmode1" class="mb-0 px-4"><i class="fas fa-box me-1"></i> Volume</label>
                <input type="radio" class="btn-check" name="vmode" id="vmode2" autocomplete="off" onchange="setView('rev')">
-               <label for="vmode2" class="mb-0 px-4"><i class="fas fa-dollar-sign me-1"></i> Revenue</label>
+               <label for="vmode2" class="mb-0 px-4"><i class="fa-solid fa-sack-dollar"></i> Revenue</label>
             </div>
          </div>
       </div>
@@ -755,8 +812,10 @@
            </ol>
            
            <div class="text-center" id="sync-status" style="display:none;">
-             <div class="spinner-border text-primary mb-2" role="status"></div>
-             <div class="fw-bold text-dark small" id="sync-msg">Processing historical records... This may take up to 60 seconds.</div>
+             <div class="progress mb-3 shadow-sm" style="height: 8px; border-radius: 10px; background-color: #e2e8f0;">
+                <div id="sync-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%; transition: width 0.2s linear;"></div>
+             </div>
+             <div class="fw-bold text-dark small" id="sync-msg">Processing historical records... This may take up to 270 seconds.</div>
            </div>
         </div>
         <div class="modal-footer border-0 pt-0 justify-content-center">
@@ -894,6 +953,8 @@ function toggleCompareYear(year) {
     };
 
     let loaderInterval;
+    let progressInterval;
+    let syncInterval;
     
     function switchModule(mode) {
        // Prevent reloading if already on that module
@@ -939,6 +1000,19 @@ function toggleCompareYear(year) {
 
       loader.style.display = 'flex';
       
+      // Setup 20-Second Progress Simulation
+      let progress = 0;
+      const loaderBar = document.getElementById('loader-progress-bar');
+      loaderBar.style.width = '0%';
+      clearInterval(progressInterval);
+      
+      // 20 seconds = 20000ms. Update every 100ms. To reach 95%: 95 / (20000/100) = 0.475% per tick
+      progressInterval = setInterval(() => {
+         progress += 0.475;
+         if (progress > 95) progress = 95;
+         loaderBar.style.width = progress + '%';
+      }, 100);
+
       // 2. Start Simulated Insights Cycle
       let insightIdx = 0;
       insightEl.innerText = insights[0];
@@ -958,9 +1032,16 @@ function toggleCompareYear(year) {
 
       google.script.run.withSuccessHandler(response => {
         clearInterval(loaderInterval); // Stop cycling text
-        document.getElementById('smart-loader').style.display = 'none';
+        clearInterval(progressInterval); // Stop progress animation
         
-        // Setup Floating Navigator
+        // Snap to 100% on success
+        document.getElementById('loader-progress-bar').style.width = '100%';
+        
+        // Add a slight 300ms delay so the user sees the bar hit 100% before it hides
+        setTimeout(() => {
+           document.getElementById('smart-loader').style.display = 'none';
+           
+           // Setup Floating Navigator
         document.getElementById('floating-navigator').style.display = 'flex';
         document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
         document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
@@ -986,7 +1067,7 @@ function toggleCompareYear(year) {
            appState.rawData = response;
            initClientView();
         }
-      })[backendFn]();
+      }, 300);})[backendFn]();
     }
 
     function initClientView() {
@@ -1950,6 +2031,11 @@ function toggleCompareYear(year) {
     }
 
     // --- ARCHIVE SYNC LOGIC ---
+    function handleSyncClick(e) {
+       if (e) e.stopPropagation(); // Safely stop the click from opening the dashboard
+       openSyncModal();
+    }
+
     function openSyncModal() {
        document.getElementById('sync-status').style.display = 'none';
        document.getElementById('btn-sync-start').style.display = 'inline-block';
@@ -1962,9 +2048,26 @@ function toggleCompareYear(year) {
        document.getElementById('sync-status').style.display = 'block';
        document.getElementById('btn-sync-start').style.display = 'none';
        document.getElementById('btn-sync-cancel').style.display = 'none';
-       document.getElementById('sync-msg').innerText = "Processing historical records... This may take up to 60 seconds.";
+       document.getElementById('sync-msg').innerText = "Processing historical records... This may take up to 270 seconds.";
        
+       // Setup 270-Second Sync Progress Simulation
+       let syncProg = 0;
+       const syncBar = document.getElementById('sync-progress-bar');
+       syncBar.style.width = '0%';
+       syncBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+       clearInterval(syncInterval);
+       
+       // 270 seconds = 270000ms. Update every 200ms. To reach 95%: 95 / (270000/200) = 0.070% per tick
+       syncInterval = setInterval(() => {
+          syncProg += 0.070;
+          if (syncProg > 95) syncProg = 95;
+          syncBar.style.width = syncProg + '%';
+       }, 200);
+
        google.script.run.withSuccessHandler(msg => {
+          clearInterval(syncInterval);
+          syncBar.style.width = '100%';
+          syncBar.classList.replace('bg-primary', 'bg-success'); // Turn bar green on success
           document.getElementById('sync-msg').innerHTML = `<i class="fas fa-check-circle text-success me-1"></i> ${msg} Reloading...`;
           setTimeout(() => {
              bootstrap.Modal.getInstance(document.getElementById('syncModal')).hide();
