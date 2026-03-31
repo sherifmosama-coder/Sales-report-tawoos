@@ -98,9 +98,13 @@ function getProductData() {
   let liveData = [];
   
   // 1. Fetch ONLY Live Year (2026) from Sheet
-  if (sheet && sheet.getLastRow() >= 2) {
-    // Fetch Cols B to I (Indices 0 to 7)
-    const rawData = sheet.getRange(2, 2, sheet.getLastRow() - 1, 8).getValues();
+  // NOTE: Rows 2 to 11838 are hardcoded as historical data (2021-2025). 
+  // Live data (2026+) starts strictly at row 11839.
+  const startRow = 11839;
+  if (sheet && sheet.getLastRow() >= startRow) {
+    // Fetch Cols B to I (Indices 0 to 7) starting from 11839
+    const numRows = sheet.getLastRow() - startRow + 1;
+    const rawData = sheet.getRange(startRow, 2, numRows, 8).getValues();
     const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
     const currentYear = new Date().getFullYear(); // e.g., 2026
 
@@ -142,10 +146,11 @@ function getProductData() {
 function syncHistoricalArchive() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Product_Cache");
-  if (!sheet || sheet.getLastRow() < 2) return "No data found in Product_Cache.";
-
-  // Fetch Cols B to I
-  const rawData = sheet.getRange(2, 2, sheet.getLastRow() - 1, 8).getValues();
+if (!sheet || sheet.getLastRow() < 2) return "No data found in Product_Cache.";
+// Fetch Cols B to I
+  // NOTE: Hardcoded historical block. Rows 2 to 11838 contain years 2021-2025.
+  // Total rows to fetch = 11838 - 2 + 1 = 11837 rows.
+  const rawData = sheet.getRange(2, 2, 11837, 8).getValues();
   const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
   const currentYear = new Date().getFullYear();
   let archive = [];
