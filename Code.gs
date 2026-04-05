@@ -91,44 +91,83 @@ function parseNumber(val) {
   return isNaN(num) ? 0 : num;
 }
 
-// NEW: Fetch Product Data (Hybrid Cache)
+// NEW: Fetch Product Data (Hybrid Dynamic Cache)
 function getProductData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Product_Cache");
   let liveData = [];
   
-  // 1. Fetch ONLY Live Year (2026) from Sheet
-  // NOTE: Rows 2 to 11838 are hardcoded as historical data (2021-2025). 
-  // Live data (2026+) starts strictly at row 11839.
+  const lastCol = sheet.getLastColumn();
+  if (!sheet || sheet.getLastRow() < 2 || lastCol < 2) return { liveData: [], archiveString: "[]" };
+  
+  // 1. AGGRESSIVE HEADER SCAN (Scans top 3 rows & uses fuzzy text matching)
+  const headerBlock = sheet.getRange(1, 2, 3, lastCol - 1).getValues();
+  let headers = headerBlock[0];
+  for (let i = 0; i < 3; i++) {
+     if (headerBlock[i].join('').toLowerCase().includes('qty')) {
+         headers = headerBlock[i];
+         break;
+     }
+  }
+
+  const segmentMap = {};
+  headers.forEach((h, idx) => {
+     let headerStr = String(h).toLowerCase();
+     // Fuzzy match: Looks for "qty" and "rev" anywhere inside brackets, ignoring invisible spaces
+     if (headerStr.includes('qty') && headerStr.includes('[')) {
+        let segName = headerStr.replace(/\[.*?qty.*?\]/i, '').trim();
+        segName = segName.replace(/\]|\[/g, '').trim(); // Failsafe for rogue brackets
+        if (segName) {
+           if (!segmentMap[segName]) segmentMap[segName] = {};
+           segmentMap[segName].qtyIdx = idx;
+        }
+     } else if (headerStr.includes('rev') && headerStr.includes('[')) {
+        let segName = headerStr.replace(/\[.*?rev.*?\]/i, '').trim();
+        segName = segName.replace(/\]|\[/g, '').trim();
+        if (segName) {
+           if (!segmentMap[segName]) segmentMap[segName] = {};
+           segmentMap[segName].revIdx = idx;
+        }
+     }
+  });
+
+  // 2. Fetch ONLY Live Year (2026) starting strictly from Row 11839
   const startRow = 11839;
-  if (sheet && sheet.getLastRow() >= startRow) {
-    // Fetch Cols B to I (Indices 0 to 7) starting from 11839
+  if (sheet.getLastRow() >= startRow) {
     const numRows = sheet.getLastRow() - startRow + 1;
-    const rawData = sheet.getRange(startRow, 2, numRows, 8).getValues();
+    const rawData = sheet.getRange(startRow, 2, numRows, lastCol - 1).getValues();
     const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
-    const currentYear = new Date().getFullYear(); // e.g., 2026
+    const currentYear = new Date().getFullYear();
 
     rawData.forEach(row => {
-      // row[0]=Date, row[1]=Item, row[2]=Qty, row[3]=Rev, row[4]=Year, row[5]=Month, row[6]=Line, row[7]=Category
       let rowYear = Number(row[4]);
-      
-      if (rowYear >= currentYear) { // Only grab LIVE year
+      if (rowYear >= currentYear) {
         let rawDate = row[0];
         let dateStr = (rawDate instanceof Date) ? Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd") : String(rawDate).substring(0, 10);
         
+        // Extract dynamically mapped segments
+        let rowSegments = {};
+        Object.keys(segmentMap).forEach(segName => {
+           rowSegments[segName] = {
+              qty: Number(row[segmentMap[segName].qtyIdx]) || 0,
+              rev: Number(row[segmentMap[segName].revIdx]) || 0
+           };
+        });
+
         if (row[1] && dateStr) {
           liveData.push({
             date: dateStr, item: String(row[1]), 
             qty: Number(row[2]) || 0, rev: Number(row[3]) || 0,
             year: String(rowYear), month: String(row[5]), 
-            line: String(row[6]), category: String(row[7])
+            line: String(row[6]), category: String(row[7]),
+            segments: rowSegments // Bind the segments mapping
           });
         }
       }
     });
   }
 
-  // 2. Fetch Static Archive (2021-2025) directly as a fast String
+  // 3. Fetch Static Archive (2021-2025) directly as a fast String
   let archiveString = "[]";
   const fileId = PropertiesService.getScriptProperties().getProperty('ARCHIVE_FILE_ID');
   if (fileId) {
@@ -138,7 +177,6 @@ function getProductData() {
      } catch(e) { archiveString = "[]"; }
   }
 
-  // Return separately to prevent serialization timeouts
   return { liveData: liveData, archiveString: archiveString };
 }
 
@@ -146,33 +184,67 @@ function getProductData() {
 function syncHistoricalArchive() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Product_Cache");
-if (!sheet || sheet.getLastRow() < 2) return "No data found in Product_Cache.";
-// Fetch Cols B to I
-  // NOTE: Hardcoded historical block. Rows 2 to 11838 contain years 2021-2025.
-  // Total rows to fetch = 11838 - 2 + 1 = 11837 rows.
-  const rawData = sheet.getRange(2, 2, 11837, 8).getValues();
+  const lastCol = sheet.getLastColumn();
+  if (!sheet || sheet.getLastRow() < 2 || lastCol < 2) return "No data found.";
+  
+  // AGGRESSIVE HEADER SCAN (Scans top 3 rows & uses fuzzy text matching)
+  const headerBlock = sheet.getRange(1, 2, 3, lastCol - 1).getValues();
+  let headers = headerBlock[0];
+  for (let i = 0; i < 3; i++) {
+     if (headerBlock[i].join('').toLowerCase().includes('qty')) {
+         headers = headerBlock[i];
+         break;
+     }
+  }
+
+  const segmentMap = {};
+  headers.forEach((h, idx) => {
+     let headerStr = String(h).toLowerCase();
+     if (headerStr.includes('qty') && headerStr.includes('[')) {
+        let segName = headerStr.replace(/\[.*?qty.*?\]/i, '').trim();
+        segName = segName.replace(/\]|\[/g, '').trim(); 
+        if (segName) {
+           if (!segmentMap[segName]) segmentMap[segName] = {};
+           segmentMap[segName].qtyIdx = idx;
+        }
+     } else if (headerStr.includes('rev') && headerStr.includes('[')) {
+        let segName = headerStr.replace(/\[.*?rev.*?\]/i, '').trim();
+        segName = segName.replace(/\]|\[/g, '').trim();
+        if (segName) {
+           if (!segmentMap[segName]) segmentMap[segName] = {};
+           segmentMap[segName].revIdx = idx;
+        }
+     }
+  });
+
+  // Fetch strictly Rows 2 to 11838 (Years 2021-2025)
+  const rawData = sheet.getRange(2, 2, 11837, lastCol - 1).getValues();
   const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
   const currentYear = new Date().getFullYear();
   let archive = [];
-
+  
   rawData.forEach(row => {
     let rowYear = Number(row[4]);
-    
-    // Grab everything STRICTLY BEFORE the current year (e.g., 2021 - 2025)
     if (rowYear < currentYear && rowYear > 2000) { 
       let rawDate = row[0];
       let dateStr = (rawDate instanceof Date) ? Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd") : String(rawDate).substring(0, 10);
-      
       let q = Number(row[2]) || 0;
       let r = Number(row[3]) || 0;
       
-      // Ensure we don't save completely empty Qty/Rev rows to save space
+      let rowSegments = {};
+      Object.keys(segmentMap).forEach(segName => {
+         rowSegments[segName] = {
+            qty: Number(row[segmentMap[segName].qtyIdx]) || 0,
+            rev: Number(row[segmentMap[segName].revIdx]) || 0
+         };
+      });
+
       if (row[1] && dateStr && (q !== 0 || r !== 0)) {
          archive.push({
            date: dateStr, item: String(row[1]), 
-           qty: q, rev: r,
-           year: String(rowYear), month: String(row[5]), 
-           line: String(row[6]), category: String(row[7])
+           qty: q, rev: r, year: String(rowYear), 
+           month: String(row[5]), line: String(row[6]), 
+           category: String(row[7]), segments: rowSegments
          });
       }
     }
