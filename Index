@@ -405,6 +405,10 @@
     .btn-sync-archive:active {
        transform: scale(0.95);
     }
+
+    /* --- COSTING STYLES --- */
+    .bom-table th { background: #f8fafc; color: #475569; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; }
+    .bom-table td { font-size: 0.85rem; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -453,6 +457,28 @@
             </div>
           </div>
         </div>
+        <div class="col-md-6 col-lg-5 col-xl-4">
+          <div class="report-card" onclick="loadSource('costing')">
+            <div class="card-icon-box" style="background: #fef2f2; color: #ef4444;"><i class="fas fa-industry"></i></div>
+            <h3 class="h4 fw-bold mb-3">Production Costing</h3>
+            <p class="text-muted mb-4">Two-tier FIFO calculation analyzing Actual vs Market raw material costs and BOM breakdowns.</p>
+            
+            <div class="d-flex justify-content-between align-items-center" style="min-height: 32px;">
+               <div class="d-flex align-items-center fw-bold small" style="color: #ef4444;">OPEN REPORT <i class="fas fa-arrow-right ms-2"></i></div>
+               
+               <button id="btn-costing-sync" class="btn-sync-archive" onclick="triggerCostingSyncConfirm(event)" title="Force Full Recalculation">
+                  <i class="fas fa-sync-alt"></i><span class="sync-text">Force Sync</span>
+               </button>
+               
+               <div id="costing-sync-confirm" class="d-none align-items-center bg-white border rounded-pill shadow-sm" style="padding: 2px 4px;">
+                  <span class="small fw-bold text-danger px-2" style="font-size:0.7rem; white-space:nowrap;">Clear & Sync?</span>
+                  <button class="btn btn-sm btn-danger rounded-circle p-0 d-flex justify-content-center align-items-center shadow-sm" style="width:22px;height:22px;font-size:0.6rem; border:none;" onclick="executeCostingSync(event)"><i class="fas fa-check"></i></button>
+                  <button class="btn btn-sm btn-light rounded-circle p-0 d-flex justify-content-center align-items-center ms-1 border shadow-sm" style="width:22px;height:22px;font-size:0.6rem;" onclick="cancelCostingSync(event)"><i class="fas fa-times text-muted"></i></button>
+               </div>
+            </div>
+
+          </div>
+        </div>
 
         </div>
 
@@ -487,6 +513,7 @@
   <div id="floating-navigator" class="floating-nav" style="display: none;">
      <button class="nav-btn" id="nav-btn-client" onclick="switchModule('client')"><i class="fas fa-users-viewfinder me-2"></i>Clients</button>
      <button class="nav-btn" id="nav-btn-product" onclick="switchModule('product')"><i class="fas fa-cubes me-2"></i>Products</button>
+     <button class="nav-btn" id="nav-btn-costing" onclick="switchModule('costing')"><i class="fas fa-industry me-2"></i>Costing</button>
   </div>
 
   <div class="container-fluid px-3 pt-3" id="main-dashboard" style="display:none;">
@@ -629,8 +656,60 @@
          </div>
 
       </div>
+      <div id="costing-view-container" style="display: none;">
+          <div class="row align-items-center mb-4 gy-3">
+             <div class="col-md-6 order-1 text-center text-md-start">
+                <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-industry me-2 text-danger"></i>Production Costing</h4>
+                <div class="mt-1"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Actual vs Market Cost</span></div>
+             </div>
+             <div class="col-md-6 order-2 d-flex justify-content-center justify-content-md-end">
+                <div class="segmented-control shadow-sm bg-white border">
+                   <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" checked onchange="updateCostingState('view', 'actual')">
+                   <label for="cview-actual" class="mb-0 px-3"><i class="fas fa-file-invoice-dollar me-1"></i> Actual</label>
+                   <input type="radio" class="btn-check" name="costing-view" id="cview-market" value="market" onchange="updateCostingState('view', 'market')">
+                   <label for="cview-market" class="mb-0 px-3"><i class="fas fa-chart-line me-1"></i> Market</label>
+                   <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" onchange="updateCostingState('view', 'compare')">
+                   <label for="cview-compare" class="mb-0 px-3"><i class="fas fa-balance-scale me-1"></i> Compare</label>
+                </div>
+             </div>
+          </div>
 
-  <div id="client-view-container">
+          <div class="row g-4 mb-4">
+             <div class="col-lg-8">
+                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+                   <div class="card-body p-4">
+                      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                         <h6 class="fw-bold m-0"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Cost Trend</h6>
+                         <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <div class="segmented-control shadow-sm bg-light" style="padding: 2px;">
+                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-daily" value="daily" checked onchange="updateCostingState('timeline', 'daily')">
+                               <label for="ctl-daily" class="px-2 mb-0" style="font-size:0.75rem;">Daily</label>
+                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" onchange="updateCostingState('timeline', 'weekly')">
+                               <label for="ctl-weekly" class="px-2 mb-0" style="font-size:0.75rem;">Weekly</label>
+                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" onchange="updateCostingState('timeline', 'monthly')">
+                               <label for="ctl-monthly" class="px-2 mb-0" style="font-size:0.75rem;">Monthly</label>
+                            </div>
+                            <select id="costing-product-filter" class="form-select form-select-sm border-0 bg-light fw-bold" style="width: 200px;" onchange="updateCostingState('product', this.value)"></select>
+                         </div>
+                      </div>
+                      <div style="height: 320px;"><canvas id="costingTrendChart"></canvas></div>
+                   </div>
+                </div>
+             </div>
+             <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100 rounded-4">
+                   <div class="card-header bg-white border-0 py-3 rounded-top-4">
+                      <h6 class="fw-bold m-0"><i class="fas fa-history me-2 text-warning"></i>Recent Production Runs</h6>
+                   </div>
+                   <div class="card-body p-0">
+                      <div id="costing-runs-list" class="d-flex flex-column gap-2 p-3" style="max-height: 360px; overflow-y: auto;">
+                      </div>
+                   </div>
+                </div>
+             </div>
+          </div>
+      </div>
+  <div id="client-view-container" style="display: none;">
     
       <div class="row align-items-center mb-4 gy-3">
          <div class="col-md-6 order-1 text-center text-md-start">
@@ -722,6 +801,41 @@
 
     </div>
 </div>
+  <div class="modal fade" id="bomModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold"><i class="fas fa-cogs text-danger me-2"></i>BOM Cost Breakdown</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                  <p class="mb-1 text-muted small fw-bold">Product</p>
+                  <h6 class="fw-bold text-dark" id="bom-modal-product"></h6>
+                </div>
+                <div class="col-md-3">
+                  <p class="mb-1 text-muted small fw-bold">Date & Plan ID</p>
+                  <h6 class="fw-bold text-primary" id="bom-modal-date"></h6>
+                </div>
+                <div class="col-md-3">
+                  <p class="mb-1 text-muted small fw-bold">Quantity Produced</p>
+                  <h6 class="fw-bold text-success" id="bom-modal-qty"></h6>
+                </div>
+            </div>
+            <div style="height: 250px; margin-bottom: 20px;"><canvas id="bomChart"></canvas></div>
+            <div class="table-responsive border rounded-3">
+                <table class="table table-hover table-borderless align-middle mb-0 bom-table">
+                  <thead class="table-light border-bottom">
+                      <tr><th>Raw Material</th><th class="text-end">Actual Cost</th><th class="text-end">Market Cost</th><th class="text-end">Variance</th></tr>
+                  </thead>
+                  <tbody id="bom-modal-table-body"></tbody>
+                </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="modal fade" id="drillDownModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
           <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
@@ -917,8 +1031,14 @@
       pYearlyTrend: null, // Holds data for the Drill Down
       pCompareTarget: false, // Target Toggle
       targetConfig: { yoy: 25, mom: 30 },
-      pMasterItems: {}, // NEW: Holds detailed item data for the modal
-      kpiModalState: { type: 'value', targetId: 'current', viewLevel: 'category' } // NEW
+      pMasterItems: {}, 
+      kpiModalState: { type: 'value', targetId: 'current', viewLevel: 'category' },
+      
+      // NEW: Costing Engine State
+      costingData: [],
+      cFilters: { product: 'All', view: 'actual', timeline: 'daily' },
+      cChartInstance: null,
+      bomChartInstance: null
     };
 
     function toggleCompareTarget() {
@@ -968,63 +1088,75 @@ function toggleCompareYear(year) {
     let syncInterval;
     
     function switchModule(mode) {
-       // Prevent reloading if already on that module
-       if (appState.mode === mode && document.getElementById('main-dashboard').style.display === 'block') return;
-       loadSource(mode);
+       if (mode === appState.mode) return;
+       appState.mode = mode;
+       
+       // 1. Update the Floating Navigator UI
+       document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
+       document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
+       document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
+
+       // 2. Force Hide ALL containers safely
+       document.getElementById('client-view-container').style.display = 'none';
+       document.getElementById('product-controls').style.display = 'none';
+       document.getElementById('product-content-area').style.display = 'none';
+       document.getElementById('costing-view-container').style.display = 'none';
+
+       // 3. Route to the correct view (or trigger Loader if data is missing)
+       if (mode === 'product') {
+          if (appState.productData.length === 0) { loadSource('product'); } 
+          else { initProductView(); }
+       } else if (mode === 'costing') {
+          if (appState.costingData.length === 0) { loadSource('costing'); } 
+          else { initCostingView(); }
+       } else {
+          if (appState.rawData.length === 0) { loadSource('client'); } 
+          else { initClientView(); }
+       }
     }
 
     function loadSource(mode) {
       document.getElementById('landing-screen').style.display = 'none';
-      document.getElementById('main-dashboard').style.display = 'none'; // Hide dashboard while loading
-      document.getElementById('floating-navigator').style.display = 'none'; // Hide nav while loading
+      document.getElementById('main-dashboard').style.display = 'none';
+      document.getElementById('floating-navigator').style.display = 'none';
       appState.mode = mode;
 
-      // 1. Configure the Smart Loader based on Context
       const loader = document.getElementById('smart-loader');
       const icon = document.getElementById('loader-icon');
       const title = document.getElementById('loader-title');
       const insightEl = document.getElementById('loader-insight');
       
       let insights = [];
-
       if (mode === 'client') {
          icon.className = 'fas fa-users-viewfinder text-primary';
          document.getElementById('loader-icon-box').style.color = '#3b82f6';
          title.innerText = "Clients' Sales across Years";
-         insights = [
-            "Mapping client Orders...",
-            "Analyzing longitudinal order frequencies...",
-            "Calculating risk of losing clients...",
-            "Rendering client behavior segments..."
-         ];
-      } else {
+         insights = ["Mapping client Orders...", "Analyzing longitudinal order frequencies...", "Calculating risk of losing clients...", "Rendering client behavior segments..."];
+      } else if (mode === 'product') {
          icon.className = 'fas fa-chart-line text-success';
          document.getElementById('loader-icon-box').style.color = '#10b981';
          title.innerText = "SKUs Analytics across Years";
-         insights = [
-            "Aggregating SKU-level transaction volumes...",
-            "Reconciling historical comparison periods...",
-            "Projecting dynamic baseline targets...",
-            "Compiling periodic trend horizons..."
-         ];
+         insights = ["Aggregating SKU-level transaction volumes...", "Reconciling historical comparison periods...", "Projecting dynamic baseline targets...", "Compiling periodic trend horizons..."];
+      } else if (mode === 'costing') {
+         icon.className = 'fas fa-industry text-danger';
+         document.getElementById('loader-icon-box').style.color = '#ef4444';
+         title.innerText = "Production Costing Analysis";
+         insights = ["Syncing Two-Tier FIFO Engine...", "Resolving Bill of Materials...", "Calculating Actual vs Market Discrepancies...", "Rendering Unit Costs..."];
       }
 
       loader.style.display = 'flex';
       
-      // Setup 20-Second Progress Simulation
       let progress = 0;
       const loaderBar = document.getElementById('loader-progress-bar');
       loaderBar.style.width = '0%';
       clearInterval(progressInterval);
       
-      // 20 seconds = 20000ms. Update every 100ms. To reach 95%: 95 / (20000/100) = 0.475% per tick
       progressInterval = setInterval(() => {
          progress += 0.475;
          if (progress > 95) progress = 95;
          loaderBar.style.width = progress + '%';
       }, 100);
 
-      // 2. Start Simulated Insights Cycle
       let insightIdx = 0;
       insightEl.innerText = insights[0];
       clearInterval(loaderInterval);
@@ -1034,51 +1166,53 @@ function toggleCompareYear(year) {
             insightIdx = (insightIdx + 1) % insights.length;
             insightEl.innerText = insights[insightIdx];
             insightEl.classList.add('active');
-         }, 400); // Wait for fade out
-      }, 2500); // Change text every 2.5 seconds
+         }, 400); 
+      }, 2500);
 
-      // Determine Backend Function
-      const isProduct = mode === 'product';
-      const backendFn = isProduct ? 'getProductData' : 'getDashboardData';
+      // --- CRITICAL ROUTING LOGIC ---
+      let backendFn = 'getDashboardData';
+      if (mode === 'product') backendFn = 'getProductData';
+      if (mode === 'costing') backendFn = 'getCostingData';
 
-      google.script.run.withSuccessHandler(response => {
-        clearInterval(loaderInterval); // Stop cycling text
-        clearInterval(progressInterval); // Stop progress animation
-        
-        // Snap to 100% on success
-        document.getElementById('loader-progress-bar').style.width = '100%';
-        
-        // Add a slight 300ms delay so the user sees the bar hit 100% before it hides
-        setTimeout(() => {
-           document.getElementById('smart-loader').style.display = 'none';
-           
-           // Setup Floating Navigator
-        document.getElementById('floating-navigator').style.display = 'flex';
-        document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
-        document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
-        
-        if (!response) {
-           alert("System Alert: Unable to retrieve dataset.");
-           return;
-        }
+      google.script.run
+        .withSuccessHandler(response => {
+          clearInterval(loaderInterval); 
+          clearInterval(progressInterval); 
+          document.getElementById('loader-progress-bar').style.width = '100%';
+          
+          setTimeout(() => {
+             document.getElementById('smart-loader').style.display = 'none';
+             document.getElementById('floating-navigator').style.display = 'flex';
+             
+             document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
+             document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
+             document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
+          
+             if (!response) { alert("System Alert: Unable to retrieve dataset."); return; }
 
-        if (isProduct) {
-           // REASSEMBLE HYBRID CACHE INSTANTLY
-           try {
-              const archive = JSON.parse(response.archiveString || "[]");
-              appState.productData = archive.concat(response.liveData || []);
-           } catch(e) {
-              appState.productData = response.liveData || [];
-           }
-           
-           document.getElementById('report-date').valueAsDate = new Date();
-           initProductView();
-        } else {
-           if (!Array.isArray(response)) { alert("System Alert: Dataset error."); return; }
-           appState.rawData = response;
-           initClientView();
-        }
-      }, 300);})[backendFn]();
+             if (mode === 'product') {
+                try {
+                   const archive = JSON.parse(response.archiveString || "[]");
+                   appState.productData = archive.concat(response.liveData || []);
+                } catch(e) { appState.productData = response.liveData || []; }
+                document.getElementById('report-date').valueAsDate = new Date();
+                initProductView();
+             } else if (mode === 'costing') {
+                if (!Array.isArray(response)) { alert("System Alert: Dataset error."); return; }
+                appState.costingData = response;
+                initCostingView();
+             } else {
+                if (!Array.isArray(response)) { alert("System Alert: Dataset error."); return; }
+                appState.rawData = response;
+                initClientView();
+             }
+          }, 300);
+        })
+        .withFailureHandler(error => {
+            alert("Server Error: " + error.message);
+            document.getElementById('smart-loader').style.display = 'none';
+            document.getElementById('landing-screen').style.display = 'block';
+        })[backendFn]();
     }
 
     function initClientView() {
@@ -1087,9 +1221,10 @@ function toggleCompareYear(year) {
        // Show Client Container
        document.getElementById('client-view-container').style.display = 'block';
        
-       // Hide Product Container
+       // Hide Product & Costing Containers
        document.getElementById('product-controls').style.display = 'none';
        document.getElementById('product-content-area').style.display = 'none';
+       document.getElementById('costing-view-container').style.display = 'none'; // NEW: Hide Costing
 
        renderDashboard(); 
     }
@@ -1097,8 +1232,9 @@ function toggleCompareYear(year) {
     function initProductView() {
        document.getElementById('main-dashboard').style.display = 'block';
        
-       // Hide Client Container
+       // Hide Client & Costing Containers
        document.getElementById('client-view-container').style.display = 'none';
+       document.getElementById('costing-view-container').style.display = 'none'; // NEW: Hide Costing
        
        // Show Product Container
        document.getElementById('product-controls').style.display = 'block';
@@ -2398,6 +2534,237 @@ function toggleCompareYear(year) {
           });
           document.getElementById('kpiModalTableBody').innerHTML = tableHtml || `<tr><td colspan="4" class="text-center py-4 text-muted">No data available for this breakdown.</td></tr>`;
        }
+    }
+    // ==========================================
+    // COSTING DASHBOARD LOGIC
+    // ==========================================
+    function initCostingView() {
+       document.getElementById('main-dashboard').style.display = 'block';
+       document.getElementById('client-view-container').style.display = 'none';
+       document.getElementById('product-controls').style.display = 'none';
+       document.getElementById('product-content-area').style.display = 'none';
+       document.getElementById('costing-view-container').style.display = 'block';
+
+       const select = document.getElementById('costing-product-filter');
+       const listContainer = document.getElementById('costing-runs-list');
+       
+       // SAFEGUARD: If no data exists, show a warning instead of a blank screen
+       if (!appState.costingData || appState.costingData.length === 0) {
+          select.innerHTML = '<option>No Data Available</option>';
+          listContainer.innerHTML = '<div class="alert alert-warning m-3"><i class="fas fa-exclamation-triangle me-2"></i><strong>No Costing Data Found.</strong><br>The "Items costs" tab is currently empty. Please run the syncCostLedger script in your spreadsheet to calculate your pallets.</div>';
+          return;
+       }
+
+       // Get unique products
+       const products = [...new Set(appState.costingData.map(d => d.product))].filter(Boolean).sort();
+       
+       // If current filter is invalid or 'All', force it to the first valid product
+       if (products.length > 0 && (!products.includes(appState.cFilters.product) || appState.cFilters.product === 'All')) {
+          appState.cFilters.product = products[0]; 
+       }
+       
+       select.innerHTML = products.map(p => `<option value="${p}" ${appState.cFilters.product === p ? 'selected' : ''}>${p}</option>`).join('');
+
+       renderCostingDashboard();
+    }
+
+    function updateCostingState(key, val) {
+       appState.cFilters[key] = val;
+       renderCostingDashboard();
+    }
+
+    function renderCostingDashboard() {
+       const rawProductData = appState.costingData.filter(d => d.product === appState.cFilters.product);
+       
+       // Sort chronologically for timeline math and finding price shifts
+       const chronoData = [...rawProductData].sort((a, b) => new Date(a.date) - new Date(b.date));
+       
+       // --- 1. TIMELINE AGGREGATION FOR CHART ---
+       let aggregated = {};
+       chronoData.forEach(d => {
+          let key = d.date; // Default daily
+          if (appState.cFilters.timeline === 'monthly') {
+             key = d.date.substring(0, 7); // YYYY-MM
+          } else if (appState.cFilters.timeline === 'weekly') {
+             let dateObj = new Date(d.date);
+             dateObj.setHours(0, 0, 0, 0);
+             dateObj.setDate(dateObj.getDate() + 4 - (dateObj.getDay() || 7));
+             let weekNo = Math.ceil((((dateObj - new Date(dateObj.getFullYear(), 0, 1)) / 86400000) + 1) / 7);
+             key = `${dateObj.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+          }
+          
+          if(!aggregated[key]) { aggregated[key] = { date: key, actSum: 0, mktSum: 0, count: 0 }; }
+          aggregated[key].actSum += d.unitActual;
+          aggregated[key].mktSum += d.unitMarket;
+          aggregated[key].count += 1;
+       });
+
+       let chartLabels = [];
+       let chartAct = [];
+       let chartMkt = [];
+       Object.values(aggregated).forEach(a => {
+          chartLabels.push(a.date);
+          chartAct.push(Number((a.actSum / a.count).toFixed(2)));
+          chartMkt.push(Number((a.mktSum / a.count).toFixed(2)));
+       });
+
+       const ctx = document.getElementById('costingTrendChart').getContext('2d');
+       if(appState.cChartInstance) appState.cChartInstance.destroy();
+       
+       let datasets = [];
+       if (appState.cFilters.view === 'actual' || appState.cFilters.view === 'compare') {
+          datasets.push({ label: 'Actual Unit Cost (EGP)', data: chartAct, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: appState.cFilters.view === 'actual', tension: 0.3, borderWidth: 3 });
+       }
+       if (appState.cFilters.view === 'market' || appState.cFilters.view === 'compare') {
+          datasets.push({ label: 'Market Unit Cost (EGP)', data: chartMkt, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: appState.cFilters.view === 'market', tension: 0.3, borderWidth: 3, borderDash: appState.cFilters.view === 'compare' ? [5, 5] : [] });
+       }
+
+       appState.cChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: { labels: chartLabels, datasets: datasets },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: false } } }
+       });
+
+       // --- 2. ISOLATE PRICE SHIFTS FOR THE LIST ---
+       let changeEvents = [];
+       let lastActual = null;
+       let lastMarket = null;
+
+       for (let i = 0; i < chronoData.length; i++) {
+          let d = chronoData[i];
+          // Only save to the side list if it is the first record OR if the price moved
+          if (i === 0 || d.unitActual !== lastActual || d.unitMarket !== lastMarket) {
+             changeEvents.push({ ...d, isFirst: i === 0 });
+             lastActual = d.unitActual;
+             lastMarket = d.unitMarket;
+          }
+       }
+       // Reverse to show the most recent shifts at the top
+       changeEvents.reverse();
+
+       const listContainer = document.getElementById('costing-runs-list');
+       if(changeEvents.length === 0) { listContainer.innerHTML = '<div class="text-center text-muted p-3">No production history.</div>'; return; }
+       
+       listContainer.innerHTML = changeEvents.map(d => {
+          let mainVal = appState.cFilters.view === 'market' ? d.unitMarket : d.unitActual;
+          let diffStr = '';
+          if (appState.cFilters.view === 'compare') {
+             let diff = d.unitMarket - d.unitActual;
+             let cColor = diff > 0 ? 'text-danger' : (diff < 0 ? 'text-success' : 'text-muted');
+             let cSign = diff > 0 ? '+' : '';
+             diffStr = `<span class="${cColor} small fw-bold ms-2" style="font-size: 0.75rem;">(${cSign}${diff.toFixed(2)})</span>`;
+          }
+          let badgeHtml = d.isFirst ? `<span class="badge bg-secondary ms-1">Initial</span>` : `<span class="badge bg-warning text-dark ms-1"><i class="fas fa-bolt"></i> Price Shift</span>`;
+          return `
+          <div class="p-3 bg-light border rounded-3 mb-2 d-flex justify-content-between align-items-center client-card" onclick="openBomModal('${d.planId}')">
+             <div>
+                <div class="fw-bold text-dark" style="font-size: 0.9rem;">${d.date} ${badgeHtml}</div>
+                <div class="small text-muted mt-1">Ref: ${d.planId}</div>
+             </div>
+             <div class="text-end">
+                <div class="fw-bold text-primary fs-6">${mainVal.toFixed(2)} EGP ${diffStr}</div>
+                <div class="small text-muted mt-1 border-bottom border-primary d-inline-block" style="cursor:pointer">View BOM</div>
+             </div>
+          </div>`;
+       }).join('');
+    }
+
+    function openBomModal(planId) {
+       // Search by specific Plan ID rather than index to guarantee accuracy
+       const data = appState.costingData.find(d => d.planId === planId);
+       if (!data) return;
+
+       document.getElementById('bom-modal-product').innerText = data.product;
+       document.getElementById('bom-modal-date').innerText = `${data.date} (${data.planId})`;
+       document.getElementById('bom-modal-qty').innerText = data.qty.toLocaleString();
+
+       const allMats = new Set([...Object.keys(data.bomActual || {}), ...Object.keys(data.bomMarket || {})]);
+       const sortedMats = Array.from(allMats).sort();
+       
+       let tBody = '';
+       let actData = [];
+       let mktData = [];
+
+       sortedMats.forEach(mat => {
+          let act = data.bomActual[mat] || 0;
+          let mkt = data.bomMarket[mat] || 0;
+          actData.push(act);
+          mktData.push(mkt);
+
+          let diff = mkt - act;
+          let cColor = diff > 0 ? 'text-danger' : (diff < 0 ? 'text-success' : 'text-muted');
+          let cSign = diff > 0 ? '+' : '';
+          
+          tBody += `
+          <tr>
+             <td class="fw-bold text-dark">${mat}</td>
+             <td class="text-end text-primary fw-bold">${act.toFixed(2)}</td>
+             <td class="text-end text-danger fw-bold">${mkt.toFixed(2)}</td>
+             <td class="text-end ${cColor} fw-bold">${cSign}${diff.toFixed(2)}</td>
+          </tr>`;
+       });
+       document.getElementById('bom-modal-table-body').innerHTML = tBody;
+
+       const ctx = document.getElementById('bomChart').getContext('2d');
+       if(appState.bomChartInstance) appState.bomChartInstance.destroy();
+       
+       appState.bomChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+             labels: sortedMats,
+             datasets: [
+                { label: 'Actual Unit Cost', data: actData, backgroundColor: '#3b82f6', borderRadius: 4 },
+                { label: 'Market Unit Cost', data: mktData, backgroundColor: '#ef4444', borderRadius: 4 }
+             ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
+       });
+
+       new bootstrap.Modal(document.getElementById('bomModal')).show();
+    }
+function triggerCostingSyncConfirm(event) {
+       event.stopPropagation(); // Prevent opening the report
+       document.getElementById('btn-costing-sync').classList.add('d-none');
+       const confirmBox = document.getElementById('costing-sync-confirm');
+       confirmBox.classList.remove('d-none');
+       confirmBox.classList.add('d-flex');
+    }
+
+    function cancelCostingSync(event) {
+       if (event) event.stopPropagation();
+       const confirmBox = document.getElementById('costing-sync-confirm');
+       confirmBox.classList.remove('d-flex');
+       confirmBox.classList.add('d-none');
+       document.getElementById('btn-costing-sync').classList.remove('d-none');
+    }
+
+    function executeCostingSync(event) {
+       event.stopPropagation();
+       const confirmBox = document.getElementById('costing-sync-confirm');
+       
+       // Change inline UI to loading spinner
+       confirmBox.innerHTML = '<span class="small fw-bold text-primary px-3 py-1" style="font-size:0.75rem;"><i class="fas fa-spinner fa-spin me-2"></i>Recalculating...</span>';
+       
+       google.script.run
+         .withSuccessHandler(res => {
+            // Change inline UI to success message
+            confirmBox.innerHTML = '<span class="small fw-bold text-success px-3 py-1" style="font-size:0.75rem;"><i class="fas fa-check me-2"></i>Synced!</span>';
+            
+            setTimeout(() => {
+               // Restore the original HTML inside the confirm box so it works next time
+               cancelCostingSync(null);
+               confirmBox.innerHTML = '<span class="small fw-bold text-danger px-2" style="font-size:0.7rem; white-space:nowrap;">Clear & Sync?</span><button class="btn btn-sm btn-danger rounded-circle p-0 d-flex justify-content-center align-items-center shadow-sm" style="width:22px;height:22px;font-size:0.6rem; border:none;" onclick="executeCostingSync(event)"><i class="fas fa-check"></i></button><button class="btn btn-sm btn-light rounded-circle p-0 d-flex justify-content-center align-items-center ms-1 border shadow-sm" style="width:22px;height:22px;font-size:0.6rem;" onclick="cancelCostingSync(event)"><i class="fas fa-times text-muted"></i></button>';
+               
+               // Automatically launch the dashboard
+               loadSource('costing');
+            }, 1200);
+         })
+         .withFailureHandler(err => {
+            // Change inline UI to Error message
+            confirmBox.innerHTML = '<span class="small fw-bold text-danger px-3 py-1" style="font-size:0.75rem;"><i class="fas fa-exclamation-triangle me-2"></i>Error</span>';
+            setTimeout(() => { cancelCostingSync(null); }, 2500);
+         })
+         .forceResyncCostLedger();
     }
   </script>
 </body>
