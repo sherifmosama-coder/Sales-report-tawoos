@@ -269,3 +269,66 @@ function syncHistoricalArchive() {
   PropertiesService.getScriptProperties().setProperty('ARCHIVE_FILE_ID', file.getId());
   return "Archive synchronized successfully! " + archive.length + " historical records packaged.";
 }
+
+// ==========================================
+// NEW PHASE 4: ERP COSTING FETCH
+// ==========================================
+function getCostingData() {
+  try {
+      // 1. AUTOSYNC: Run the engine to calculate any new pallets before loading the dashboard
+      syncCostLedger();
+
+      // 2. FETCH DATA
+      const ss = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo");
+      const sheet = ss.getSheetByName("Items costs");
+      
+      if (!sheet || sheet.getLastRow() < 2) return [];
+
+      const rawData = sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).getValues();
+      const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
+
+      let output = [];
+      rawData.forEach(row => {
+        let rawDate = row[0];
+        if (!rawDate) return;
+        
+        let dateStr = (rawDate instanceof Date) ? Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd") : String(rawDate).substring(0, 10);
+        
+        let parsedBomActual = {};
+        let parsedBomMarket = {};
+        try { if (row[6]) parsedBomActual = JSON.parse(String(row[6])); } catch(e) {}
+        try { if (row[10]) parsedBomMarket = JSON.parse(String(row[10])); } catch(e) {}
+        
+        output.push({
+          date: dateStr,
+          product: String(row[1]).trim(),
+          qty: Number(row[3]) || 0,
+          unitActual: Number(row[4]) || 0,
+          totalActual: Number(row[5]) || 0,
+          bomActual: parsedBomActual,
+          planId: String(row[7]),
+          unitMarket: Number(row[8]) || 0,
+          totalMarket: Number(row[9]) || 0,
+          bomMarket: parsedBomMarket
+        });
+      });
+      
+      output.sort((a, b) => new Date(b.date) - new Date(a.date));
+      return output;
+  } catch(e) {
+      return { error: e.message };
+  }
+}
+
+function forceResyncCostLedger() {
+  const ss = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo");
+  const sheet = ss.getSheetByName("Items costs");
+  
+  if (sheet && sheet.getLastRow() > 1) {
+    // Clear everything except the headers on Row 1
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+  }
+  
+  // Re-run the engine from the beginning of time
+  return syncCostLedger();
+}
