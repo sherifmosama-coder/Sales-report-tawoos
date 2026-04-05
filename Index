@@ -526,8 +526,11 @@
 
         <div class="row g-3">
            <div class="col-lg-5 d-flex flex-column gap-3">
+              
+
               <div class="d-flex align-items-center gap-2">
-                 <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem;">Time Scope</small>
+                 <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Time Scope</small>
+           
                  <div class="segmented-control w-100">
                    <input type="radio" class="btn-check" name="timeframe" id="tf-year" value="year" checked onchange="renderProductDashboard()">
                    <label for="tf-year" class="flex-fill text-center">YTD</label>
@@ -539,7 +542,7 @@
               </div>
 
               <div class="d-flex align-items-center gap-2">
-                 <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Brand</small>
+                 <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Brand Vs Private label</small>
                  <div class="segmented-control w-100" id="filter-line-group">
                    <input type="radio" class="btn-check" name="filter-line" id="line-all" value="All" checked onchange="updateProductState('line', 'All')">
                    <label for="line-all" class="flex-fill text-center">All</label>
@@ -547,6 +550,14 @@
                    <label for="line-own" class="flex-fill text-center"><i class="fas fa-crown me-1 text-warning"></i>Tawoos</label>
                    <input type="radio" class="btn-check" name="filter-line" id="line-private" value="Private" onchange="updateProductState('line', 'Private')">
                    <label for="line-private" class="flex-fill text-center"><i class="fas fa-industry me-1 text-secondary"></i>Private</label>
+                 </div>
+              </div>
+
+              <div class="d-flex align-items-center gap-2">
+                 <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Client segment</small>
+                 <div class="segmented-control w-100" id="filter-segment-container" style="overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; justify-content: flex-start;">
+                   <input type="radio" class="btn-check" name="filter-segment" id="seg-all" value="All" checked onchange="updateProductState('segment', 'All')">
+                   <label for="seg-all" class="flex-fill text-center px-3"><i class="fas fa-layer-group me-1"></i>All</label>
                  </div>
               </div>
            </div>
@@ -895,7 +906,7 @@
       selectedYear: 'All',
       selectedType: 'All',
       viewMode: 'qty',
-      pFilters: { category: 'All', line: 'All', item: 'All' },
+      pFilters: { segment: 'All', category: 'All', line: 'All', item: 'All' },
       pChart: null,
       sortBy: 'qty',
       groupBy: 'None',
@@ -1102,6 +1113,23 @@ function toggleCompareYear(year) {
           appState.pCompareYears = [new Date().getFullYear() - 1];
        }
 
+       // --- NEW: Generate Dynamic Segment UI ---
+       const segContainer = document.getElementById('filter-segment-container');
+       if (segContainer && segContainer.children.length <= 2) { 
+           let uniqueSegments = new Set();
+           appState.productData.forEach(d => { if(d.segments) Object.keys(d.segments).forEach(s => uniqueSegments.add(s)); });
+           
+           let segHtml = `<input type="radio" class="btn-check" name="filter-segment" id="seg-all" value="All" checked onchange="updateProductState('segment', 'All')">
+                          <label for="seg-all" class="flex-fill text-center px-3"><i class="fas fa-layer-group me-1"></i>All</label>`;
+           
+           Array.from(uniqueSegments).sort().forEach((seg, idx) => {
+              const safeId = 'seg-' + idx;
+              segHtml += `<input type="radio" class="btn-check" name="filter-segment" id="${safeId}" value="${seg}" onchange="updateProductState('segment', '${seg}')">
+                          <label for="${safeId}" class="flex-fill text-center px-3">${seg}</label>`;
+           });
+           segContainer.innerHTML = segHtml;
+       }
+
        if (catContainer.children.length === 0) { 
            let html = `<div class="filter-chip active" onclick="updateProductState('category','All')"><i class="fas fa-layer-group"></i> All</div>`;
            categories.forEach(c => {
@@ -1116,8 +1144,12 @@ function toggleCompareYear(year) {
 
     function updateProductState(key, val) {
        appState.pFilters[key] = val;
-       
-       // Reset child filters if parent changes
+       // Reset cascading filters
+       if(key === 'segment') {
+          appState.pFilters.category = 'All';
+          appState.pFilters.line = 'All';
+          appState.pFilters.item = 'All';
+       }
        if(key === 'category') {
           appState.pFilters.line = 'All';
           appState.pFilters.item = 'All';
@@ -1142,9 +1174,13 @@ function toggleCompareYear(year) {
     }
 
     function updateProductFiltersUI() {
-       // Populate Product Dropdown based on Cat + Line
-       const { category, line } = appState.pFilters;
+       // Populate Product Dropdown based on Segment + Cat + Line
+       const { segment, category, line } = appState.pFilters;
        const filtered = appState.productData.filter(d => {
+          if (segment !== 'All') {
+             const segData = d.segments ? d.segments[segment] : null;
+             if (!segData || (segData.qty === 0 && segData.rev === 0)) return false; // Hide items never sold in this segment
+          }
           if (category !== 'All' && d.category !== category) return false;
           const isPrivate = (d.line === true || String(d.line).toUpperCase() === 'TRUE');
           if (line === 'Own' && isPrivate) return false;
@@ -1646,7 +1682,7 @@ function toggleCompareYear(year) {
       
       const timeframe = document.querySelector('input[name="timeframe"]:checked').value;
       const measure = document.querySelector('input[name="measure"]:checked').value;
-      const { category, line, item } = appState.pFilters;
+      const { segment, category, line, item } = appState.pFilters;
 
       const currentYear = refDate.getFullYear();
 
@@ -1701,7 +1737,9 @@ function toggleCompareYear(year) {
       // 4. Filter, Aggregate, and Calculate Target Profiles
       let currTotal = 0; let currItems = {}; let currTrend = {};
       let itemProfiles = {}; // For Old vs New target logic
-      appState.pMasterItems = {}; // Reset Master Tracker for Modal
+      appState.pMasterItems = {};
+      appState.pMasterSegments = {};
+      // Reset Master Tracker for Modal
 
       const initMasterItem = (name, cat, line) => {
          if (!appState.pMasterItems[name]) {
@@ -1720,7 +1758,19 @@ function toggleCompareYear(year) {
 
       data.forEach(d => {
          if (!isMatch(d)) return;
-         const val = measure === 'qty' ? d.qty : d.rev;
+         
+         // NEW: Determine value dynamically based on Segment Mode
+         let val = 0;
+         if (segment === 'All') {
+            val = measure === 'qty' ? d.qty : d.rev;
+         } else {
+            if (d.segments && d.segments[segment]) {
+               val = d.segments[segment][measure] || 0;
+            }
+         }
+         
+         if (val === 0) return; // Skip logic if segment had no volume
+
          const dDate = new Date(d.date); dDate.setHours(0,0,0,0);
          const dayKey = ('0' + (dDate.getMonth()+1)).slice(-2) + '-' + ('0' + dDate.getDate()).slice(-2);
          const dYear = dDate.getFullYear();
@@ -1743,6 +1793,17 @@ function toggleCompareYear(year) {
             currTrend[dayKey] = (currTrend[dayKey] || 0) + val;
             initMasterItem(d.item, d.category, d.line);
             appState.pMasterItems[d.item].curr += val;
+
+            // NEW: Track Segments for Drill-Down Modal
+            if (segment === 'All' && d.segments) {
+               Object.keys(d.segments).forEach(seg => {
+                  let sVal = measure === 'qty' ? (d.segments[seg].qty||0) : (d.segments[seg].rev||0);
+                  if (sVal !== 0) {
+                     if (!appState.pMasterSegments[seg]) appState.pMasterSegments[seg] = { name: seg, curr: 0, target: 0, comp: {} };
+                     appState.pMasterSegments[seg].curr += sVal;
+                  }
+               });
+            }
          }
          comparisons.forEach(comp => {
             if (dDate >= comp.start && dDate <= comp.end) {
@@ -1750,6 +1811,17 @@ function toggleCompareYear(year) {
                comp.trend[dayKey] = (comp.trend[dayKey] || 0) + val;
                initMasterItem(d.item, d.category, d.line);
                appState.pMasterItems[d.item].comp[comp.year] = (appState.pMasterItems[d.item].comp[comp.year] || 0) + val;
+
+               // NEW: Track Segments for Drill-Down Modal
+               if (segment === 'All' && d.segments) {
+                  Object.keys(d.segments).forEach(seg => {
+                     let sVal = measure === 'qty' ? (d.segments[seg].qty||0) : (d.segments[seg].rev||0);
+                     if (sVal !== 0) {
+                        if (!appState.pMasterSegments[seg]) appState.pMasterSegments[seg] = { name: seg, curr: 0, target: 0, comp: {} };
+                        appState.pMasterSegments[seg].comp[comp.year] = (appState.pMasterSegments[seg].comp[comp.year] || 0) + sVal;
+                     }
+                  });
+               }
             }
          });
 
@@ -1821,8 +1893,20 @@ function toggleCompareYear(year) {
          }
       });
 
+      // NEW: Proportional Target Allocation for Segments
+      if (appState.pFilters.segment === 'All' && Object.keys(appState.pMasterSegments).length > 0) {
+         let totCurr = 0;
+         Object.values(appState.pMasterSegments).forEach(seg => totCurr += seg.curr);
+         if (totCurr > 0) {
+            Object.values(appState.pMasterSegments).forEach(seg => {
+               seg.target = (seg.curr / totCurr) * tTotal; // Proportional baseline
+            });
+         }
+      }
+
       const targetData = { active: appState.pCompareTarget, total: tTotal, trend: tTrend, pData: pDataTarget };
-      appState.pYearlyTrend = yTrend; // Store for Modal
+      appState.pYearlyTrend = yTrend;
+      // Store for Modal
 
       // 5. Render UI
       renderCompareToggles(currentYear);
@@ -2177,9 +2261,14 @@ function toggleCompareYear(year) {
 
     function renderKpiModalContent() {
        const { type, targetId, viewLevel } = appState.kpiModalState;
-       
        // 1. Build Smart Toggles
        let toggleHtml = '';
+       
+       // NEW: Add Segment toggle ONLY if global filter is "All"
+       if (appState.pFilters.segment === 'All') {
+          toggleHtml += `<input type="radio" class="btn-check" name="kpi-level" id="kpi-seg" ${viewLevel==='segment'?'checked':''} onchange="setKpiModalLevel('segment')"><label for="kpi-seg" class="px-3">Segment</label>`;
+       }
+
        if (appState.pFilters.category === 'All') {
           toggleHtml += `<input type="radio" class="btn-check" name="kpi-level" id="kpi-cat" ${viewLevel==='category'?'checked':''} onchange="setKpiModalLevel('category')"><label for="kpi-cat" class="px-3">Category</label>`;
        }
@@ -2191,17 +2280,28 @@ function toggleCompareYear(year) {
 
        // 2. Aggregate Data based on View Level
        let aggData = {};
-       Object.values(appState.pMasterItems).forEach(item => {
-          let key = viewLevel === 'category' ? item.category : (viewLevel === 'line' ? (String(item.line).toUpperCase()==='TRUE'?'Private Label':'Own Brand') : item.name);
-          if (!key || key === 'undefined') key = 'Unknown';
-          
-          if (!aggData[key]) aggData[key] = { name: key, curr: 0, baseline: 0 };
-          aggData[key].curr += (item.curr || 0);
-          
-          if (targetId === 'target') aggData[key].baseline += (item.target || 0);
-          else if (targetId !== 'current') aggData[key].baseline += (item.comp[targetId] || 0);
-       });
-
+       
+       if (viewLevel === 'segment') {
+          // Use pre-aggregated segment data
+          Object.values(appState.pMasterSegments).forEach(seg => {
+             if (!aggData[seg.name]) aggData[seg.name] = { name: seg.name, curr: 0, baseline: 0 };
+             aggData[seg.name].curr += (seg.curr || 0);
+             if (targetId === 'target') aggData[seg.name].baseline += (seg.target || 0);
+             else if (targetId !== 'current') aggData[seg.name].baseline += (seg.comp[targetId] || 0);
+          });
+       } else {
+          // Use item-level data
+          Object.values(appState.pMasterItems).forEach(item => {
+             let key = viewLevel === 'category' ? item.category : (viewLevel === 'line' ? (String(item.line).toUpperCase()==='TRUE'?'Private Label':'Own Brand') : item.name);
+             if (!key || key === 'undefined') key = 'Unknown';
+             
+             if (!aggData[key]) aggData[key] = { name: key, curr: 0, baseline: 0 };
+             aggData[key].curr += (item.curr || 0);
+             
+             if (targetId === 'target') aggData[key].baseline += (item.target || 0);
+             else if (targetId !== 'current') aggData[key].baseline += (item.comp[targetId] || 0);
+          });
+       }
        const sortedArr = Object.values(aggData).sort((a, b) => b.curr - a.curr);
        const measure = document.querySelector('input[name="measure"]:checked').value;
        const fmt = (n) => measure === 'rev' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits:0 }).format(n) : formatK(n);
