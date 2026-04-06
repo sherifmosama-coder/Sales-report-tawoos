@@ -672,24 +672,6 @@
                 <h4 class="fw-bold mb-2 text-dark"><i class="fas fa-industry me-2 text-danger"></i>Production Costing</h4>
                 <div class="mb-3"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1 shadow-sm" style="letter-spacing: 0.5px;">Margin Analysis (Cost vs ASP)</span></div>
              </div>
-             <div class="col-12 d-flex justify-content-center gap-3 flex-wrap">
-                <div class="segmented-control shadow-sm bg-light" style="padding: 4px; border-radius: 12px;">
-                   <input type="radio" class="btn-check" name="c-timeline" id="ctl-daily" value="daily" checked onchange="updateCostingState('timeline', 'daily')">
-                   <label for="ctl-daily" class="px-3 py-1 mb-0"><i class="fas fa-calendar-day me-1"></i> Daily</label>
-                   <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" onchange="updateCostingState('timeline', 'weekly')">
-                   <label for="ctl-weekly" class="px-3 py-1 mb-0"><i class="fas fa-calendar-week me-1"></i> Weekly</label>
-                   <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" onchange="updateCostingState('timeline', 'monthly')">
-                   <label for="ctl-monthly" class="px-3 py-1 mb-0"><i class="fas fa-calendar-alt me-1"></i> Monthly</label>
-                </div>
-                <div class="segmented-control shadow-sm bg-white border" style="padding: 4px; border-radius: 12px;">
-                   <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" checked onchange="updateCostingState('view', 'actual')">
-                   <label for="cview-actual" class="mb-0 px-3 py-1"><i class="fas fa-file-invoice-dollar me-1"></i> Actual</label>
-                   <input type="radio" class="btn-check" name="costing-view" id="cview-market" value="market" onchange="updateCostingState('view', 'market')">
-                   <label for="cview-market" class="mb-0 px-3 py-1"><i class="fas fa-chart-line me-1"></i> Market</label>
-                   <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" onchange="updateCostingState('view', 'compare')">
-                   <label for="cview-compare" class="mb-0 px-3 py-1"><i class="fas fa-balance-scale me-1"></i> Compare</label>
-                </div>
-             </div>
           </div>
 
           <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
@@ -705,26 +687,70 @@
           <div class="row g-4 mb-4">
              <div class="col-lg-8">
                 <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-                   <div class="card-body p-4">
-                      <div class="d-flex justify-content-between align-items-center mb-3">
-                         <h6 class="fw-bold m-0"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Cost & Margin Trend</h6>
+                   <div class="card-body p-4 position-relative">
+                      
+                      <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
+                         <h6 class="fw-bold m-0 mt-2"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Margin Trend</h6>
+                         
+                         <div class="d-flex gap-2 flex-wrap">
+                            <div class="segmented-control shadow-sm border bg-white" style="padding: 2px; border-radius: 8px;">
+                               <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" checked onchange="updateCostingState('view', 'actual')">
+                               <label for="cview-actual" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-file-invoice-dollar me-1 text-primary"></i> Actual</label>
+                               
+                               <input type="radio" class="btn-check" name="costing-view" id="cview-market" value="market" onchange="updateCostingState('view', 'market')">
+                               <label for="cview-market" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-chart-line me-1 text-danger"></i> Market</label>
+                               
+                               <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" onchange="updateCostingState('view', 'compare')">
+                               <label for="cview-compare" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-balance-scale me-1 text-dark"></i> Compare</label>
+                            </div>
+
+                            <div class="segmented-control shadow-sm border bg-light" style="padding: 2px; border-radius: 8px;">
+                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-daily" value="daily" onchange="updateCostingState('timeline', 'daily')">
+                               <label for="ctl-daily" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-day me-1"></i> Daily</label>
+                               
+                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" onchange="updateCostingState('timeline', 'weekly')">
+                               <label for="ctl-weekly" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-week me-1"></i> Weekly</label>
+                               
+                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" checked onchange="updateCostingState('timeline', 'monthly')">
+                               <label for="ctl-monthly" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-alt me-1"></i> Monthly</label>
+                            </div>
+                         </div>
                       </div>
+
                       <div style="height: 320px;"><canvas id="costingTrendChart"></canvas></div>
+                      <div class="text-center mt-2 small text-muted"><i class="fas fa-hand-pointer me-1 text-primary"></i> <b>Click any point on the chart</b> to reveal its specific Cost Breakdown</div>
                    </div>
                 </div>
              </div>
+
              <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100 rounded-4">
-                   <div class="card-header bg-white border-0 py-3 rounded-top-4">
-                      <h6 class="fw-bold m-0"><i class="fas fa-history me-2 text-warning"></i>Recent Production Runs</h6>
+                <div class="card border-0 shadow-sm h-100 rounded-4 bg-white d-flex flex-column">
+                   <div class="card-header bg-transparent border-0 pt-4 pb-2 text-center">
+                      <h6 class="fw-bold m-0"><i class="fas fa-search-dollar me-2 text-warning"></i>Cost Composition</h6>
+                      <div id="bom-panel-subtitle" class="badge bg-light text-dark border mt-2">Loading...</div>
                    </div>
-                   <div class="card-body p-0">
-                      <div id="costing-runs-list" class="d-flex flex-column gap-2 p-3" style="max-height: 360px; overflow-y: auto;">
+                   <div class="card-body p-3 d-flex flex-column" style="flex-grow: 1;">
+                      
+                      <div style="height: 180px; margin-bottom: 20px;"><canvas id="bomDoughnut"></canvas></div>
+                      
+                      <div class="table-responsive border rounded-3 flex-grow-1" style="max-height: 250px; overflow-y: auto; scrollbar-width: thin;">
+                         <table class="table table-hover table-sm table-borderless align-middle mb-0">
+                            <thead class="table-light border-bottom sticky-top">
+                               <tr>
+                                  <th class="ps-2 text-muted fw-bold" style="font-size: 0.75rem;">MATERIAL</th>
+                                  <th class="text-end text-muted fw-bold" style="font-size: 0.75rem;">CONTRIBUTED</th>
+                                  <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.75rem;">MARKET RATE</th>
+                               </tr>
+                            </thead>
+                            <tbody id="bom-panel-table-body"></tbody>
+                         </table>
                       </div>
+
                    </div>
                 </div>
              </div>
           </div>
+      </div>
       </div>
   <div id="client-view-container" style="display: none;">
     
@@ -1053,7 +1079,8 @@
       
       // NEW: Costing Engine State
       costingData: [],
-      cFilters: { category: 'All', product: 'All', view: 'actual', timeline: 'daily' },
+      cFilters: { category: 'All', product: 'All', view: 'actual', timeline: 'monthly' },
+      cDoughnutChart: null,
       cChartInstance: null,
       bomChartInstance: null
     };
@@ -2633,188 +2660,182 @@ function toggleCompareYear(year) {
        ).join('');
        document.getElementById('costing-product-toggles').innerHTML = prodHtml;
 
-       // 2. Aggregate Costing Math
+       // 2. Isolate COST SHIFT EVENTS (Only plot when a price actually changes)
        const rawCostData = appState.costingData.filter(d => d.product === appState.cFilters.product);
        const chronoCostData = [...rawCostData].sort((a, b) => new Date(a.date) - new Date(b.date));
        
-       let aggregatedCosts = {};
-       chronoCostData.forEach(d => {
-          let key = d.date; 
-          if (appState.cFilters.timeline === 'monthly') key = d.date.substring(0, 7);
-          else if (appState.cFilters.timeline === 'weekly') {
-             let dateObj = new Date(d.date);
-             dateObj.setHours(0, 0, 0, 0);
-             dateObj.setDate(dateObj.getDate() + 4 - (dateObj.getDay() || 7));
-             let weekNo = Math.ceil((((dateObj - new Date(dateObj.getFullYear(), 0, 1)) / 86400000) + 1) / 7);
-             key = `${dateObj.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
-          }
-          if(!aggregatedCosts[key]) { aggregatedCosts[key] = { actSum: 0, mktSum: 0, count: 0 }; }
-          aggregatedCosts[key].actSum += d.unitActual;
-          aggregatedCosts[key].mktSum += d.unitMarket;
-          aggregatedCosts[key].count += 1;
-       });
-
-       // 3. Aggregate Sales Math for Average Selling Price (ASP)
-       let aggregatedSales = {};
-       
-       // Define the exact timeline boundaries of the available Costing Data
-       let minCostMs = chronoCostData.length > 0 ? new Date(chronoCostData[0].date).getTime() : 0;
-       let maxCostMs = chronoCostData.length > 0 ? new Date(chronoCostData[chronoCostData.length - 1].date).getTime() : Date.now();
-
-       appState.productData.filter(d => {
-          if (d.item !== appState.cFilters.product) return false;
-          let saleTime = new Date(d.date).getTime();
-          // Filter out any sales that happened before or after the costing timeline
-          return saleTime >= minCostMs && saleTime <= maxCostMs;
-       }).forEach(d => {
-          let key = d.date; 
-          if (appState.cFilters.timeline === 'monthly') key = d.date.substring(0, 7);
-          else if (appState.cFilters.timeline === 'weekly') {
-             let dateObj = new Date(d.date);
-             dateObj.setHours(0, 0, 0, 0);
-             dateObj.setDate(dateObj.getDate() + 4 - (dateObj.getDay() || 7));
-             let weekNo = Math.ceil((((dateObj - new Date(dateObj.getFullYear(), 0, 1)) / 86400000) + 1) / 7);
-             key = `${dateObj.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
-          }
-          if (!aggregatedSales[key]) aggregatedSales[key] = { rev: 0, qty: 0 };
-          aggregatedSales[key].rev += d.rev;
-          aggregatedSales[key].qty += d.qty;
-       });
-
-       // 4. Merge Keys Chronologically
-       let allKeys = new Set([...Object.keys(aggregatedCosts), ...Object.keys(aggregatedSales)]);
-       let sortedKeys = Array.from(allKeys).sort((a, b) => a.localeCompare(b));
-
-       let chartLabels = [];
-       let chartAct = [];
-       let chartMkt = [];
-       let chartAsp = [];
-
-       sortedKeys.forEach(k => {
-          chartLabels.push(k);
-          
-          let cData = aggregatedCosts[k];
-          chartAct.push(cData ? Number((cData.actSum / cData.count).toFixed(2)) : null);
-          chartMkt.push(cData ? Number((cData.mktSum / cData.count).toFixed(2)) : null);
-          
-          let sData = aggregatedSales[k];
-          let asp = sData && sData.qty > 0 ? (sData.rev / sData.qty) : null;
-          chartAsp.push(asp ? Number(asp.toFixed(2)) : null);
-       });
-
-       // 5. Render Chart with 3 Lines
-       const ctx = document.getElementById('costingTrendChart').getContext('2d');
-       if(appState.cChartInstance) appState.cChartInstance.destroy();
-       
-       let datasets = [];
-       if (appState.cFilters.view === 'actual' || appState.cFilters.view === 'compare') {
-          datasets.push({ label: 'Actual Unit Cost (EGP)', data: chartAct, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: appState.cFilters.view === 'actual', tension: 0.3, borderWidth: 3, spanGaps: true });
-       }
-       if (appState.cFilters.view === 'market' || appState.cFilters.view === 'compare') {
-          datasets.push({ label: 'Market Unit Cost (EGP)', data: chartMkt, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: appState.cFilters.view === 'market', tension: 0.3, borderWidth: 3, borderDash: appState.cFilters.view === 'compare' ? [5, 5] : [], spanGaps: true });
-       }
-       // NEW: ASP Margin Line
-       datasets.push({ label: 'Avg Selling Price (ASP)', data: chartAsp, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0)', borderWidth: 3, borderDash: [4, 4], pointRadius: 4, spanGaps: true });
-
-       appState.cChartInstance = new Chart(ctx, {
-          type: 'line',
-          data: { labels: chartLabels, datasets: datasets },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: false } } }
-       });
-
-       // 6. Side List (Cost Shifts)
        let changeEvents = [];
        let lastActual = null; let lastMarket = null;
        for (let i = 0; i < chronoCostData.length; i++) {
           let d = chronoCostData[i];
           if (i === 0 || d.unitActual !== lastActual || d.unitMarket !== lastMarket) {
-             changeEvents.push({ ...d, isFirst: i === 0 });
+             changeEvents.push(d);
              lastActual = d.unitActual; lastMarket = d.unitMarket;
           }
        }
-       changeEvents.reverse();
 
-       const listContainer = document.getElementById('costing-runs-list');
-       if(changeEvents.length === 0) { listContainer.innerHTML = '<div class="text-center text-muted p-3">No production history.</div>'; return; }
-       
-       listContainer.innerHTML = changeEvents.map(d => {
-          let mainVal = appState.cFilters.view === 'market' ? d.unitMarket : d.unitActual;
-          let diffStr = '';
-          if (appState.cFilters.view === 'compare') {
-             let diff = d.unitMarket - d.unitActual;
-             let cColor = diff > 0 ? 'text-danger' : (diff < 0 ? 'text-success' : 'text-muted');
-             let cSign = diff > 0 ? '+' : '';
-             diffStr = `<span class="${cColor} small fw-bold ms-2" style="font-size: 0.75rem;">(${cSign}${diff.toFixed(2)})</span>`;
-          }
-          let badgeHtml = d.isFirst ? `<span class="badge bg-secondary ms-1">Initial</span>` : `<span class="badge bg-warning text-dark ms-1"><i class="fas fa-bolt"></i> Price Shift</span>`;
-          return `
-          <div class="p-3 bg-light border rounded-3 mb-2 d-flex justify-content-between align-items-center client-card" onclick="openBomModal('${d.planId}')">
-             <div>
-                <div class="fw-bold text-dark" style="font-size: 0.9rem;">${d.date} ${badgeHtml}</div>
-                <div class="small text-muted mt-1">Ref: ${d.planId}</div>
-             </div>
-             <div class="text-end">
-                <div class="fw-bold text-primary fs-6">${mainVal.toFixed(2)} EGP ${diffStr}</div>
-                <div class="small text-muted mt-1 border-bottom border-primary d-inline-block" style="cursor:pointer">View BOM</div>
-             </div>
-          </div>`;
-       }).join('');
-    }
+       // 3. Calculate Average Selling Price (ASP) for the periods BETWEEN cost shifts
+       let chartLabels = [];
+       let chartAct = [];
+       let chartMkt = [];
+       let chartAsp = [];
 
-    function openBomModal(planId) {
-       // Search by specific Plan ID rather than index to guarantee accuracy
-       const data = appState.costingData.find(d => d.planId === planId);
-       if (!data) return;
+       changeEvents.forEach((ev, idx) => {
+          chartLabels.push(ev.date);
+          chartAct.push(ev.unitActual);
+          chartMkt.push(ev.unitMarket);
 
-       document.getElementById('bom-modal-product').innerText = data.product;
-       document.getElementById('bom-modal-date').innerText = `${data.date} (${data.planId})`;
-       document.getElementById('bom-modal-qty').innerText = data.qty.toLocaleString();
-
-       const allMats = new Set([...Object.keys(data.bomActual || {}), ...Object.keys(data.bomMarket || {})]);
-       const sortedMats = Array.from(allMats).sort();
-       
-       let tBody = '';
-       let actData = [];
-       let mktData = [];
-
-       sortedMats.forEach(mat => {
-          let act = data.bomActual[mat] || 0;
-          let mkt = data.bomMarket[mat] || 0;
-          actData.push(act);
-          mktData.push(mkt);
-
-          let diff = mkt - act;
-          let cColor = diff > 0 ? 'text-danger' : (diff < 0 ? 'text-success' : 'text-muted');
-          let cSign = diff > 0 ? '+' : '';
+          // Find ASP for the window between this shift and the next shift
+          let startDateMs = new Date(ev.date).getTime();
+          let endDateMs = (idx < changeEvents.length - 1) ? new Date(changeEvents[idx+1].date).getTime() : Date.now();
           
-          tBody += `
-          <tr>
-             <td class="fw-bold text-dark">${mat}</td>
-             <td class="text-end text-primary fw-bold">${act.toFixed(2)}</td>
-             <td class="text-end text-danger fw-bold">${mkt.toFixed(2)}</td>
-             <td class="text-end ${cColor} fw-bold">${cSign}${diff.toFixed(2)}</td>
-          </tr>`;
+          let salesInPeriod = appState.productData.filter(s => 
+             s.item === appState.cFilters.product && 
+             new Date(s.date).getTime() >= startDateMs && 
+             new Date(s.date).getTime() <= endDateMs
+          );
+          
+          let rev = 0; let qty = 0;
+          salesInPeriod.forEach(s => { rev += s.rev; qty += s.qty; });
+          chartAsp.push(qty > 0 ? Number((rev / qty).toFixed(2)) : null);
        });
-       document.getElementById('bom-modal-table-body').innerHTML = tBody;
 
-       const ctx = document.getElementById('bomChart').getContext('2d');
-       if(appState.bomChartInstance) appState.bomChartInstance.destroy();
+       // 4. Render Chart (Using straight lines to emphasize steps in cost)
+       const ctx = document.getElementById('costingTrendChart').getContext('2d');
+       if(appState.cChartInstance) appState.cChartInstance.destroy();
        
-       appState.bomChartInstance = new Chart(ctx, {
-          type: 'bar',
-          data: {
-             labels: sortedMats,
-             datasets: [
-                { label: 'Actual Unit Cost', data: actData, backgroundColor: '#3b82f6', borderRadius: 4 },
-                { label: 'Market Unit Cost', data: mktData, backgroundColor: '#ef4444', borderRadius: 4 }
-             ]
-          },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
+       let datasets = [];
+       if (appState.cFilters.view === 'actual' || appState.cFilters.view === 'compare') {
+          datasets.push({ label: 'Actual Unit Cost', data: chartAct, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: appState.cFilters.view === 'actual', tension: 0, borderWidth: 3, pointHitRadius: 15 });
+       }
+       if (appState.cFilters.view === 'market' || appState.cFilters.view === 'compare') {
+          datasets.push({ label: 'Market Unit Cost', data: chartMkt, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: appState.cFilters.view === 'market', tension: 0, borderWidth: 3, borderDash: appState.cFilters.view === 'compare' ? [5, 5] : [], pointHitRadius: 15 });
+       }
+       datasets.push({ label: 'Avg Selling Price', data: chartAsp, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0)', borderWidth: 3, borderDash: [4, 4], pointRadius: 5, pointHitRadius: 15, spanGaps: true });
+
+       appState.cChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: { labels: chartLabels, datasets: datasets },
+          options: { 
+             responsive: true, maintainAspectRatio: false, 
+             plugins: { legend: { position: 'top' } },
+             interaction: { mode: 'index', intersect: false },
+             onClick: (e, activeEls) => {
+                if (activeEls.length > 0) {
+                   renderSidePanel(changeEvents[activeEls[0].index]);
+                }
+             }
+          }
        });
 
-       new bootstrap.Modal(document.getElementById('bomModal')).show();
+       // Auto-load the latest event into the side panel
+       if (changeEvents.length > 0) {
+          renderSidePanel(changeEvents[changeEvents.length - 1]);
+       } else {
+          document.getElementById('bom-panel-subtitle').innerText = "No Data";
+          document.getElementById('bom-panel-table-body').innerHTML = '<tr><td colspan="4" class="text-center text-muted p-4">No data available.</td></tr>';
+          if(appState.cDoughnutChart) { appState.cDoughnutChart.destroy(); appState.cDoughnutChart = null; }
+       }
     }
-function triggerCostingSyncConfirm(event) {
+
+    function renderSidePanel(eventData) {
+       document.getElementById('bom-panel-subtitle').innerText = `Date: ${eventData.date} | Ref: ${eventData.planId}`;
+
+       let isCompare = appState.cFilters.view === 'compare';
+       let isMarket = appState.cFilters.view === 'market';
+       
+       // 1. Gather materials from both BOMs to ensure completeness
+       let allMats = new Set([...Object.keys(eventData.bomActual || {}), ...Object.keys(eventData.bomMarket || {})]);
+       let sortedMats = Array.from(allMats).sort((a,b) => {
+           let valA = isMarket ? (eventData.bomMarket[a]||0) : (eventData.bomActual[a]||0);
+           let valB = isMarket ? (eventData.bomMarket[b]||0) : (eventData.bomActual[b]||0);
+           return valB - valA; // Sort highest cost first
+       });
+
+       let chartLabels = []; let actData = []; let mktData = []; 
+       let chartColors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#6366f1','#ec4899','#8b5cf6','#14b8a6','#f97316','#06b6d4', '#94a3b8'];
+
+       let tHead = ''; let tBody = '';
+
+       // Set up dynamic table headers based on mode
+       if (isCompare) {
+           tHead = `<tr>
+              <th class="ps-2 text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL</th>
+              <th class="text-end text-primary fw-bold" style="font-size: 0.7rem;">ACTUAL</th>
+              <th class="text-end text-danger fw-bold" style="font-size: 0.7rem;">MARKET</th>
+              <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL RATE</th>
+           </tr>`;
+       } else {
+           tHead = `<tr>
+              <th class="ps-2 text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL</th>
+              <th class="text-end text-muted fw-bold" style="font-size: 0.7rem;">CONTRIBUTED</th>
+              <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL RATE</th>
+           </tr>`;
+       }
+       document.querySelector('#bom-panel-table-body').parentElement.querySelector('thead').innerHTML = tHead;
+
+       sortedMats.forEach((mat, idx) => {
+          let color = chartColors[idx % chartColors.length];
+          let actVal = eventData.bomActual[mat] || 0;
+          let mktVal = eventData.bomMarket[mat] || 0;
+          let meta = eventData.bomMeta[mat] || {};
+          
+          chartLabels.push(mat);
+          actData.push(actVal);
+          mktData.push(mktVal);
+          
+          // Material Rate Fallback logic
+          let rateStr = meta.rate ? `${meta.rate.toFixed(2)} / <span class="text-muted" style="font-size:0.65rem;">${meta.unit||'Unit'}</span>` : '0.00';
+
+          if (isCompare) {
+              tBody += `<tr>
+                 <td class="fw-bold text-dark ps-2" style="font-size: 0.75rem;"><i class="fas fa-circle me-2" style="color:${color}; font-size:0.6rem;"></i>${mat}</td>
+                 <td class="text-end text-primary fw-bold" style="font-size: 0.8rem;">${actVal.toFixed(2)}</td>
+                 <td class="text-end text-danger fw-bold" style="font-size: 0.8rem;">${mktVal.toFixed(2)}</td>
+                 <td class="text-end pe-2 fw-bold text-muted" style="font-size: 0.75rem;">${rateStr}</td>
+              </tr>`;
+          } else {
+              let displayVal = isMarket ? mktVal : actVal;
+              let valColor = isMarket ? 'text-danger' : 'text-primary';
+              tBody += `<tr>
+                 <td class="fw-bold text-dark ps-2" style="font-size: 0.75rem;"><i class="fas fa-circle me-2" style="color:${color}; font-size:0.6rem;"></i>${mat}</td>
+                 <td class="text-end ${valColor} fw-bold" style="font-size: 0.8rem;">${displayVal.toFixed(2)}</td>
+                 <td class="text-end pe-2 fw-bold text-muted" style="font-size: 0.75rem;">${rateStr}</td>
+              </tr>`;
+          }
+       });
+
+       document.getElementById('bom-panel-table-body').innerHTML = tBody;
+
+       // 3. Render the Doughnut (Nested Rings for Compare Mode!)
+       const dCtx = document.getElementById('bomDoughnut').getContext('2d');
+       if(appState.cDoughnutChart) appState.cDoughnutChart.destroy();
+       
+       let doughnutDatasets = [];
+       if (isCompare) {
+           // Inner Ring = Actual, Outer Ring = Market
+           doughnutDatasets.push({ data: actData, backgroundColor: chartColors, borderWidth: 1, borderColor: '#fff', weight: 1 });
+           doughnutDatasets.push({ data: mktData, backgroundColor: chartColors, borderWidth: 1, borderColor: '#fff', weight: 1 });
+       } else {
+           let targetData = isMarket ? mktData : actData;
+           doughnutDatasets.push({ data: targetData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#fff' });
+       }
+
+       appState.cDoughnutChart = new Chart(dCtx, {
+          type: 'doughnut',
+          data: { labels: chartLabels, datasets: doughnutDatasets },
+          options: { 
+             responsive: true, maintainAspectRatio: false, 
+             plugins: { 
+                legend: { display: false },
+                tooltip: { callbacks: { label: function(context) { return ` ${context.label}: ${context.raw.toFixed(2)} EGP`; } } }
+             }, 
+             cutout: isCompare ? '40%' : '65%' 
+          }
+       });
+    }
+
+    function triggerCostingSyncConfirm(event) {
        event.stopPropagation(); // Prevent opening the report
        document.getElementById('btn-costing-sync').classList.add('d-none');
        const confirmBox = document.getElementById('costing-sync-confirm');
