@@ -203,288 +203,236 @@ function consumeFIFO(queues, searchKey, isGeneral, requiredQty) {
   return cost;
 }
 
+// HELPER: CALCULATES THE EXACT COST AT A SPECIFIC DATE
+function getMaterialRates(targetDateMs, specData, genData) {
+  let bestActPrice = 0; let bestActDate = -1; let bestUnit = '';
+  let bestUpdPrice = 0; let bestUpdDate = -1;
+
+  // Prioritize Specific ID Matches
+  if (specData) {
+    for (let i = 0; i < specData.actuals.length; i++) {
+      if (specData.actuals[i].dateMs <= targetDateMs) { bestActPrice = specData.actuals[i].price; bestActDate = specData.actuals[i].dateMs; if (specData.actuals[i].unit) bestUnit = specData.actuals[i].unit; } else break;
+    }
+    for (let i = 0; i < specData.updates.length; i++) {
+      if (specData.updates[i].dateMs <= targetDateMs) { bestUpdPrice = specData.updates[i].price; bestUpdDate = specData.updates[i].dateMs; } else break;
+    }
+  }
+
+  // Fallback to Generic Material Name Matches
+  if (genData) {
+    if (bestActDate === -1) {
+      for (let i = 0; i < genData.actuals.length; i++) {
+        if (genData.actuals[i].dateMs <= targetDateMs) { bestActPrice = genData.actuals[i].price; bestActDate = genData.actuals[i].dateMs; if (genData.actuals[i].unit) bestUnit = genData.actuals[i].unit; } else break;
+      }
+    }
+    for (let i = 0; i < genData.updates.length; i++) {
+      if (genData.updates[i].dateMs <= targetDateMs) {
+        if (genData.updates[i].dateMs >= bestUpdDate) { bestUpdPrice = genData.updates[i].price; bestUpdDate = genData.updates[i].dateMs; }
+      } else break;
+    }
+  }
+
+  // CORE LOGIC: Market mirrors Actual, unless Manual Update is newer!
+  let actRate = bestActPrice;
+  let mktRate = bestActPrice; 
+  if (bestUpdDate >= bestActDate && bestUpdPrice > 0) {
+    mktRate = bestUpdPrice;
+  }
+
+  return { actRate: actRate, mktRate: mktRate, unit: bestUnit };
+}
+
+function buildMarketPrices(purchasesSheet, updatesSheet) {
+  let priceMaps = { bySpecId: {}, byMatName: {} };
+
+  // 1. EXTRACT ACTUAL PURCHASES (Strict Validation)
+  if (purchasesSheet) {
+    const pData = purchasesSheet.getDataRange().getValues();
+    for(let i = 1; i < pData.length; i++) {
+      let rawDate = pData[i][0];
+      let matName = String(pData[i][3] || "").trim();
+      let specId = String(pData[i][4] || "").trim();
+      let price = Number(pData[i][6]) || 0;
+      let unit = String(pData[i][7] || "").trim();
+
+      // STOPS GHOST ROWS: Only process if there is a Date, a Name, and a Price > 0
+      if (rawDate && matName.length > 1 && price > 0) {
+        let dateMs = new Date(rawDate).getTime();
+        if (isNaN(dateMs)) continue;
+
+        if (specId) {
+          if (!priceMaps.bySpecId[specId]) priceMaps.bySpecId[specId] = { actuals: [], updates: [] };
+          priceMaps.bySpecId[specId].actuals.push({ dateMs: dateMs, price: price, unit: unit });
+        }
+        if (matName) {
+          if (!priceMaps.byMatName[matName]) priceMaps.byMatName[matName] = { actuals: [], updates: [] };
+          priceMaps.byMatName[matName].actuals.push({ dateMs: dateMs, price: price, unit: unit });
+        }
+      }
+    }
+  }
+
+  // 2. EXTRACT MANUAL OVERRIDES (Strict Validation)
+  if (updatesSheet) {
+    const uData = updatesSheet.getDataRange().getValues();
+    for(let i = 1; i < uData.length; i++) {
+      let rawDate = uData[i][0];
+      let matName = String(uData[i][1] || "").trim();
+      let price = Number(uData[i][2]) || 0;
+
+      if (rawDate && matName.length > 1 && price > 0) {
+        let dateMs = new Date(rawDate).getTime();
+        if (isNaN(dateMs)) continue;
+
+        if (!priceMaps.byMatName[matName]) priceMaps.byMatName[matName] = { actuals: [], updates: [] };
+        priceMaps.byMatName[matName].updates.push({ dateMs: dateMs, price: price });
+      }
+    }
+  }
+
+  Object.values(priceMaps.bySpecId).forEach(m => { m.actuals.sort((a,b)=>a.dateMs - b.dateMs); m.updates.sort((a,b)=>a.dateMs - b.dateMs); });
+  Object.values(priceMaps.byMatName).forEach(m => { m.actuals.sort((a,b)=>a.dateMs - b.dateMs); m.updates.sort((a,b)=>a.dateMs - b.dateMs); });
+
+  return priceMaps;
+}
+
 function syncCostLedger() {
   const ss = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo");
   const costSheet = ss.getSheetByName("Items costs");
   const palletsSheet = ss.getSheetByName("Pallets");
-
   const maps = buildCostEngineMaps();
 
-  // 1. Map Existing Records & Find Unique Working Days
-  const existingData = costSheet.getDataRange().getValues();
-  let existingRecords = {};
-  let uniqueDates = new Set();
+  // 1. GATHER DATES AND TRACK WHICH MATERIALS CHANGED ON WHICH DATE
+  let dateToMats = {}; // { dateMs: Set(matNames) }
+  let eventDates = new Set();
 
-  if (existingData.length > 1) {
-    for (let i = 1; i < existingData.length; i++) {
-      let rawDate = existingData[i][0];
-      
-      // Normalize date to midnight so different hours group as the same "Working Day"
-      let d = new Date(rawDate);
-      d.setHours(0, 0, 0, 0); 
-      let dateMs = d.getTime();
-      
-      let qty = Number(existingData[i][3]) || 0;
-      let unitCost = Number(existingData[i][4]) || 0;
-      let planId = String(existingData[i][7]).trim(); // Col H
-      let unitMarket = Number(existingData[i][8]) || 0;
-
-      if (planId) {
-        // FIX: Create an array so multiple pallets with the same PlanID are queued up
-        if (!existingRecords[planId]) existingRecords[planId] = [];
-        existingRecords[planId].push({ 
-          rowIdx: i + 1, dateMs: dateMs, qty: qty, unitCost: unitCost, unitMarket: unitMarket 
+  if (maps.marketPrices) {
+    const processPriceMap = (priceMap) => {
+      Object.keys(priceMap).forEach(id => {
+        const mat = priceMap[id];
+        mat.actuals.forEach(a => {
+          eventDates.add(a.dateMs);
+          if (!dateToMats[a.dateMs]) dateToMats[a.dateMs] = new Set();
+          dateToMats[a.dateMs].add(id);
         });
-        uniqueDates.add(dateMs);
-      }
-    }
+        mat.updates.forEach(u => {
+          eventDates.add(u.dateMs);
+          if (!dateToMats[u.dateMs]) dateToMats[u.dateMs] = new Set();
+          dateToMats[u.dateMs].add(id);
+        });
+      });
+    };
+    processPriceMap(maps.marketPrices.byMatName || {});
+    processPriceMap(maps.marketPrices.bySpecId || {});
   }
 
-  // FIX: Threshold is now the 2nd most recent unique working day in the ledger
-  let sortedDates = Array.from(uniqueDates).sort((a, b) => b - a);
-  const thresholdMs = sortedDates.length > 1 ? sortedDates[1] : (sortedDates.length === 1 ? sortedDates[0] : 0);
+  let sortedDatesMs = Array.from(eventDates).sort((a, b) => a - b);
+  if (sortedDatesMs.length === 0) return "No valid purchase/update events found.";
+  
+  const minDateMs = sortedDatesMs[0];
 
-  // 2. Extract ALL Valid Pallets
+  // 2. MAP PRODUCTS AND RECIPES
   const palletsData = palletsSheet.getDataRange().getValues();
-  let allPallets = [];
+  let activeProducts = {};
+  let matToProducts = {}; // { matName: Set(productConciseNames) }
 
   for (let i = 1; i < palletsData.length; i++) {
     if (String(palletsData[i][0]).toUpperCase() !== "TRUE") continue; 
-    
-    let date = palletsData[i][2]; 
-    let qty = Number(palletsData[i][4]) || 0; 
-    
-    // NEW RULE: Completely omit this production run if the quantity is 0
-    if (qty <= 0) continue; 
-    
     let conciseName = String(palletsData[i][5]).trim(); 
     let planId = String(palletsData[i][6]).trim(); 
     let recipeId = String(palletsData[i][7]).trim(); 
-
-    if (planId) {
-      allPallets.push({ date, qty, conciseName, planId, recipeId });
+    
+    if (planId && recipeId && !activeProducts[conciseName]) {
+      activeProducts[conciseName] = { planId, recipeId };
+      
+      // Build the dependency map
+      let recipe = maps.recipes[recipeId];
+      let plan = maps.plans[planId];
+      if (recipe) {
+        Object.keys(recipe.materials).forEach(genMat => {
+          if (!matToProducts[genMat]) matToProducts[genMat] = new Set();
+          matToProducts[genMat].add(conciseName);
+          
+          // Check for sub-materials if manufactured
+          if (maps.manufacturing[genMat]) {
+            Object.keys(maps.manufacturing[genMat].rawMats).forEach(raw => {
+              if (!matToProducts[raw]) matToProducts[raw] = new Set();
+              matToProducts[raw].add(conciseName);
+            });
+          }
+          // Check for specific IDs
+          if (plan && plan.materials[genMat]) {
+            let specId = plan.materials[genMat];
+            if (!matToProducts[specId]) matToProducts[specId] = new Set();
+            matToProducts[specId].add(conciseName);
+          }
+        });
+      }
     }
   }
 
-  // CRITICAL: Sort chronologically to strictly respect FIFO
-  allPallets.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  // 3. Execute the Math
+  // 3. GENERATE TARGETED ROWS
   let newRows = [];
-  let updateRows = [];
+  let timeZone = ss.getSpreadsheetTimeZone() || "GMT";
 
-  allPallets.forEach(p => {
-    let fullName = maps.products[p.conciseName] || p.conciseName; 
-    let pDateMs = new Date(p.date).getTime(); // NEW: Capture pallet production date
-    
-    let totalActualCost = 0;
-    let totalMarketCost = 0;
-    let bomActual = {};
-    let bomMarket = {};
+  sortedDatesMs.forEach(dateMs => {
+     let dateStr = Utilities.formatDate(new Date(dateMs), timeZone, "yyyy-MM-dd");
+     let changedMats = dateToMats[dateMs];
+     
+     // Determine which products to calculate for this specific date
+     let targetProducts = [];
+     if (dateMs === minDateMs) {
+       // BASELINE: Every product gets a row on the first day
+       targetProducts = Object.keys(activeProducts);
+     } else {
+       // TARGETED: Only products that use the materials changed on this day
+       let affected = new Set();
+       changedMats.forEach(m => {
+         if (matToProducts[m]) matToProducts[m].forEach(p => affected.add(p));
+       });
+       targetProducts = Array.from(affected);
+     }
 
-    let recipe = maps.recipes[p.recipeId];
-    let plan = maps.plans[p.planId];
+     targetProducts.forEach(conciseName => {
+        let p = activeProducts[conciseName];
+        let recipe = maps.recipes[p.recipeId]; let plan = maps.plans[p.planId];
+        if (!recipe || !plan) return;
 
-    if (recipe && plan) {
-      Object.keys(recipe.materials).forEach(genMat => {
-        let reqQtyPerUnit = recipe.materials[genMat];
-        let totalReqQty = reqQtyPerUnit * p.qty;
+        let totalAct = 0; let totalMkt = 0;
+        let bomAct = {}; let bomMkt = {}; let bomMeta = {};
 
-        if (maps.manufacturing[genMat]) { 
-          let mfgDetails = maps.manufacturing[genMat];
-          let batchesNeeded = totalReqQty / mfgDetails.yield; 
-          
-          let mfgActual = 0;
-          let mfgMarket = 0;
-          
-          Object.keys(mfgDetails.rawMats).forEach(rawMat => {
-             let rawQtyNeeded = mfgDetails.rawMats[rawMat] * batchesNeeded;
-             
-             let rawActualCost = consumeFIFO(maps.fifoQueues, rawMat, true, rawQtyNeeded);
-             mfgActual += rawActualCost;
-             bomActual[rawMat] = p.qty > 0 ? Number((rawActualCost / p.qty).toFixed(1)) : 0; 
-             
-             // Market Math (Match Actual UNLESS Manual Update is active)
-             let marketData = getBestMarketPrice(null, maps.marketPrices.byMatName[rawMat], pDateMs);
-             let rawMarketCost = 0;
-             if (marketData && marketData.source === 'Manual') {
-               rawMarketCost = marketData.price * rawQtyNeeded;
-             } else {
-               rawMarketCost = rawActualCost; // Merge the lines!
-             }
-             mfgMarket += rawMarketCost;
-             bomMarket[rawMat] = p.qty > 0 ? Number((rawMarketCost / p.qty).toFixed(1)) : 0;
-          });
-          totalActualCost += mfgActual;
-          totalMarketCost += mfgMarket;
-        }
-        else {
-          let specId = plan.materials[genMat];
-          
-          let actualCost = 0;
-          let specificQueue = specId ? maps.fifoQueues.bySpecId[specId] : null;
-          let hasSpecificInventory = specificQueue && specificQueue.some(batch => batch.qty > 0);
-          let hasSpecificPrice = specId ? maps.fifoQueues.lastPrices.bySpecId[specId] : null;
-
-          if (hasSpecificInventory || hasSpecificPrice) { 
-            actualCost = consumeFIFO(maps.fifoQueues, specId, false, totalReqQty);
+        Object.keys(recipe.materials).forEach(genMat => {
+          let reqQty = recipe.materials[genMat];
+          if (maps.manufacturing[genMat]) {
+            let mfg = maps.manufacturing[genMat];
+            Object.keys(mfg.rawMats).forEach(raw => {
+              let qty = mfg.rawMats[raw] * (reqQty / mfg.yield);
+              let r = getMaterialRates(dateMs, null, maps.marketPrices.byMatName[raw]);
+              bomMeta[raw] = { actRate: r.actRate, mktRate: r.mktRate, unit: r.unit };
+              totalAct += (r.actRate * qty); totalMkt += (r.mktRate * qty);
+              bomAct[raw] = Number((r.actRate * qty).toFixed(2)); bomMkt[raw] = Number((r.mktRate * qty).toFixed(2));
+            });
           } else {
-            actualCost = consumeFIFO(maps.fifoQueues, genMat, true, totalReqQty);
+            let specId = plan.materials[genMat];
+            let r = getMaterialRates(dateMs, specId ? maps.marketPrices.bySpecId[specId] : null, maps.marketPrices.byMatName[genMat]);
+            bomMeta[genMat] = { actRate: r.actRate, mktRate: r.mktRate, unit: r.unit };
+            totalAct += (r.actRate * reqQty); totalMkt += (r.mktRate * reqQty);
+            bomAct[genMat] = Number((r.actRate * reqQty).toFixed(2)); bomMkt[genMat] = Number((r.mktRate * reqQty).toFixed(2));
           }
-          totalActualCost += actualCost;
-          bomActual[genMat] = p.qty > 0 ? Number((actualCost / p.qty).toFixed(1)) : 0;
-          
-          // Market Math (Match Actual UNLESS Manual Update is active)
-          let marketData = getBestMarketPrice(
-             specId ? maps.marketPrices.bySpecId[specId] : null,
-             genMat ? maps.marketPrices.byMatName[genMat] : null,
-             pDateMs
-          );
-
-          let marketCost = 0;
-          if (marketData && marketData.source === 'Manual') {
-            marketCost = marketData.price * totalReqQty;
-          } else {
-            marketCost = actualCost; // Merge the lines!
-          }
-          
-          totalMarketCost += marketCost;
-          bomMarket[genMat] = p.qty > 0 ? Number((marketCost / p.qty).toFixed(1)) : 0;
+        });
+        
+        if (totalAct > 0) {
+          newRows.push([dateStr, maps.products[conciseName] || conciseName, "", 1, Number(totalAct.toFixed(2)), totalAct, JSON.stringify(bomAct), p.planId, Number(totalMkt.toFixed(2)), totalMkt, JSON.stringify(bomMkt), JSON.stringify(bomMeta)]);
         }
-      });
-    }
-
-    let unitActual = p.qty > 0 ? Number((totalActualCost / p.qty).toFixed(1)) : 0;
-    let unitMarket = p.qty > 0 ? Number((totalMarketCost / p.qty).toFixed(1)) : 0;
-    
-    let rowData = [
-      p.date, fullName, "", p.qty, 
-      unitActual, totalActualCost, JSON.stringify(bomActual), p.planId,
-      unitMarket, totalMarketCost, JSON.stringify(bomMarket)
-    ];
-
-    // FIX: Safely pull the FIRST un-updated row for this PlanID, matching 1-to-1
-    let existingList = existingRecords[p.planId];
-    let existing = existingList && existingList.length > 0 ? existingList.shift() : null;
-    
-    if (!existing) {
-      newRows.push(rowData);
-    } else {
-      if (existing.dateMs >= thresholdMs) {
-        if (existing.qty !== p.qty || existing.unitCost !== unitActual || existing.unitMarket !== unitMarket) {
-          updateRows.push({ rowIdx: existing.rowIdx, data: rowData });
-        }
-      }
-    }
+     });
   });
 
-  // 4. Write to Sheet
-  if (newRows.length > 0) {
-    costSheet.getRange(costSheet.getLastRow() + 1, 1, newRows.length, 11).setValues(newRows);
-  }
-  
-  if (updateRows.length > 0) {
-    updateRows.forEach(u => {
-      costSheet.getRange(u.rowIdx, 1, 1, 11).setValues([u.data]);
-    });
-  }
+  // 4. DEEP CLEAN & WRITE
+  costSheet.getRange(2, 1, Math.max(costSheet.getMaxRows()-1, 1), 12).clearContent();
+  if (newRows.length > 0) costSheet.getRange(2, 1, newRows.length, 12).setValues(newRows);
 
-  let msg = `Cost Engine Synced. Added ${newRows.length} new pallets.`;
-  if (updateRows.length > 0) msg += ` Updated ${updateRows.length} recent pallets.`;
-  return msg;
+  return "Cost Engine Synced (Baseline + Targeted Mode).";
 }
-
-// --- PHASE 1.5: MARKET PRICE ENGINE (WITH SOURCE TRACKING) ---
-
-function buildMarketPrices(purchasesSheet, updatesSheet) {
-  let marketMap = { bySpecId: {}, byMatName: {} };
-  let timeline = [];
-
-  // 1. Extract Actual Purchase Prices
-  if (purchasesSheet) {
-    const pData = purchasesSheet.getDataRange().getValues();
-    for(let i = 1; i < pData.length; i++) {
-      let type = String(pData[i][2]).trim();
-      if(type === "استلام") {
-        timeline.push({
-          date: new Date(pData[i][0]).getTime(),
-          matName: String(pData[i][3]).trim(),
-          specId: String(pData[i][4]).trim(),
-          price: Number(pData[i][6]) || 0,
-          source: 'Purchase' // TAG: Real Purchase
-        });
-      }
-    }
-  }
-
-  // 2. Extract Manual Price Updates
-  if (updatesSheet) {
-    const uData = updatesSheet.getDataRange().getValues();
-    for(let i = 1; i < uData.length; i++) {
-      let dateVal = uData[i][0];
-      let matName = String(uData[i][1]).trim();
-      let price = Number(uData[i][2]) || 0;
-      if (dateVal && matName && price > 0) {
-        timeline.push({
-          date: new Date(dateVal).getTime(),
-          matName: matName,
-          specId: "", 
-          price: price,
-          source: 'Manual' // TAG: Manual Update
-        });
-      }
-    }
-  }
-
-  // 3. Sort Chronologically
-  timeline.sort((a, b) => a.date - b.date);
-
-  // 4. Store the history AND the source tag
-  timeline.forEach(event => {
-    if (event.specId) {
-      if (!marketMap.bySpecId[event.specId]) marketMap.bySpecId[event.specId] = [];
-      marketMap.bySpecId[event.specId].push({ price: event.price, dateMs: event.date, source: event.source });
-    }
-    if (event.matName) {
-      if (!marketMap.byMatName[event.matName]) marketMap.byMatName[event.matName] = [];
-      marketMap.byMatName[event.matName].push({ price: event.price, dateMs: event.date, source: event.source });
-    }
-  });
-
-  return marketMap;
-}
-
-// --- NEW HELPER: GET PRICE & SOURCE AT SPECIFIC DATE ---
-function getBestMarketPrice(specHistory, genHistory, targetDateMs) {
-  let bestPrice = 0;
-  let bestSource = 'Purchase'; // Default assumption
-  let latestMs = -1;
-
-  if (specHistory) {
-    for (let i = 0; i < specHistory.length; i++) {
-      if (specHistory[i].dateMs <= targetDateMs) {
-        if (specHistory[i].dateMs > latestMs) {
-          latestMs = specHistory[i].dateMs;
-          bestPrice = specHistory[i].price;
-          bestSource = specHistory[i].source;
-        }
-      } else break; 
-    }
-  }
-  if (genHistory) {
-    for (let i = 0; i < genHistory.length; i++) {
-      if (genHistory[i].dateMs <= targetDateMs) {
-        if (genHistory[i].dateMs >= latestMs) { 
-          latestMs = genHistory[i].dateMs;
-          bestPrice = genHistory[i].price;
-          bestSource = genHistory[i].source;
-        }
-      } else break; 
-    }
-  }
-  return { price: bestPrice, source: bestSource };
-}
-
 // --- DASHBOARD API ---
 
 function getDashboardCostData() {
