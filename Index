@@ -2739,31 +2739,40 @@ function toggleCompareYear(year) {
     }
 
     function renderSidePanel(eventData) {
-       document.getElementById('bom-panel-subtitle').innerText = `Date: ${eventData.date} | Ref: ${eventData.planId}`;
+       // Removed Plan IDs/Operational references as requested
+       document.getElementById('bom-panel-subtitle').innerText = `Date: ${eventData.date}`;
 
        let isCompare = appState.cFilters.view === 'compare';
        let isMarket = appState.cFilters.view === 'market';
        
-       // 1. Gather materials from both BOMs to ensure completeness
        let allMats = new Set([...Object.keys(eventData.bomActual || {}), ...Object.keys(eventData.bomMarket || {})]);
-       let sortedMats = Array.from(allMats).sort((a,b) => {
+       
+       // 1. OMIT ZERO-COST MATERIALS
+       let validMats = Array.from(allMats).filter(mat => {
+           let a = eventData.bomActual[mat] || 0;
+           let m = eventData.bomMarket[mat] || 0;
+           return a > 0 || m > 0;
+       });
+
+       // Sort Highest Cost First
+       let sortedMats = validMats.sort((a,b) => {
            let valA = isMarket ? (eventData.bomMarket[a]||0) : (eventData.bomActual[a]||0);
            let valB = isMarket ? (eventData.bomMarket[b]||0) : (eventData.bomActual[b]||0);
-           return valB - valA; // Sort highest cost first
+           return valB - valA; 
        });
 
        let chartLabels = []; let actData = []; let mktData = []; 
+       let actBgColors = []; let mktBgColors = [];
        let chartColors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#6366f1','#ec4899','#8b5cf6','#14b8a6','#f97316','#06b6d4', '#94a3b8'];
 
        let tHead = ''; let tBody = '';
 
-       // Set up dynamic table headers based on mode
        if (isCompare) {
            tHead = `<tr>
               <th class="ps-2 text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL</th>
               <th class="text-end text-primary fw-bold" style="font-size: 0.7rem;">ACTUAL</th>
               <th class="text-end text-danger fw-bold" style="font-size: 0.7rem;">MARKET</th>
-              <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL RATE</th>
+              <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.7rem;">RATE (ACT / MKT)</th>
            </tr>`;
        } else {
            tHead = `<tr>
@@ -2775,21 +2784,48 @@ function toggleCompareYear(year) {
        document.querySelector('#bom-panel-table-body').parentElement.querySelector('thead').innerHTML = tHead;
 
        sortedMats.forEach((mat, idx) => {
-          let color = chartColors[idx % chartColors.length];
+          let baseColor = chartColors[idx % chartColors.length];
           let actVal = eventData.bomActual[mat] || 0;
           let mktVal = eventData.bomMarket[mat] || 0;
-          let meta = eventData.bomMeta[mat] || {};
+          
+          // BULLETPROOF META EXTRACTION (Prevents crash if backend data is missing)
+          let meta = (eventData.bomMeta && eventData.bomMeta[mat]) ? eventData.bomMeta[mat] : {};
+          let aRate = meta.actRate || 0;
+          let mRate = meta.mktRate || meta.rate || 0;
+          let unit = meta.unit || '';
           
           chartLabels.push(mat);
           actData.push(actVal);
           mktData.push(mktVal);
-          
-          // Material Rate Fallback logic
-          let rateStr = meta.rate ? `${meta.rate.toFixed(2)} / <span class="text-muted" style="font-size:0.65rem;">${meta.unit||'Unit'}</span>` : '0.00';
+
+          // FADING LOGIC FOR COMPARE MODE (Adds '40' hex alpha for ~25% opacity if values match)
+          let isSame = Math.abs(actVal - mktVal) < 0.01;
+          if (isCompare && isSame) {
+              actBgColors.push(baseColor + '40'); 
+              mktBgColors.push(baseColor + '40');
+          } else {
+              actBgColors.push(baseColor);
+              mktBgColors.push(baseColor);
+          }
+
+          // DUAL RATE STRING LOGIC
+          let rateStr = '';
+          if (isCompare) {
+             if (Math.abs(aRate - mRate) > 0.01 && aRate > 0 && mRate > 0) {
+                 rateStr = `<span class="text-primary">${aRate.toFixed(2)}</span> / <span class="text-danger">${mRate.toFixed(2)}</span> <span class="text-muted" style="font-size:0.6rem;">${unit}</span>`;
+             } else {
+                 let displayRate = aRate > 0 ? aRate : mRate;
+                 rateStr = displayRate > 0 ? `${displayRate.toFixed(2)} <span class="text-muted" style="font-size:0.6rem;">${unit}</span>` : '-';
+             }
+          } else {
+             let activeRate = isMarket ? mRate : aRate;
+             if (activeRate === 0 && (aRate > 0 || mRate > 0)) activeRate = aRate > 0 ? aRate : mRate; // fallback if one is 0
+             rateStr = activeRate > 0 ? `${activeRate.toFixed(2)} <span class="text-muted" style="font-size:0.6rem;">${unit}</span>` : '-';
+          }
 
           if (isCompare) {
               tBody += `<tr>
-                 <td class="fw-bold text-dark ps-2" style="font-size: 0.75rem;"><i class="fas fa-circle me-2" style="color:${color}; font-size:0.6rem;"></i>${mat}</td>
+                 <td class="fw-bold text-dark ps-2" style="font-size: 0.75rem;"><i class="fas fa-circle me-2" style="color:${isSame ? baseColor+'40' : baseColor}; font-size:0.6rem;"></i>${mat}</td>
                  <td class="text-end text-primary fw-bold" style="font-size: 0.8rem;">${actVal.toFixed(2)}</td>
                  <td class="text-end text-danger fw-bold" style="font-size: 0.8rem;">${mktVal.toFixed(2)}</td>
                  <td class="text-end pe-2 fw-bold text-muted" style="font-size: 0.75rem;">${rateStr}</td>
@@ -2798,7 +2834,7 @@ function toggleCompareYear(year) {
               let displayVal = isMarket ? mktVal : actVal;
               let valColor = isMarket ? 'text-danger' : 'text-primary';
               tBody += `<tr>
-                 <td class="fw-bold text-dark ps-2" style="font-size: 0.75rem;"><i class="fas fa-circle me-2" style="color:${color}; font-size:0.6rem;"></i>${mat}</td>
+                 <td class="fw-bold text-dark ps-2" style="font-size: 0.75rem;"><i class="fas fa-circle me-2" style="color:${baseColor}; font-size:0.6rem;"></i>${mat}</td>
                  <td class="text-end ${valColor} fw-bold" style="font-size: 0.8rem;">${displayVal.toFixed(2)}</td>
                  <td class="text-end pe-2 fw-bold text-muted" style="font-size: 0.75rem;">${rateStr}</td>
               </tr>`;
@@ -2807,30 +2843,64 @@ function toggleCompareYear(year) {
 
        document.getElementById('bom-panel-table-body').innerHTML = tBody;
 
-       // 3. Render the Doughnut (Nested Rings for Compare Mode!)
+       // NESTED DOUGHNUT WITH INLINE PLUGINS
        const dCtx = document.getElementById('bomDoughnut').getContext('2d');
        if(appState.cDoughnutChart) appState.cDoughnutChart.destroy();
        
        let doughnutDatasets = [];
        if (isCompare) {
-           // Inner Ring = Actual, Outer Ring = Market
-           doughnutDatasets.push({ data: actData, backgroundColor: chartColors, borderWidth: 1, borderColor: '#fff', weight: 1 });
-           doughnutDatasets.push({ data: mktData, backgroundColor: chartColors, borderWidth: 1, borderColor: '#fff', weight: 1 });
+           doughnutDatasets.push({ data: actData, backgroundColor: actBgColors, borderWidth: 1, borderColor: '#fff' }); // INNER RING
+           doughnutDatasets.push({ data: mktData, backgroundColor: mktBgColors, borderWidth: 1, borderColor: '#fff' }); // OUTER RING
        } else {
-           let targetData = isMarket ? mktData : actData;
-           doughnutDatasets.push({ data: targetData, backgroundColor: chartColors, borderWidth: 2, borderColor: '#fff' });
+           doughnutDatasets.push({ data: isMarket ? mktData : actData, backgroundColor: actBgColors, borderWidth: 2, borderColor: '#fff' });
        }
 
        appState.cDoughnutChart = new Chart(dCtx, {
           type: 'doughnut',
           data: { labels: chartLabels, datasets: doughnutDatasets },
+          plugins: [
+             {  // PLUGIN 1: Center Text Labels for Compare Mode
+                id: 'centerText',
+                beforeDraw: function(chart) {
+                   if (appState.cFilters.view !== 'compare') return;
+                   const ctx = chart.ctx; ctx.restore();
+                   ctx.font = 'bold 9px sans-serif'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                   const centerX = (chart.chartArea.left + chart.chartArea.right) / 2;
+                   const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
+                   ctx.fillText('INNER: ACTUAL', centerX, centerY - 8);
+                   ctx.fillText('OUTER: MARKET', centerX, centerY + 8);
+                   ctx.save();
+                }
+             },
+             {  // PLUGIN 2: Percentage Labels on Large Slices
+                id: 'sliceLabels',
+                afterDatasetsDraw: function(chart) {
+                   const ctx = chart.ctx;
+                   chart.data.datasets.forEach((dataset, i) => {
+                      const meta = chart.getDatasetMeta(i); if (meta.hidden) return;
+                      let total = dataset.data.reduce((a,b)=>a+b,0);
+                      if (total === 0) return;
+                      meta.data.forEach((element, index) => {
+                         const pct = (dataset.data[index] / total) * 100;
+                         if (pct > 7) {  // Only show if slice is larger than 7%
+                            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                            ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 3;
+                            const pos = element.tooltipPosition();
+                            ctx.fillText(Math.round(pct) + '%', pos.x, pos.y);
+                            ctx.shadowBlur = 0;
+                         }
+                      });
+                   });
+                }
+             }
+          ],
           options: { 
              responsive: true, maintainAspectRatio: false, 
              plugins: { 
-                legend: { display: false },
-                tooltip: { callbacks: { label: function(context) { return ` ${context.label}: ${context.raw.toFixed(2)} EGP`; } } }
+                 legend: { display: false },
+                 tooltip: { callbacks: { label: function(c) { return ` ${c.label}: ${c.raw.toFixed(2)} EGP`; } } }
              }, 
-             cutout: isCompare ? '40%' : '65%' 
+             cutout: isCompare ? '45%' : '65%' 
           }
        });
     }
