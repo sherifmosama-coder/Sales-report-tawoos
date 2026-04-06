@@ -406,10 +406,19 @@
        transform: scale(0.95);
     }
 
-    /* --- COSTING STYLES --- */
+    /* --- NEW: BOM TABLE STYLES --- */
     .bom-table th { background: #f8fafc; color: #475569; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; }
     .bom-table td { font-size: 0.85rem; vertical-align: middle; }
-    </style>
+
+    /* --- NEW: COSTING SMART CHIPS --- */
+    .category-chip { font-size: 0.85rem; padding: 10px 20px; border-radius: 12px; border: 2px solid #e2e8f0; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); background: white; white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .category-chip:hover { border-color: #cbd5e1; background: #f8fafc; transform: translateY(-1px); }
+    .category-chip.active { background: #eff6ff; color: #2563eb; border-color: #3b82f6; box-shadow: 0 4px 12px rgba(59,130,246,0.15); }
+    
+    .product-chip { font-size: 0.8rem; padding: 6px 14px; border-radius: 8px; border: 1px solid #e2e8f0; color: #64748b; cursor: pointer; transition: all 0.2s; background: white; font-weight: 600; }
+    .product-chip:hover { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+    .product-chip.active { background: #10b981; color: white; border-color: #059669; box-shadow: 0 4px 8px rgba(16,185,129,0.2); }
+  </style>
 </head>
 <body>
   <div id="landing-screen">
@@ -656,21 +665,40 @@
          </div>
 
       </div>
-      <div id="costing-view-container" style="display: none;">
+      <div id="costing-view-container" style="display: none; max-width: 1400px; margin: 0 auto; padding-left: 10px; padding-right: 10px;">
+          
           <div class="row align-items-center mb-4 gy-3">
-             <div class="col-md-6 order-1 text-center text-md-start">
-                <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-industry me-2 text-danger"></i>Production Costing</h4>
-                <div class="mt-1"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Actual vs Market Cost</span></div>
+             <div class="col-12 d-flex flex-column align-items-center text-center">
+                <h4 class="fw-bold mb-2 text-dark"><i class="fas fa-industry me-2 text-danger"></i>Production Costing</h4>
+                <div class="mb-3"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1 shadow-sm" style="letter-spacing: 0.5px;">Margin Analysis (Cost vs ASP)</span></div>
              </div>
-             <div class="col-md-6 order-2 d-flex justify-content-center justify-content-md-end">
-                <div class="segmented-control shadow-sm bg-white border">
-                   <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" checked onchange="updateCostingState('view', 'actual')">
-                   <label for="cview-actual" class="mb-0 px-3"><i class="fas fa-file-invoice-dollar me-1"></i> Actual</label>
-                   <input type="radio" class="btn-check" name="costing-view" id="cview-market" value="market" onchange="updateCostingState('view', 'market')">
-                   <label for="cview-market" class="mb-0 px-3"><i class="fas fa-chart-line me-1"></i> Market</label>
-                   <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" onchange="updateCostingState('view', 'compare')">
-                   <label for="cview-compare" class="mb-0 px-3"><i class="fas fa-balance-scale me-1"></i> Compare</label>
+             <div class="col-12 d-flex justify-content-center gap-3 flex-wrap">
+                <div class="segmented-control shadow-sm bg-light" style="padding: 4px; border-radius: 12px;">
+                   <input type="radio" class="btn-check" name="c-timeline" id="ctl-daily" value="daily" checked onchange="updateCostingState('timeline', 'daily')">
+                   <label for="ctl-daily" class="px-3 py-1 mb-0"><i class="fas fa-calendar-day me-1"></i> Daily</label>
+                   <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" onchange="updateCostingState('timeline', 'weekly')">
+                   <label for="ctl-weekly" class="px-3 py-1 mb-0"><i class="fas fa-calendar-week me-1"></i> Weekly</label>
+                   <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" onchange="updateCostingState('timeline', 'monthly')">
+                   <label for="ctl-monthly" class="px-3 py-1 mb-0"><i class="fas fa-calendar-alt me-1"></i> Monthly</label>
                 </div>
+                <div class="segmented-control shadow-sm bg-white border" style="padding: 4px; border-radius: 12px;">
+                   <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" checked onchange="updateCostingState('view', 'actual')">
+                   <label for="cview-actual" class="mb-0 px-3 py-1"><i class="fas fa-file-invoice-dollar me-1"></i> Actual</label>
+                   <input type="radio" class="btn-check" name="costing-view" id="cview-market" value="market" onchange="updateCostingState('view', 'market')">
+                   <label for="cview-market" class="mb-0 px-3 py-1"><i class="fas fa-chart-line me-1"></i> Market</label>
+                   <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" onchange="updateCostingState('view', 'compare')">
+                   <label for="cview-compare" class="mb-0 px-3 py-1"><i class="fas fa-balance-scale me-1"></i> Compare</label>
+                </div>
+             </div>
+          </div>
+
+          <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+             <div class="card-body p-4 text-center">
+                <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 1: Select Category</h6>
+                <div class="d-flex align-items-center justify-content-md-center justify-content-start gap-3 overflow-auto pb-4 border-bottom mb-4" id="costing-category-toggles" style="scrollbar-width:none; -ms-overflow-style:none;"></div>
+                
+                <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 2: Select Product</h6>
+                <div class="d-flex flex-wrap justify-content-center gap-2 pb-2 px-2" id="costing-product-toggles" style="max-height: 160px; overflow-y: auto; scrollbar-width: thin;"></div>
              </div>
           </div>
 
@@ -678,19 +706,8 @@
              <div class="col-lg-8">
                 <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
                    <div class="card-body p-4">
-                      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                         <h6 class="fw-bold m-0"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Cost Trend</h6>
-                         <div class="d-flex gap-2 align-items-center flex-wrap">
-                            <div class="segmented-control shadow-sm bg-light" style="padding: 2px;">
-                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-daily" value="daily" checked onchange="updateCostingState('timeline', 'daily')">
-                               <label for="ctl-daily" class="px-2 mb-0" style="font-size:0.75rem;">Daily</label>
-                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" onchange="updateCostingState('timeline', 'weekly')">
-                               <label for="ctl-weekly" class="px-2 mb-0" style="font-size:0.75rem;">Weekly</label>
-                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" onchange="updateCostingState('timeline', 'monthly')">
-                               <label for="ctl-monthly" class="px-2 mb-0" style="font-size:0.75rem;">Monthly</label>
-                            </div>
-                            <select id="costing-product-filter" class="form-select form-select-sm border-0 bg-light fw-bold" style="width: 200px;" onchange="updateCostingState('product', this.value)"></select>
-                         </div>
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                         <h6 class="fw-bold m-0"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Cost & Margin Trend</h6>
                       </div>
                       <div style="height: 320px;"><canvas id="costingTrendChart"></canvas></div>
                    </div>
@@ -1036,7 +1053,7 @@
       
       // NEW: Costing Engine State
       costingData: [],
-      cFilters: { product: 'All', view: 'actual', timeline: 'daily' },
+      cFilters: { category: 'All', product: 'All', view: 'actual', timeline: 'daily' },
       cChartInstance: null,
       bomChartInstance: null
     };
@@ -1176,37 +1193,60 @@ function toggleCompareYear(year) {
 
       google.script.run
         .withSuccessHandler(response => {
-          clearInterval(loaderInterval); 
-          clearInterval(progressInterval); 
-          document.getElementById('loader-progress-bar').style.width = '100%';
           
-          setTimeout(() => {
-             document.getElementById('smart-loader').style.display = 'none';
-             document.getElementById('floating-navigator').style.display = 'flex';
-             
-             document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
-             document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
-             document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
-          
-             if (!response) { alert("System Alert: Unable to retrieve dataset."); return; }
+          // HELPER: Executes the final UI transition after data is ready
+          const finishLoad = (modeToInit) => {
+             clearInterval(loaderInterval); 
+             clearInterval(progressInterval); 
+             document.getElementById('loader-progress-bar').style.width = '100%';
+             setTimeout(() => {
+                document.getElementById('smart-loader').style.display = 'none';
+                document.getElementById('floating-navigator').style.display = 'flex';
+                document.getElementById('nav-btn-client').className = modeToInit === 'client' ? 'nav-btn active' : 'nav-btn';
+                document.getElementById('nav-btn-product').className = modeToInit === 'product' ? 'nav-btn active' : 'nav-btn';
+                document.getElementById('nav-btn-costing').className = modeToInit === 'costing' ? 'nav-btn active' : 'nav-btn';
+                
+                if (modeToInit === 'product') {
+                   document.getElementById('report-date').valueAsDate = new Date();
+                   initProductView();
+                } else if (modeToInit === 'costing') {
+                   initCostingView();
+                } else {
+                   initClientView();
+                }
+             }, 300);
+          };
 
-             if (mode === 'product') {
-                try {
-                   const archive = JSON.parse(response.archiveString || "[]");
-                   appState.productData = archive.concat(response.liveData || []);
-                } catch(e) { appState.productData = response.liveData || []; }
-                document.getElementById('report-date').valueAsDate = new Date();
-                initProductView();
-             } else if (mode === 'costing') {
-                if (!Array.isArray(response)) { alert("System Alert: Dataset error."); return; }
-                appState.costingData = response;
-                initCostingView();
+          if (!response) { alert("System Alert: Unable to retrieve dataset."); return; }
+
+          if (mode === 'product') {
+             try {
+                const archive = JSON.parse(response.archiveString || "[]");
+                appState.productData = archive.concat(response.liveData || []);
+             } catch(e) { appState.productData = response.liveData || []; }
+             finishLoad('product');
+          } else if (mode === 'client') {
+             if (!Array.isArray(response)) { alert("System Alert: Dataset error."); return; }
+             appState.rawData = response;
+             finishLoad('client');
+          } else if (mode === 'costing') {
+             if (response.error) { alert("Cost Engine Error: " + response.error); return; }
+             appState.costingData = response;
+             
+             // CROSS-REFERENCE CHECK: Ensure Product Data is loaded for ASP math
+             if (!appState.productData || appState.productData.length === 0) {
+                 document.getElementById('loader-insight').innerText = "Cross-referencing sales ledger...";
+                 google.script.run.withSuccessHandler(prodRes => {
+                     try {
+                        const archive = JSON.parse(prodRes.archiveString || "[]");
+                        appState.productData = archive.concat(prodRes.liveData || []);
+                     } catch(e) { appState.productData = prodRes.liveData || []; }
+                     finishLoad('costing');
+                 }).getProductData();
              } else {
-                if (!Array.isArray(response)) { alert("System Alert: Dataset error."); return; }
-                appState.rawData = response;
-                initClientView();
+                 finishLoad('costing');
              }
-          }, 300);
+          }
         })
         .withFailureHandler(error => {
             alert("Server Error: " + error.message);
@@ -2545,79 +2585,136 @@ function toggleCompareYear(year) {
        document.getElementById('product-content-area').style.display = 'none';
        document.getElementById('costing-view-container').style.display = 'block';
 
-       const select = document.getElementById('costing-product-filter');
-       const listContainer = document.getElementById('costing-runs-list');
-       
-       // SAFEGUARD: If no data exists, show a warning instead of a blank screen
        if (!appState.costingData || appState.costingData.length === 0) {
-          select.innerHTML = '<option>No Data Available</option>';
-          listContainer.innerHTML = '<div class="alert alert-warning m-3"><i class="fas fa-exclamation-triangle me-2"></i><strong>No Costing Data Found.</strong><br>The "Items costs" tab is currently empty. Please run the syncCostLedger script in your spreadsheet to calculate your pallets.</div>';
+          document.getElementById('costing-runs-list').innerHTML = '<div class="alert alert-warning m-3"><i class="fas fa-exclamation-triangle me-2"></i><strong>No Costing Data Found.</strong></div>';
           return;
        }
 
-       // Get unique products
-       const products = [...new Set(appState.costingData.map(d => d.product))].filter(Boolean).sort();
-       
-       // If current filter is invalid or 'All', force it to the first valid product
-       if (products.length > 0 && (!products.includes(appState.cFilters.product) || appState.cFilters.product === 'All')) {
-          appState.cFilters.product = products[0]; 
+       // 1. Cross-reference map: Product -> Category
+       const pMap = {};
+       appState.productData.forEach(d => { if(d.item && d.category) pMap[d.item] = d.category; });
+       appState.costingData.forEach(d => { d.category = pMap[d.product] || 'Uncategorized'; });
+
+       // 2. Build Category Chips
+       const categories = [...new Set(appState.costingData.map(d => d.category))].filter(Boolean).sort();
+       if (!appState.cFilters.category || appState.cFilters.category === 'All' || !categories.includes(appState.cFilters.category)) {
+          appState.cFilters.category = categories.length > 0 ? categories[0] : 'All';
        }
-       
-       select.innerHTML = products.map(p => `<option value="${p}" ${appState.cFilters.product === p ? 'selected' : ''}>${p}</option>`).join('');
+
+       let catHtml = categories.map(c => 
+          `<div class="category-chip ${appState.cFilters.category === c ? 'active' : ''}" onclick="updateCostingState('category', '${c}')">
+             <i class="${appState.cFilters.category === c ? 'fas fa-check-circle' : 'fas fa-layer-group'} me-1"></i>${c}
+           </div>`
+       ).join('');
+       document.getElementById('costing-category-toggles').innerHTML = catHtml;
 
        renderCostingDashboard();
     }
 
     function updateCostingState(key, val) {
        appState.cFilters[key] = val;
-       renderCostingDashboard();
+       if (key === 'category') {
+           appState.cFilters.product = 'All'; // Reset product selection when jumping categories
+           initCostingView(); // Re-render chips to show active state
+       } else {
+           renderCostingDashboard();
+       }
     }
 
     function renderCostingDashboard() {
-       const rawProductData = appState.costingData.filter(d => d.product === appState.cFilters.product);
+       // 1. Filter products by selected category & Build Product Chips
+       const catProducts = [...new Set(appState.costingData.filter(d => d.category === appState.cFilters.category).map(d => d.product))].sort();
+       if (!catProducts.includes(appState.cFilters.product)) {
+           appState.cFilters.product = catProducts.length > 0 ? catProducts[0] : 'All';
+       }
        
-       // Sort chronologically for timeline math and finding price shifts
-       const chronoData = [...rawProductData].sort((a, b) => new Date(a.date) - new Date(b.date));
+       let prodHtml = catProducts.map(p => 
+           `<div class="product-chip ${appState.cFilters.product === p ? 'active' : ''}" onclick="updateCostingState('product', '${p}')">${p}</div>`
+       ).join('');
+       document.getElementById('costing-product-toggles').innerHTML = prodHtml;
+
+       // 2. Aggregate Costing Math
+       const rawCostData = appState.costingData.filter(d => d.product === appState.cFilters.product);
+       const chronoCostData = [...rawCostData].sort((a, b) => new Date(a.date) - new Date(b.date));
        
-       // --- 1. TIMELINE AGGREGATION FOR CHART ---
-       let aggregated = {};
-       chronoData.forEach(d => {
-          let key = d.date; // Default daily
-          if (appState.cFilters.timeline === 'monthly') {
-             key = d.date.substring(0, 7); // YYYY-MM
-          } else if (appState.cFilters.timeline === 'weekly') {
+       let aggregatedCosts = {};
+       chronoCostData.forEach(d => {
+          let key = d.date; 
+          if (appState.cFilters.timeline === 'monthly') key = d.date.substring(0, 7);
+          else if (appState.cFilters.timeline === 'weekly') {
              let dateObj = new Date(d.date);
              dateObj.setHours(0, 0, 0, 0);
              dateObj.setDate(dateObj.getDate() + 4 - (dateObj.getDay() || 7));
              let weekNo = Math.ceil((((dateObj - new Date(dateObj.getFullYear(), 0, 1)) / 86400000) + 1) / 7);
              key = `${dateObj.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
           }
-          
-          if(!aggregated[key]) { aggregated[key] = { date: key, actSum: 0, mktSum: 0, count: 0 }; }
-          aggregated[key].actSum += d.unitActual;
-          aggregated[key].mktSum += d.unitMarket;
-          aggregated[key].count += 1;
+          if(!aggregatedCosts[key]) { aggregatedCosts[key] = { actSum: 0, mktSum: 0, count: 0 }; }
+          aggregatedCosts[key].actSum += d.unitActual;
+          aggregatedCosts[key].mktSum += d.unitMarket;
+          aggregatedCosts[key].count += 1;
        });
+
+       // 3. Aggregate Sales Math for Average Selling Price (ASP)
+       let aggregatedSales = {};
+       
+       // Define the exact timeline boundaries of the available Costing Data
+       let minCostMs = chronoCostData.length > 0 ? new Date(chronoCostData[0].date).getTime() : 0;
+       let maxCostMs = chronoCostData.length > 0 ? new Date(chronoCostData[chronoCostData.length - 1].date).getTime() : Date.now();
+
+       appState.productData.filter(d => {
+          if (d.item !== appState.cFilters.product) return false;
+          let saleTime = new Date(d.date).getTime();
+          // Filter out any sales that happened before or after the costing timeline
+          return saleTime >= minCostMs && saleTime <= maxCostMs;
+       }).forEach(d => {
+          let key = d.date; 
+          if (appState.cFilters.timeline === 'monthly') key = d.date.substring(0, 7);
+          else if (appState.cFilters.timeline === 'weekly') {
+             let dateObj = new Date(d.date);
+             dateObj.setHours(0, 0, 0, 0);
+             dateObj.setDate(dateObj.getDate() + 4 - (dateObj.getDay() || 7));
+             let weekNo = Math.ceil((((dateObj - new Date(dateObj.getFullYear(), 0, 1)) / 86400000) + 1) / 7);
+             key = `${dateObj.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+          }
+          if (!aggregatedSales[key]) aggregatedSales[key] = { rev: 0, qty: 0 };
+          aggregatedSales[key].rev += d.rev;
+          aggregatedSales[key].qty += d.qty;
+       });
+
+       // 4. Merge Keys Chronologically
+       let allKeys = new Set([...Object.keys(aggregatedCosts), ...Object.keys(aggregatedSales)]);
+       let sortedKeys = Array.from(allKeys).sort((a, b) => a.localeCompare(b));
 
        let chartLabels = [];
        let chartAct = [];
        let chartMkt = [];
-       Object.values(aggregated).forEach(a => {
-          chartLabels.push(a.date);
-          chartAct.push(Number((a.actSum / a.count).toFixed(2)));
-          chartMkt.push(Number((a.mktSum / a.count).toFixed(2)));
+       let chartAsp = [];
+
+       sortedKeys.forEach(k => {
+          chartLabels.push(k);
+          
+          let cData = aggregatedCosts[k];
+          chartAct.push(cData ? Number((cData.actSum / cData.count).toFixed(2)) : null);
+          chartMkt.push(cData ? Number((cData.mktSum / cData.count).toFixed(2)) : null);
+          
+          let sData = aggregatedSales[k];
+          let asp = sData && sData.qty > 0 ? (sData.rev / sData.qty) : null;
+          chartAsp.push(asp ? Number(asp.toFixed(2)) : null);
        });
 
+       // 5. Render Chart with 3 Lines
        const ctx = document.getElementById('costingTrendChart').getContext('2d');
        if(appState.cChartInstance) appState.cChartInstance.destroy();
        
        let datasets = [];
        if (appState.cFilters.view === 'actual' || appState.cFilters.view === 'compare') {
-          datasets.push({ label: 'Actual Unit Cost (EGP)', data: chartAct, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: appState.cFilters.view === 'actual', tension: 0.3, borderWidth: 3 });
+          datasets.push({ label: 'Actual Unit Cost (EGP)', data: chartAct, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: appState.cFilters.view === 'actual', tension: 0.3, borderWidth: 3, spanGaps: true });
        }
        if (appState.cFilters.view === 'market' || appState.cFilters.view === 'compare') {
-          datasets.push({ label: 'Market Unit Cost (EGP)', data: chartMkt, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: appState.cFilters.view === 'market', tension: 0.3, borderWidth: 3, borderDash: appState.cFilters.view === 'compare' ? [5, 5] : [] });
+          datasets.push({ label: 'Market Unit Cost (EGP)', data: chartMkt, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: appState.cFilters.view === 'market', tension: 0.3, borderWidth: 3, borderDash: appState.cFilters.view === 'compare' ? [5, 5] : [], spanGaps: true });
        }
+       // NEW: ASP Margin Line
+       datasets.push({ label: 'Avg Selling Price (ASP)', data: chartAsp, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0)', borderWidth: 3, borderDash: [4, 4], pointRadius: 4, spanGaps: true });
 
        appState.cChartInstance = new Chart(ctx, {
           type: 'line',
@@ -2625,21 +2722,16 @@ function toggleCompareYear(year) {
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: false } } }
        });
 
-       // --- 2. ISOLATE PRICE SHIFTS FOR THE LIST ---
+       // 6. Side List (Cost Shifts)
        let changeEvents = [];
-       let lastActual = null;
-       let lastMarket = null;
-
-       for (let i = 0; i < chronoData.length; i++) {
-          let d = chronoData[i];
-          // Only save to the side list if it is the first record OR if the price moved
+       let lastActual = null; let lastMarket = null;
+       for (let i = 0; i < chronoCostData.length; i++) {
+          let d = chronoCostData[i];
           if (i === 0 || d.unitActual !== lastActual || d.unitMarket !== lastMarket) {
              changeEvents.push({ ...d, isFirst: i === 0 });
-             lastActual = d.unitActual;
-             lastMarket = d.unitMarket;
+             lastActual = d.unitActual; lastMarket = d.unitMarket;
           }
        }
-       // Reverse to show the most recent shifts at the top
        changeEvents.reverse();
 
        const listContainer = document.getElementById('costing-runs-list');
