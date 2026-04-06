@@ -439,6 +439,39 @@
         100% { transform: scale(1); }
     }
     .badge-pulse { animation: heartbeat 1s ease-in-out; }
+
+    /* --- PRODUCT SCORECARD STYLING --- */
+    .product-card {
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        min-width: 180px;
+    }
+    .product-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        border-color: #cbd5e1;
+    }
+    .product-card.active {
+        background: #f8fafc;
+        border-color: #3b82f6;
+        box-shadow: inset 0 0 0 2px #3b82f6;
+    }
+    
+    /* Prominent Red Border for Volatile Products */
+    .product-card.needs-attention {
+        border: 2px solid #ef4444 !important;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+    }
+    .alert-pulse {
+        animation: alert-glow 2s infinite;
+    }
+    @keyframes alert-glow {
+        0% { box-shadow: 0 0 0 0px rgba(239, 68, 68, 0.4); }
+        70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+        100% { box-shadow: 0 0 0 0px rgba(239, 68, 68, 0); }
+    }
   </style>
 </head>
 <body>
@@ -2806,16 +2839,74 @@ function toggleCompareYear(year) {
     }
 
     function renderCostingDashboard() {
-       // 1. Filter products by selected category & Build Product Chips
+       // 1. IDENTIFY VOLATILE MATERIALS & BUILD SCORECARDS
+       const alertMats = new Set((appState.globalAlerts || []).map(a => a.mat));
        const catProducts = [...new Set(appState.costingData.filter(d => d.category === appState.cFilters.category).map(d => d.product))].sort();
+       
        if (!catProducts.includes(appState.cFilters.product)) {
            appState.cFilters.product = catProducts.includes('خل الطاووس ( 900 مللي )') ? 'خل الطاووس ( 900 مللي )' : (catProducts.length > 0 ? catProducts[0] : 'All');
        }
        
-       let prodHtml = catProducts.map(p => 
-           `<div class="product-chip ${appState.cFilters.product === p ? 'active' : ''}" onclick="updateCostingState('product', '${p}')">${p}</div>`
-       ).join('');
-       document.getElementById('costing-product-toggles').innerHTML = prodHtml;
+       let scorecardHtml = '';
+       catProducts.forEach(p => {
+           // A. Get Latest Cost Data for this product
+           const pHistory = appState.costingData.filter(d => d.product === p).sort((a,b) => new Date(b.date) - new Date(a.date));
+           const latestEntry = pHistory[0] || {};
+           
+           // B. Determine "Active" Cost (Market if different from Actual, otherwise Actual)
+           const actCost = latestEntry.unitActual || 0;
+           const mktCost = latestEntry.unitMarket || 0;
+           const displayCost = Math.abs(actCost - mktCost) > 0.01 ? mktCost : actCost;
+           
+           // C. Calculate Current ASP (Last 30 Days)
+           const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+           const recentSales = appState.productData.filter(s => s.item === p && new Date(s.date).getTime() >= thirtyDaysAgo);
+           let rev = 0; let qty = 0;
+           recentSales.forEach(s => { rev += s.rev; qty += s.qty; });
+           const currentAsp = qty > 0 ? (rev / qty) : 0;
+           
+           // D. Calculate Gross Profit
+           const gpVal = currentAsp - displayCost;
+           const gpPct = currentAsp > 0 ? ((gpVal / currentAsp) * 100).toFixed(1) : 0;
+
+           // E. Check for Material Alerts in BOM
+           let needsAttention = false;
+           if (latestEntry.bomMeta) {
+               needsAttention = Object.keys(latestEntry.bomMeta).some(m => alertMats.has(m));
+           }
+
+           // F. Build Card Classes
+           const isActive = appState.cFilters.product === p ? 'active' : '';
+           const alertClass = needsAttention ? 'needs-attention alert-pulse' : '';
+           const gpColor = gpVal >= 0 ? 'text-success' : 'text-danger';
+
+           scorecardHtml += `
+           <div class="product-card rounded-3 p-2 m-1 d-inline-block shadow-sm ${isActive} ${alertClass}" 
+                onclick="updateCostingState('product', '${p.replace(/'/g, "\\'")}')" 
+                style="width: 190px; vertical-align: top;">
+              <div class="d-flex justify-content-between align-items-start mb-1">
+                 <span class="fw-bold text-dark text-truncate" style="font-size:0.75rem; max-width:140px;">${p}</span>
+                 ${needsAttention ? '<i class="fas fa-exclamation-circle text-danger" style="font-size:0.7rem;"></i>' : ''}
+              </div>
+              <div class="row g-0 mt-2 border-top pt-2">
+                 <div class="col-4 border-end">
+                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;">COST</div>
+                    <div class="fw-bold text-primary" style="font-size:0.7rem;">${displayCost.toFixed(1)}</div>
+                 </div>
+                 <div class="col-4 border-end ps-1">
+                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;">ASP</div>
+                    <div class="fw-bold text-dark" style="font-size:0.7rem;">${currentAsp > 0 ? currentAsp.toFixed(1) : '--'}</div>
+                 </div>
+                 <div class="col-4 ps-1">
+                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;">GP%</div>
+                    <div class="fw-bold ${gpColor}" style="font-size:0.7rem;">${gpPct}%</div>
+                 </div>
+              </div>
+           </div>`;
+       });
+       
+       // Update this ID to match your container for products
+       document.getElementById('costing-product-toggles').innerHTML = scorecardHtml;
 
        // 2. Isolate COST SHIFT EVENTS (Only plot when a price actually changes)
        const rawCostData = appState.costingData.filter(d => d.product === appState.cFilters.product);
