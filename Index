@@ -418,6 +418,27 @@
     .product-chip { font-size: 0.8rem; padding: 6px 14px; border-radius: 8px; border: 1px solid #e2e8f0; color: #64748b; cursor: pointer; transition: all 0.2s; background: white; font-weight: 600; }
     .product-chip:hover { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
     .product-chip.active { background: #10b981; color: white; border-color: #059669; box-shadow: 0 4px 8px rgba(16,185,129,0.2); }
+    
+    /* --- NEW: INTERACTIVE BOM ROWS --- */
+    .bom-row-clickable { cursor: pointer; transition: background-color 0.2s ease; }
+    .bom-row-clickable:hover > td { background-color: #f1f5f9; }
+
+    /* --- NEW: CINEMATIC VOLATILITY ALERT ANIMATIONS --- */
+    #flying-alert-card {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 380px; z-index: 10000; border-radius: 16px; opacity: 0; pointer-events: none;
+        transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.8s ease-in-out;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+    
+    @keyframes heartbeat {
+        0% { transform: scale(1); }
+        25% { transform: scale(1.2); }
+        50% { transform: scale(1); }
+        75% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+    }
+    .badge-pulse { animation: heartbeat 1s ease-in-out; }
   </style>
 </head>
 <body>
@@ -670,7 +691,27 @@
           <div class="row align-items-center mb-4 gy-3">
              <div class="col-12 d-flex flex-column align-items-center text-center">
                 <h4 class="fw-bold mb-2 text-dark"><i class="fas fa-industry me-2 text-danger"></i>Production Costing</h4>
-                <div class="mb-3"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1 shadow-sm" style="letter-spacing: 0.5px;">Margin Analysis (Cost vs ASP)</span></div>
+                <div class="mb-2"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1 shadow-sm" style="letter-spacing: 0.5px;">Margin Analysis (Cost vs ASP)</span></div>
+                <div class="d-flex gap-2 justify-content-center mt-2">
+                   <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" onclick="openMarketUpdateModal()" style="font-size: 0.75rem;">
+                      <i class="fas fa-pen-to-square me-1"></i>Manage Market Rates
+                   </button>
+                   
+                   <button id="volatility-btn" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-3 fw-bold shadow-sm position-relative" style="font-size: 0.75rem;" onclick="openActionAlertsModal()">
+                      <i class="fas fa-exclamation-circle text-warning me-1"></i>Attention Required
+                      <span id="volatility-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none shadow-sm" style="font-size: 0.65rem;">0</span>
+                   </button>
+                </div>
+             </div>
+          </div>
+
+          <div id="flying-alert-card" class="bg-white border border-warning">
+             <div class="card-header bg-warning bg-opacity-10 border-bottom-0 py-3 rounded-top" style="border-radius: 16px 16px 0 0;">
+                <h6 class="fw-bold text-dark m-0 text-center"><i class="fas fa-exclamation-circle text-warning me-2"></i>Action Required (>2%)</h6>
+             </div>
+             <div class="card-body p-3">
+                <div id="flying-alert-content"></div>
+                <div class="text-center mt-3 small text-muted fw-bold" style="font-size: 0.65rem;">Routing to dashboard...</div>
              </div>
           </div>
 
@@ -1027,6 +1068,122 @@
     </div>
   </div>
 
+  <div class="modal fade" id="materialHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-0 pb-0">
+          <div>
+             <h5 class="modal-title fw-bold" id="matHistTitle"><i class="fas fa-search-dollar text-primary me-2"></i>Material History</h5>
+             <span class="badge bg-light text-dark border mt-1" id="matHistUnit"></span>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          
+          <div style="height: 250px; margin-bottom: 20px;">
+             <canvas id="matHistChart"></canvas>
+          </div>
+          
+          <div class="table-responsive border rounded-3" style="max-height: 250px; overflow-y: auto; scrollbar-width: thin;">
+             <table class="table table-hover table-sm table-borderless align-middle mb-0">
+                <thead class="table-light border-bottom sticky-top">
+                   <tr>
+                      <th class="ps-3 text-muted fw-bold" style="font-size: 0.75rem;">DATE</th>
+                      <th class="text-end text-primary fw-bold" style="font-size: 0.75rem;">ACTUAL RATE</th>
+                      <th class="text-end text-danger fw-bold" style="font-size: 0.75rem;">MARKET RATE</th>
+                      <th class="text-end pe-3 text-muted fw-bold" style="font-size: 0.75rem;">% CHANGE</th>
+                   </tr>
+                </thead>
+                <tbody id="matHistTableBody"></tbody>
+             </table>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="marketUpdateModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold"><i class="fas fa-pen-to-square text-danger me-2"></i>Manage Market Rates</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4">
+            
+            <div class="card border border-light shadow-sm mb-4">
+              <div class="card-body bg-light rounded-3 p-3">
+                  <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Effective Date (Future or Past)</label>
+                    <input type="date" id="mu-date" class="form-control form-control-sm fw-bold">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Target Material</label>
+                    <select id="mu-material" class="form-select form-select-sm fw-bold" onchange="onMuMaterialChange(this.value)"></select>
+                  </div>
+                  
+                  <div class="d-flex justify-content-between align-items-center mb-3 px-2 py-2 bg-white border rounded">
+                    <div class="text-center w-50 border-end">
+                        <div class="small text-muted fw-bold" style="font-size:0.65rem;">LATEST ACTUAL</div>
+                        <div class="text-primary fw-bold" id="mu-act-hint">-</div>
+                    </div>
+                    <div class="text-center w-50">
+                        <div class="small text-muted fw-bold" style="font-size:0.65rem;">LATEST MARKET</div>
+                        <div class="text-danger fw-bold" id="mu-mkt-hint">-</div>
+                    </div>
+                  </div>
+
+                  <div class="mb-1">
+                    <label class="form-label small fw-bold text-muted mb-1">New Market Indication Price</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white text-danger fw-bold"><i class="fas fa-coins"></i></span>
+                        <input type="number" step="0.01" id="mu-price" class="form-control fw-bold text-danger" placeholder="0.00">
+                    </div>
+                  </div>
+              </div>
+            </div>
+
+            <button id="mu-submit-btn" class="btn btn-danger w-100 fw-bold shadow-sm mb-4 rounded-pill" onclick="submitMarketUpdate()">
+              <i class="fas fa-save me-2"></i>Commit Update
+            </button>
+
+            <h6 class="fw-bold mb-2 text-dark" style="font-size: 0.85rem;"><i class="fas fa-history me-2 text-secondary"></i>Recent Manual Updates</h6>
+            <div class="table-responsive border rounded-3 bg-white" style="max-height: 150px; overflow-y: auto; scrollbar-width: thin;">
+              <table class="table table-hover table-sm table-borderless align-middle mb-0">
+                  <thead class="table-light border-bottom sticky-top">
+                    <tr>
+                        <th class="ps-2 text-muted fw-bold" style="font-size: 0.7rem;">DATE</th>
+                        <th class="text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL</th>
+                        <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.7rem;">RATE</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mu-history-body"></tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="actionAlertsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="fas fa-exclamation-circle text-warning me-2"></i>Action Required</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+           <div class="alert alert-warning border-warning bg-warning bg-opacity-10 small fw-bold mb-4">
+              <i class="fas fa-info-circle me-2"></i>The following materials have experienced cost volatility greater than 2%. Click any material to view its timeline.
+           </div>
+           <div id="action-alerts-body" style="max-height: 400px; overflow-y: auto; scrollbar-width: thin; padding-right: 5px;">
+              </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -1079,7 +1236,7 @@
       
       // NEW: Costing Engine State
       costingData: [],
-      cFilters: { category: 'All', product: 'All', view: 'actual', timeline: 'monthly' },
+      cFilters: { category: 'WHITE T', product: 'خل الطاووس ( 900 مللي )', view: 'actual', timeline: 'monthly' },
       cDoughnutChart: null,
       cChartInstance: null,
       bomChartInstance: null
@@ -2625,7 +2782,7 @@ function toggleCompareYear(year) {
        // 2. Build Category Chips
        const categories = [...new Set(appState.costingData.map(d => d.category))].filter(Boolean).sort();
        if (!appState.cFilters.category || appState.cFilters.category === 'All' || !categories.includes(appState.cFilters.category)) {
-          appState.cFilters.category = categories.length > 0 ? categories[0] : 'All';
+          appState.cFilters.category = categories.includes('WHITE T') ? 'WHITE T' : (categories.length > 0 ? categories[0] : 'All');
        }
 
        let catHtml = categories.map(c => 
@@ -2652,7 +2809,7 @@ function toggleCompareYear(year) {
        // 1. Filter products by selected category & Build Product Chips
        const catProducts = [...new Set(appState.costingData.filter(d => d.category === appState.cFilters.category).map(d => d.product))].sort();
        if (!catProducts.includes(appState.cFilters.product)) {
-           appState.cFilters.product = catProducts.length > 0 ? catProducts[0] : 'All';
+           appState.cFilters.product = catProducts.includes('خل الطاووس ( 900 مللي )') ? 'خل الطاووس ( 900 مللي )' : (catProducts.length > 0 ? catProducts[0] : 'All');
        }
        
        let prodHtml = catProducts.map(p => 
@@ -2739,7 +2896,6 @@ function toggleCompareYear(year) {
     }
 
     function renderSidePanel(eventData) {
-       // Removed Plan IDs/Operational references as requested
        document.getElementById('bom-panel-subtitle').innerText = `Date: ${eventData.date}`;
 
        let isCompare = appState.cFilters.view === 'compare';
@@ -2766,6 +2922,7 @@ function toggleCompareYear(year) {
        let chartColors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#6366f1','#ec4899','#8b5cf6','#14b8a6','#f97316','#06b6d4', '#94a3b8'];
 
        let tHead = ''; let tBody = '';
+       let totalAct = 0; let totalMkt = 0; // NEW: Running Totals
 
        if (isCompare) {
            tHead = `<tr>
@@ -2788,17 +2945,24 @@ function toggleCompareYear(year) {
           let actVal = eventData.bomActual[mat] || 0;
           let mktVal = eventData.bomMarket[mat] || 0;
           
-          // BULLETPROOF META EXTRACTION (Prevents crash if backend data is missing)
+          totalAct += actVal; // Add to Actual Total
+          totalMkt += mktVal; // Add to Market Total
+
+          // BULLETPROOF META EXTRACTION & HISTORICAL FALLBACK
           let meta = (eventData.bomMeta && eventData.bomMeta[mat]) ? eventData.bomMeta[mat] : {};
           let aRate = meta.actRate || 0;
           let mRate = meta.mktRate || meta.rate || 0;
-          let unit = meta.unit || '';
-          
+          let unit = meta.unit || 'Unit';
+
+          // If Actual Rate is missing (old historical data), reverse-engineer it from the BOM ratio!
+          if (aRate === 0 && actVal > 0 && mktVal > 0 && mRate > 0) {
+              aRate = (actVal * mRate) / mktVal;
+          }
+
           chartLabels.push(mat);
           actData.push(actVal);
           mktData.push(mktVal);
 
-          // FADING LOGIC FOR COMPARE MODE (Adds '40' hex alpha for ~25% opacity if values match)
           let isSame = Math.abs(actVal - mktVal) < 0.01;
           if (isCompare && isSame) {
               actBgColors.push(baseColor + '40'); 
@@ -2808,7 +2972,6 @@ function toggleCompareYear(year) {
               mktBgColors.push(baseColor);
           }
 
-          // DUAL RATE STRING LOGIC
           let rateStr = '';
           if (isCompare) {
              if (Math.abs(aRate - mRate) > 0.01 && aRate > 0 && mRate > 0) {
@@ -2819,12 +2982,14 @@ function toggleCompareYear(year) {
              }
           } else {
              let activeRate = isMarket ? mRate : aRate;
-             if (activeRate === 0 && (aRate > 0 || mRate > 0)) activeRate = aRate > 0 ? aRate : mRate; // fallback if one is 0
+             if (activeRate === 0 && (aRate > 0 || mRate > 0)) activeRate = aRate > 0 ? aRate : mRate; 
              rateStr = activeRate > 0 ? `${activeRate.toFixed(2)} <span class="text-muted" style="font-size:0.6rem;">${unit}</span>` : '-';
           }
 
+          let safeMatName = mat.replace(/'/g, "\\'"); 
+          
           if (isCompare) {
-              tBody += `<tr>
+              tBody += `<tr class="bom-row-clickable" onclick="openMaterialHistory('${safeMatName}')">
                  <td class="fw-bold text-dark ps-2" style="font-size: 0.75rem;"><i class="fas fa-circle me-2" style="color:${isSame ? baseColor+'40' : baseColor}; font-size:0.6rem;"></i>${mat}</td>
                  <td class="text-end text-primary fw-bold" style="font-size: 0.8rem;">${actVal.toFixed(2)}</td>
                  <td class="text-end text-danger fw-bold" style="font-size: 0.8rem;">${mktVal.toFixed(2)}</td>
@@ -2833,7 +2998,7 @@ function toggleCompareYear(year) {
           } else {
               let displayVal = isMarket ? mktVal : actVal;
               let valColor = isMarket ? 'text-danger' : 'text-primary';
-              tBody += `<tr>
+              tBody += `<tr class="bom-row-clickable" onclick="openMaterialHistory('${safeMatName}')">
                  <td class="fw-bold text-dark ps-2" style="font-size: 0.75rem;"><i class="fas fa-circle me-2" style="color:${baseColor}; font-size:0.6rem;"></i>${mat}</td>
                  <td class="text-end ${valColor} fw-bold" style="font-size: 0.8rem;">${displayVal.toFixed(2)}</td>
                  <td class="text-end pe-2 fw-bold text-muted" style="font-size: 0.75rem;">${rateStr}</td>
@@ -2841,7 +3006,28 @@ function toggleCompareYear(year) {
           }
        });
 
-       document.getElementById('bom-panel-table-body').innerHTML = tBody;
+       // --- Prominent Total BOM Cost Row ---
+       let footerHtml = '';
+       if (isCompare) {
+           footerHtml = `
+           <tr class="bg-warning bg-opacity-10 border-top border-warning">
+              <td class="fw-bold text-dark ps-2 py-3" style="font-size: 0.8rem;"><i class="fas fa-coins me-2 text-warning"></i>TOTAL BOM COST</td>
+              <td class="text-end text-primary fw-bold py-3" style="font-size: 0.9rem;">${totalAct.toFixed(2)}</td>
+              <td class="text-end text-danger fw-bold py-3" style="font-size: 0.9rem;">${totalMkt.toFixed(2)}</td>
+              <td class="text-end pe-2"></td>
+           </tr>`;
+       } else {
+           let displayTotal = isMarket ? totalMkt : totalAct;
+           let totalColor = isMarket ? 'text-danger' : 'text-primary';
+           footerHtml = `
+           <tr class="bg-warning bg-opacity-10 border-top border-warning">
+              <td class="fw-bold text-dark ps-2 py-3" style="font-size: 0.8rem;"><i class="fas fa-coins me-2 text-warning"></i>TOTAL BOM COST</td>
+              <td class="text-end ${totalColor} fw-bold py-3" style="font-size: 0.9rem;">${displayTotal.toFixed(2)}</td>
+              <td class="text-end pe-2"></td>
+           </tr>`;
+       }
+
+       document.getElementById('bom-panel-table-body').innerHTML = tBody + footerHtml;
 
        // NESTED DOUGHNUT WITH INLINE PLUGINS
        const dCtx = document.getElementById('bomDoughnut').getContext('2d');
@@ -2849,8 +3035,8 @@ function toggleCompareYear(year) {
        
        let doughnutDatasets = [];
        if (isCompare) {
-           doughnutDatasets.push({ data: actData, backgroundColor: actBgColors, borderWidth: 1, borderColor: '#fff' }); // INNER RING
-           doughnutDatasets.push({ data: mktData, backgroundColor: mktBgColors, borderWidth: 1, borderColor: '#fff' }); // OUTER RING
+           doughnutDatasets.push({ data: actData, backgroundColor: actBgColors, borderWidth: 1, borderColor: '#fff' }); 
+           doughnutDatasets.push({ data: mktData, backgroundColor: mktBgColors, borderWidth: 1, borderColor: '#fff' }); 
        } else {
            doughnutDatasets.push({ data: isMarket ? mktData : actData, backgroundColor: actBgColors, borderWidth: 2, borderColor: '#fff' });
        }
@@ -2859,7 +3045,7 @@ function toggleCompareYear(year) {
           type: 'doughnut',
           data: { labels: chartLabels, datasets: doughnutDatasets },
           plugins: [
-             {  // PLUGIN 1: Center Text Labels for Compare Mode
+             {
                 id: 'centerText',
                 beforeDraw: function(chart) {
                    if (appState.cFilters.view !== 'compare') return;
@@ -2872,7 +3058,7 @@ function toggleCompareYear(year) {
                    ctx.save();
                 }
              },
-             {  // PLUGIN 2: Percentage Labels on Large Slices
+             {
                 id: 'sliceLabels',
                 afterDatasetsDraw: function(chart) {
                    const ctx = chart.ctx;
@@ -2882,7 +3068,7 @@ function toggleCompareYear(year) {
                       if (total === 0) return;
                       meta.data.forEach((element, index) => {
                          const pct = (dataset.data[index] / total) * 100;
-                         if (pct > 7) {  // Only show if slice is larger than 7%
+                         if (pct > 7) { 
                             ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                             ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 3;
                             const pos = element.tooltipPosition();
@@ -2949,6 +3135,424 @@ function toggleCompareYear(year) {
          })
          .forceResyncCostLedger();
     }
+
+
+    // --- NEW: MATERIAL HISTORY DRILL-DOWN ENGINE ---
+    appState.matHistChartInstance = null; 
+
+    window.openMaterialHistory = function(matName) {
+       let chronoData = [...appState.costingData].sort((a,b) => new Date(a.date) - new Date(b.date));
+       
+       let history = [];
+       let unitStr = 'Unit';
+       let lastKnownActRate = 0;
+
+       // 1. EXTRACT DATA & FIX MISSING VALUES
+       chronoData.forEach(d => {
+           if (d.bomMeta && d.bomMeta[matName]) {
+               let a = d.bomMeta[matName].actRate || 0;
+               let m = d.bomMeta[matName].mktRate || d.bomMeta[matName].rate || 0;
+               
+               // Reverse-engineer missing Actual from BOM ratios
+               let actVal = (d.bomActual && d.bomActual[matName]) ? d.bomActual[matName] : 0;
+               let mktVal = (d.bomMarket && d.bomMarket[matName]) ? d.bomMarket[matName] : 0;
+               if (a === 0 && actVal > 0 && mktVal > 0 && m > 0) a = (actVal * m) / mktVal;
+
+               // Inherit the last known Actual Rate if FIFO queue was empty
+               if (a === 0 && lastKnownActRate > 0) a = lastKnownActRate;
+               if (a === 0 && m > 0 && lastKnownActRate === 0) a = m;
+               
+               if (a > 0) lastKnownActRate = a;
+
+               // CRITICAL FIX: Market Rate MUST equal Actual Rate unless explicitly overridden
+               if (m === 0 && a > 0) m = a;
+               
+               if (a === 0 && m === 0) return; // Skip complete zeros
+               
+               unitStr = d.bomMeta[matName].unit || 'Unit';
+               history.push({ date: d.date, actRate: a, mktRate: m });
+           }
+       });
+
+       if (history.length === 0) return;
+
+       // 2. ISOLATE TRUE SHIFTS (Manual Updates or Actual Purchase Shifts)
+       let tableData = [];
+       let lastA = -1; let lastM = -1;
+
+       history.forEach((h, idx) => {
+           let isFirst = idx === 0;
+           let isLast = idx === history.length - 1;
+           let isShift = (Math.abs(h.actRate - lastA) > 0.01 || Math.abs(h.mktRate - lastM) > 0.01);
+
+           if (isFirst || isLast || isShift) {
+               if (tableData.length > 0 && tableData[tableData.length - 1].date === h.date) {
+                   tableData[tableData.length - 1] = h; // Update in place if same date
+               } else {
+                   tableData.push(h);
+               }
+               lastA = h.actRate; lastM = h.mktRate;
+           }
+       });
+
+       document.getElementById('matHistTitle').innerHTML = `<i class="fas fa-search-dollar text-primary me-2"></i>${matName}`;
+       document.getElementById('matHistUnit').innerText = `Rate per ${unitStr}`;
+
+       // 3. BUILD TABLE (Priority-Based Logic)
+       let tBody = '';
+       let reversedTableData = [...tableData].reverse();
+
+       reversedTableData.forEach((h, idx) => {
+           let prev = reversedTableData[idx + 1]; // Previous chronologically
+           let pctStr = '-'; let pctColor = 'text-muted';
+           
+           let actChanged = prev ? Math.abs(h.actRate - prev.actRate) > 0.01 : false;
+           let isManualOverride = Math.abs(h.actRate - h.mktRate) > 0.01;
+
+           // LOGIC PRIORITY 1: Check for Actual Price Change FIRST
+           if (actChanged && prev.actRate > 0) {
+               let pct = ((h.actRate - prev.actRate) / prev.actRate) * 100;
+               if (Math.abs(pct) > 0.01) {
+                   let icon = pct > 0 ? '<i class="fas fa-arrow-trend-up me-1"></i>' : '<i class="fas fa-arrow-trend-down me-1"></i>';
+                   pctStr = `${icon}${Math.abs(pct).toFixed(1)}%`; 
+                   pctColor = 'text-primary bg-primary bg-opacity-10 rounded px-2'; // BLUE
+               } else { pctStr = '0%'; }
+               
+           // LOGIC PRIORITY 2: If Actual didn't change, check for Manual Market Override
+           } else if (isManualOverride && h.actRate > 0) {
+               let pct = ((h.mktRate - h.actRate) / h.actRate) * 100;
+               if (Math.abs(pct) > 0.01) {
+                   let icon = pct > 0 ? '<i class="fas fa-arrow-trend-up me-1"></i>' : '<i class="fas fa-arrow-trend-down me-1"></i>';
+                   pctStr = `${icon}${Math.abs(pct).toFixed(1)}%`; 
+                   pctColor = 'text-danger bg-danger bg-opacity-10 rounded px-2'; // RED
+               } else { pctStr = '0%'; }
+               
+           // No changes at all
+           } else if (prev) {
+               pctStr = '0%';
+           }
+
+           // Fade Market Rate to 30% if it's just mirroring the Actual Rate
+           let mktOpacity = isManualOverride ? '1' : '0.3';
+
+           tBody += `<tr>
+              <td class="text-dark fw-bold ps-3" style="font-size:0.8rem;">${h.date}</td>
+              <td class="text-primary text-end fw-bold" style="font-size:0.8rem;">${h.actRate.toFixed(2)}</td>
+              <td class="text-danger text-end fw-bold" style="font-size:0.8rem; opacity: ${mktOpacity}; transition: opacity 0.3s;">${h.mktRate.toFixed(2)}</td>
+              <td class="text-end pe-3 fw-bold" style="font-size:0.8rem;"><span class="${pctColor}">${pctStr}</span></td>
+           </tr>`;
+       });
+       
+       document.getElementById('matHistTableBody').innerHTML = tBody;
+
+       // 4. BUILD CHART
+       let chartLabels = []; let actData = []; let mktData = [];
+       history.forEach(h => {
+           chartLabels.push(h.date);
+           actData.push(h.actRate);
+           mktData.push(h.mktRate);
+       });
+
+       const ctx = document.getElementById('matHistChart').getContext('2d');
+       if (appState.matHistChartInstance) appState.matHistChartInstance.destroy();
+
+       appState.matHistChartInstance = new Chart(ctx, {
+           type: 'line',
+           data: {
+               labels: chartLabels,
+               datasets: [
+                   { label: 'Actual Rate', data: actData, borderColor: '#3b82f6', backgroundColor: '#3b82f6', tension: 0, stepped: 'middle', borderWidth: 2, pointRadius: 3, pointHoverRadius: 6 },
+                   { label: 'Market Rate (Indicative)', data: mktData, borderColor: '#ef4444', backgroundColor: '#ef4444', tension: 0, stepped: 'middle', borderDash: [5,5], borderWidth: 2, pointRadius: 3, pointHoverRadius: 6 }
+               ]
+           },
+           options: { 
+               responsive: true, maintainAspectRatio: false, 
+               interaction: { mode: 'index', intersect: false },
+               plugins: { legend: { position: 'top' } }
+           }
+       });
+
+       new bootstrap.Modal(document.getElementById('materialHistoryModal')).show();
+    };
+
+    // --- NEW: MARKET RATE MANAGEMENT TOOL ---
+    appState.latestRates = {};
+
+    window.openMarketUpdateModal = function() {
+        let mats = {};
+        
+        // 1. Sort chronologically first, so the newest dates overwrite the oldest in the loop!
+        let chronoData = [...appState.costingData].sort((a,b) => new Date(a.date) - new Date(b.date));
+        
+        chronoData.forEach(d => {
+            if(d.bomMeta) {
+                Object.keys(d.bomMeta).forEach(m => {
+                    let a = d.bomMeta[m].actRate || 0;
+                    let mkt = d.bomMeta[m].mktRate || d.bomMeta[m].rate || 0;
+                    
+                    // Failsafes for zero values
+                    let actVal = (d.bomActual && d.bomActual[m]) ? d.bomActual[m] : 0;
+                    let mktVal = (d.bomMarket && d.bomMarket[m]) ? d.bomMarket[m] : 0;
+                    if (a === 0 && actVal > 0 && mktVal > 0 && mkt > 0) a = (actVal * mkt) / mktVal;
+                    if (mkt === 0 && a > 0) mkt = a;
+
+                    let u = d.bomMeta[m].unit || 'Unit';
+                    if(a > 0 || mkt > 0) mats[m] = { act: a, mkt: mkt, unit: u }; // Continually overwrites = newest
+                });
+            }
+        });
+        appState.latestRates = mats;
+        
+        // 2. Build select dropdown
+        let selectHtml = '<option value="">-- Select Material --</option>';
+        Object.keys(mats).sort().forEach(m => { selectHtml += `<option value="${m}">${m}</option>`; });
+        document.getElementById('mu-material').innerHTML = selectHtml;
+        
+        // 3. Reset form
+        document.getElementById('mu-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('mu-price').value = '';
+        document.getElementById('mu-act-hint').innerHTML = '-';
+        document.getElementById('mu-mkt-hint').innerHTML = '-';
+        document.getElementById('mu-history-body').innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>Loading history...</td></tr>';
+        
+        // 4. Fetch update history asynchronously
+        google.script.run.withSuccessHandler(res => {
+            let trs = res.map(r => `<tr><td class="text-muted" style="font-size:0.8rem;">${r.date}</td><td class="fw-bold text-dark" style="font-size:0.8rem;">${r.material}</td><td class="text-end text-danger fw-bold" style="font-size:0.8rem;">${r.price}</td></tr>`).join('');
+            document.getElementById('mu-history-body').innerHTML = trs || '<tr><td colspan="3" class="text-center text-muted">No manual updates found.</td></tr>';
+            
+            // CROSS-REFERENCE: Ensure the "Latest Market" hint reflects the absolute newest manual override!
+            [...res].reverse().forEach(r => { 
+                if (appState.latestRates[r.material]) {
+                    appState.latestRates[r.material].mkt = Number(r.price);
+                }
+            });
+            
+            // Auto-refresh the hint UI if the user already selected a material before history loaded
+            let selectedMat = document.getElementById('mu-material').value;
+            if (selectedMat) onMuMaterialChange(selectedMat);
+
+        }).getManualUpdates();
+        
+        new bootstrap.Modal(document.getElementById('marketUpdateModal')).show();
+    };
+
+    window.onMuMaterialChange = function(val) {
+        if(!val || !appState.latestRates[val]) {
+            document.getElementById('mu-act-hint').innerHTML = '-';
+            document.getElementById('mu-mkt-hint').innerHTML = '-';
+            return;
+        }
+        let r = appState.latestRates[val];
+        document.getElementById('mu-act-hint').innerHTML = `${r.act.toFixed(2)} <span class="text-muted" style="font-size:0.6rem;">${r.unit}</span>`;
+        document.getElementById('mu-mkt-hint').innerHTML = `${r.mkt.toFixed(2)} <span class="text-muted" style="font-size:0.6rem;">${r.unit}</span>`;
+    };
+
+    window.submitMarketUpdate = function() {
+        let btn = document.getElementById('mu-submit-btn');
+        let date = document.getElementById('mu-date').value;
+        let mat = document.getElementById('mu-material').value;
+        let price = document.getElementById('mu-price').value;
+        
+        if(!date || !mat || !price) { alert("Please fill out the Date, Material, and New Price fields."); return; }
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Saving & Resyncing Engine...';
+        
+        google.script.run.withSuccessHandler(res => {
+            bootstrap.Modal.getInstance(document.getElementById('marketUpdateModal')).hide();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-2"></i>Commit Update';
+            
+            // Reload the entire dashboard to inject the new data!
+            document.getElementById('smart-loader').style.display = 'flex';
+            document.getElementById('costing-view-container').style.display = 'none';
+            document.getElementById('loader-insight').innerText = "Update successful! Re-drawing margin charts...";
+            loadSource('costing');
+        }).withFailureHandler(err => {
+            alert("Error: " + err.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-2"></i>Commit Update';
+        }).saveAndResyncMarketPrice(date, mat, price);
+    };
+
+    // --- NEW: ACTION SCANNER & FLIGHT ENGINE ---
+    appState.hasFlown = false;
+    appState.globalAlerts = [];
+    
+    // Run the scanner every time the dashboard draws, but only fly once!
+    const originalRenderCosting = renderCostingDashboard;
+    renderCostingDashboard = function() {
+        originalRenderCosting();
+        setTimeout(runActionScanner, 500); 
+    };
+
+    function runActionScanner() {
+        let chronoData = [...appState.costingData].sort((a,b) => new Date(a.date) - new Date(b.date));
+        let matHistory = {};
+        
+        if (chronoData.length === 0) return;
+        
+        // 1. Define the Time Window (Last 14 Days)
+        let globalLatestMs = new Date(chronoData[chronoData.length - 1].date).getTime();
+        let lookbackMs = globalLatestMs - (14 * 24 * 60 * 60 * 1000); 
+
+        chronoData.forEach(d => {
+            let dateMs = new Date(d.date).getTime();
+            if (d.bomMeta) {
+                Object.keys(d.bomMeta).forEach(mat => {
+                    let a = d.bomMeta[mat].actRate || 0;
+                    let m = d.bomMeta[mat].mktRate || d.bomMeta[mat].rate || 0;
+                    if (a > 0 || m > 0) {
+                        if (!matHistory[mat]) matHistory[mat] = [];
+                        matHistory[mat].push({ act: a, mkt: m, dateMs: dateMs });
+                    }
+                });
+            }
+        });
+
+        let alerts = [];
+
+        Object.keys(matHistory).forEach(mat => {
+            let history = matHistory[mat];
+            if (history.length < 1) return;
+            
+            let latest = history[history.length - 1];
+            
+            // 2. Find the Baseline Rate (The price active exactly 14 days ago)
+            let baselineAct = history[0].act; 
+            for (let i = history.length - 1; i >= 0; i--) {
+                if (history[i].dateMs < lookbackMs) {
+                    baselineAct = history[i].act;
+                    break;
+                }
+            }
+            // Fallback: If the material is brand new (first bought within 14 days), use its first price
+            if (history[0].dateMs >= lookbackMs) {
+                baselineAct = history[0].act;
+            }
+            
+            let isManualOverride = Math.abs(latest.act - latest.mkt) > 0.01;
+            let pct = 0; let isAlert = false; let alertType = '';
+
+            // 3. Logic: Check Manual Override first, then check 14-Day Actual Inflation
+            if (isManualOverride && latest.act > 0) {
+                pct = ((latest.mkt - latest.act) / latest.act) * 100;
+                if (Math.abs(pct) > 2.0) { isAlert = true; alertType = 'Manual Forecast'; }
+            } else if (baselineAct > 0) {
+                pct = ((latest.act - baselineAct) / baselineAct) * 100;
+                if (Math.abs(pct) > 2.0) { isAlert = true; alertType = 'Actual Shift (14d)'; }
+            }
+
+            if (isAlert) {
+                alerts.push({ mat: mat, pct: pct, type: alertType, mkt: latest.mkt });
+            }
+        });
+
+        alerts.sort((a,b) => Math.abs(b.pct) - Math.abs(a.pct));
+        appState.globalAlerts = alerts;
+
+        let badge = document.getElementById('volatility-badge');
+
+        if (alerts.length > 0) {
+            badge.innerText = alerts.length;
+            badge.classList.remove('d-none');
+            
+            if (!appState.hasFlown) {
+                appState.hasFlown = true;
+                triggerFlightSequence(alerts);
+            }
+        } else {
+            badge.classList.add('d-none');
+        }
+    }
+
+    function triggerFlightSequence(alerts) {
+        let card = document.getElementById('flying-alert-card');
+        let btn = document.getElementById('volatility-btn');
+        let badge = document.getElementById('volatility-badge');
+        
+        let top3 = alerts.slice(0, 3);
+        let html = top3.map(a => {
+            let color = a.pct > 0 ? 'text-danger' : 'text-success';
+            let icon = a.pct > 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+            let tag = a.type === 'Manual Forecast' ? '<span class="badge bg-danger ms-2" style="font-size:0.5rem;">Forecast</span>' : '';
+            return `
+            <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2">
+               <div class="fw-bold text-dark text-truncate" style="font-size: 0.8rem; max-width: 180px;">${a.mat} ${tag}</div>
+               <div class="fw-bold ${color}" style="font-size: 0.9rem;"><i class="fas ${icon} me-1"></i>${Math.abs(a.pct).toFixed(1)}%</div>
+            </div>`;
+        }).join('');
+        
+        if (alerts.length > 3) html += `<div class="text-center text-muted fw-bold small mt-1">+${alerts.length - 3} more...</div>`;
+        document.getElementById('flying-alert-content').innerHTML = html;
+
+        card.style.transition = 'none';
+        card.style.transform = 'translate(-50%, -50%) scale(1)';
+        card.style.opacity = '0';
+        
+        void card.offsetWidth; // Reflow
+        
+        card.style.transition = 'transform 0.8s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease-in-out';
+        card.style.opacity = '1';
+
+        setTimeout(() => {
+            let cardRect = card.getBoundingClientRect();
+            let btnRect = btn.getBoundingClientRect();
+            
+            let deltaX = (btnRect.left + btnRect.width/2) - (window.innerWidth / 2);
+            let deltaY = (btnRect.top + btnRect.height/2) - (window.innerHeight / 2);
+
+            card.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px)) scale(0.1)`;
+            card.style.opacity = '0';
+
+            setTimeout(() => {
+                badge.classList.remove('badge-pulse');
+                void badge.offsetWidth; 
+                badge.classList.add('badge-pulse');
+            }, 800); 
+
+        }, 3000); 
+    }
+
+    // --- NEW: UI CLICK ROUTING ---
+    window.openActionAlertsModal = function() {
+        if(appState.globalAlerts.length === 0) {
+            alert("All materials are stable. No cost shifts > 2% detected.");
+            return;
+        }
+        
+        let html = appState.globalAlerts.map(a => {
+            let color = a.pct > 0 ? 'text-danger' : 'text-success';
+            let icon = a.pct > 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+            let tag = a.type === 'Manual Forecast' ? '<span class="badge bg-danger ms-2" style="font-size:0.55rem;">Forecast</span>' : '';
+            let safeMat = a.mat.replace(/'/g, "\\'");
+            return `
+            <div class="p-3 bg-white border rounded-3 mb-2 d-flex justify-content-between align-items-center" style="cursor:pointer; transition: all 0.2s;" onclick="routeToActionDrilldown('${safeMat}')" onmouseover="this.classList.add('shadow-sm', 'bg-light'); this.classList.remove('bg-white');" onmouseout="this.classList.remove('shadow-sm', 'bg-light'); this.classList.add('bg-white');">
+               <div>
+                  <div class="fw-bold text-dark" style="font-size: 0.85rem;">${a.mat} ${tag}</div>
+                  <div class="small text-muted mt-1"><i class="fas fa-chart-line me-1 text-primary"></i>View Full Timeline</div>
+               </div>
+               <div class="text-end">
+                  <div class="fw-bold ${color}" style="font-size: 0.95rem;"><i class="fas ${icon} me-1"></i>${Math.abs(a.pct).toFixed(1)}%</div>
+               </div>
+            </div>`;
+        }).join('');
+        
+        document.getElementById('action-alerts-body').innerHTML = html;
+        new bootstrap.Modal(document.getElementById('actionAlertsModal')).show();
+    };
+
+    window.routeToActionDrilldown = function(matName) {
+        // Hide the alerts list modal first
+        let modalEl = document.getElementById('actionAlertsModal');
+        let modalInst = bootstrap.Modal.getInstance(modalEl);
+        if(modalInst) modalInst.hide();
+        
+        // Wait 400ms for Bootstrap transition to clear the backdrop, then launch the Timeline!
+        setTimeout(() => {
+            openMaterialHistory(matName);
+        }, 400);
+    };
   </script>
 </body>
 </html>
