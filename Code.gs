@@ -284,7 +284,8 @@ function getCostingData() {
       
       if (!sheet || sheet.getLastRow() < 2) return [];
 
-      const rawData = sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).getValues();
+      // NOW READING 12 COLUMNS!
+      const rawData = sheet.getRange(2, 1, sheet.getLastRow() - 1, 12).getValues();
       const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
 
       let output = [];
@@ -294,10 +295,10 @@ function getCostingData() {
         
         let dateStr = (rawDate instanceof Date) ? Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd") : String(rawDate).substring(0, 10);
         
-        let parsedBomActual = {};
-        let parsedBomMarket = {};
+        let parsedBomActual = {}; let parsedBomMarket = {}; let parsedBomMeta = {};
         try { if (row[6]) parsedBomActual = JSON.parse(String(row[6])); } catch(e) {}
         try { if (row[10]) parsedBomMarket = JSON.parse(String(row[10])); } catch(e) {}
+        try { if (row[11]) parsedBomMeta = JSON.parse(String(row[11])); } catch(e) {} // Parse the Meta Column
         
         output.push({
           date: dateStr,
@@ -309,7 +310,8 @@ function getCostingData() {
           planId: String(row[7]),
           unitMarket: Number(row[8]) || 0,
           totalMarket: Number(row[9]) || 0,
-          bomMarket: parsedBomMarket
+          bomMarket: parsedBomMarket,
+          bomMeta: parsedBomMeta // Pass the metadata to the UI
         });
       });
       
@@ -331,4 +333,43 @@ function forceResyncCostLedger() {
   
   // Re-run the engine from the beginning of time
   return syncCostLedger();
+}
+
+// ==========================================
+// NEW: MANUAL MARKET PRICE MANAGEMENT
+// ==========================================
+function getManualUpdates() {
+   const ss = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo");
+   let sheet = ss.getSheetByName("Price Updates");
+   if(!sheet) return [];
+   
+   let data = sheet.getDataRange().getValues();
+   let res = [];
+   let timeZone = ss.getSpreadsheetTimeZone() || "GMT";
+   
+   for(let i=1; i<data.length; i++) {
+       if(data[i][0] && data[i][1]) {
+           let d = data[i][0];
+           let dStr = (d instanceof Date) ? Utilities.formatDate(d, timeZone, "yyyy-MM-dd") : String(d).substring(0,10);
+           res.push({date: dStr, material: String(data[i][1]).trim(), price: Number(data[i][2]).toFixed(2)});
+       }
+   }
+   return res.reverse(); // Return newest first for the table
+}
+
+function saveAndResyncMarketPrice(dateStr, material, price) {
+   const ss = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo");
+   let sheet = ss.getSheetByName("Price Updates");
+   
+   if(!sheet) {
+      sheet = ss.insertSheet("Price Updates");
+      sheet.appendRow(["Date", "Material", "Price"]);
+   }
+   
+   // Insert new update
+   sheet.appendRow([dateStr, material, Number(price)]);
+   
+   // Immediately trigger global Cost Engine re-sync so dashboard updates instantly
+   forceResyncCostLedger(); 
+   return true;
 }
