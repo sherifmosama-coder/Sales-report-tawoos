@@ -472,6 +472,16 @@
         70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
         100% { box-shadow: 0 0 0 0px rgba(239, 68, 68, 0); }
     }
+
+    /* --- DYNAMIC CHART HEADER STYLING --- */
+    #costing-chart-header h4 {
+        color: #1e293b;
+        font-family: 'Segoe UI', Roboto, sans-serif;
+    }
+    #costing-chart-header p {
+        border-left: 3px solid #e2e8f0;
+        padding-left: 15px;
+    }
   </style>
 </head>
 <body>
@@ -762,7 +772,8 @@
              <div class="col-lg-8">
                 <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
                    <div class="card-body p-4 position-relative">
-                      
+                    <div id="costing-chart-header" class="mb-4"></div>
+
                       <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
                          <h6 class="fw-bold m-0 mt-2"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Margin Trend</h6>
                          
@@ -2839,6 +2850,45 @@ function toggleCompareYear(year) {
     }
 
     function renderCostingDashboard() {
+       // --- NEW: DYNAMIC HEADER & DESCRIPTION ENGINE ---
+       const currentView = appState.cFilters.view;
+       const currentProduct = appState.cFilters.product;
+       let stateTitle = "";
+       let stateDesc = "";
+       let stateIcon = "";
+
+       if (currentView === 'actual') {
+          stateTitle = "Actual Cost Analysis";
+          stateIcon = "fa-file-invoice-dollar text-primary";
+          stateDesc = "Calculated using the latest verified acquisition prices from the Purchases ledger. This represents the current real-time replacement cost of the product's Bill of Materials.";
+       } else if (currentView === 'market') {
+          stateTitle = "Market (Indicative) Projections";
+          stateIcon = "fa-bolt-lightning text-danger";
+          stateDesc = "Reflects indicative price overrides entered manually to anticipate upcoming market shifts. This allows for margin forecasting before new purchase prices are officially realized.";
+       } else {
+          stateTitle = "Comparative Variance Analysis";
+          stateIcon = "fa-code-compare text-warning";
+          stateDesc = "A dual-layered reconciliation of verified actuals against manual market projections. This view isolates cost variance and highlights potential margin exposure from upcoming volatility.";
+       }
+
+       document.getElementById('costing-chart-header').innerHTML = `
+          <div class="d-flex justify-content-between align-items-start border-bottom pb-3">
+             <div class="flex-grow-1">
+                <h4 class="fw-bold text-dark mb-1" style="letter-spacing: -0.5px;">${currentProduct}</h4>
+                <div class="d-flex align-items-center">
+                   <span class="badge bg-light text-dark border rounded-pill px-3 py-1" style="font-size: 0.7rem;">
+                      <i class="fas ${stateIcon} me-2"></i>${stateTitle}
+                   </span>
+                </div>
+             </div>
+             <div class="ms-4 text-end d-none d-md-block" style="max-width: 450px;">
+                <p class="text-muted mb-0 fw-medium" style="font-size: 0.8rem; line-height: 1.5; font-style: italic;">
+                   "${stateDesc}"
+                </p>
+             </div>
+          </div>
+       `;
+
        // 1. IDENTIFY VOLATILE MATERIALS & BUILD SCORECARDS
        const alertMats = new Set((appState.globalAlerts || []).map(a => a.mat));
        const catProducts = [...new Set(appState.costingData.filter(d => d.category === appState.cFilters.category).map(d => d.product))].sort();
@@ -2849,33 +2899,26 @@ function toggleCompareYear(year) {
        
        let scorecardHtml = '';
        catProducts.forEach(p => {
-           // A. Get Latest Cost Data for this product
            const pHistory = appState.costingData.filter(d => d.product === p).sort((a,b) => new Date(b.date) - new Date(a.date));
            const latestEntry = pHistory[0] || {};
-           
-           // B. Determine "Active" Cost (Market if different from Actual, otherwise Actual)
            const actCost = latestEntry.unitActual || 0;
            const mktCost = latestEntry.unitMarket || 0;
            const displayCost = Math.abs(actCost - mktCost) > 0.01 ? mktCost : actCost;
            
-           // C. Calculate Current ASP (Last 30 Days)
            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
            const recentSales = appState.productData.filter(s => s.item === p && new Date(s.date).getTime() >= thirtyDaysAgo);
            let rev = 0; let qty = 0;
            recentSales.forEach(s => { rev += s.rev; qty += s.qty; });
            const currentAsp = qty > 0 ? (rev / qty) : 0;
            
-           // D. Calculate Gross Profit
            const gpVal = currentAsp - displayCost;
            const gpPct = currentAsp > 0 ? ((gpVal / currentAsp) * 100).toFixed(1) : 0;
 
-           // E. Check for Material Alerts in BOM
            let needsAttention = false;
            if (latestEntry.bomMeta) {
                needsAttention = Object.keys(latestEntry.bomMeta).some(m => alertMats.has(m));
            }
 
-           // F. Build Card Classes
            const isActive = appState.cFilters.product === p ? 'active' : '';
            const alertClass = needsAttention ? 'needs-attention alert-pulse' : '';
            const gpColor = gpVal >= 0 ? 'text-success' : 'text-danger';
@@ -2905,10 +2948,9 @@ function toggleCompareYear(year) {
            </div>`;
        });
        
-       // Update this ID to match your container for products
        document.getElementById('costing-product-toggles').innerHTML = scorecardHtml;
 
-       // 2. Isolate COST SHIFT EVENTS (Only plot when a price actually changes)
+       // 2. Isolate COST SHIFT EVENTS
        const rawCostData = appState.costingData.filter(d => d.product === appState.cFilters.product);
        const chronoCostData = [...rawCostData].sort((a, b) => new Date(a.date) - new Date(b.date));
        
@@ -2922,18 +2964,13 @@ function toggleCompareYear(year) {
           }
        }
 
-       // 3. Calculate Average Selling Price (ASP) for the periods BETWEEN cost shifts
-       let chartLabels = [];
-       let chartAct = [];
-       let chartMkt = [];
-       let chartAsp = [];
-
+       // 3. Calculate ASP between shifts
+       let chartLabels = []; let chartAct = []; let chartMkt = []; let chartAsp = [];
        changeEvents.forEach((ev, idx) => {
           chartLabels.push(ev.date);
           chartAct.push(ev.unitActual);
           chartMkt.push(ev.unitMarket);
 
-          // Find ASP for the window between this shift and the next shift
           let startDateMs = new Date(ev.date).getTime();
           let endDateMs = (idx < changeEvents.length - 1) ? new Date(changeEvents[idx+1].date).getTime() : Date.now();
           
@@ -2948,7 +2985,7 @@ function toggleCompareYear(year) {
           chartAsp.push(qty > 0 ? Number((rev / qty).toFixed(2)) : null);
        });
 
-       // 4. Render Chart (Using straight lines to emphasize steps in cost)
+       // 4. Render Chart with Dynamic Tooltip GP%
        const ctx = document.getElementById('costingTrendChart').getContext('2d');
        if(appState.cChartInstance) appState.cChartInstance.destroy();
        
@@ -2966,17 +3003,34 @@ function toggleCompareYear(year) {
           data: { labels: chartLabels, datasets: datasets },
           options: { 
              responsive: true, maintainAspectRatio: false, 
-             plugins: { legend: { position: 'top' } },
+             plugins: { 
+                legend: { position: 'top' },
+                tooltip: {
+                   callbacks: {
+                      label: function(context) {
+                         let label = context.dataset.label || '';
+                         let val = context.parsed.y;
+                         let asp = chartAsp[context.dataIndex];
+                         if (label) label += ': ';
+                         label += val.toFixed(2) + ' EGP';
+                         
+                         // Injection: Show GP% on Cost lines if ASP exists for that specific point
+                         if (context.dataset.label.includes('Cost') && asp && asp > 0) {
+                            let gp = (((asp - val) / asp) * 100).toFixed(1);
+                            label += ` (GP: ${gp}%)`;
+                         }
+                         return label;
+                      }
+                   }
+                }
+             },
              interaction: { mode: 'index', intersect: false },
              onClick: (e, activeEls) => {
-                if (activeEls.length > 0) {
-                   renderSidePanel(changeEvents[activeEls[0].index]);
-                }
+                if (activeEls.length > 0) renderSidePanel(changeEvents[activeEls[0].index]);
              }
           }
        });
 
-       // Auto-load the latest event into the side panel
        if (changeEvents.length > 0) {
           renderSidePanel(changeEvents[changeEvents.length - 1]);
        } else {
