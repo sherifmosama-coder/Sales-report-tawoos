@@ -735,14 +735,18 @@
              <div class="col-12 d-flex flex-column align-items-center text-center">
                 <h4 class="fw-bold mb-2 text-dark"><i class="fas fa-industry me-2 text-danger"></i>Production Costing</h4>
                 <div class="mb-2"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1 shadow-sm" style="letter-spacing: 0.5px;">Margin Analysis (Cost vs ASP)</span></div>
-                <div class="d-flex gap-2 justify-content-center mt-2">
+                <div class="d-flex gap-2 justify-content-center mt-2 flex-wrap">
                    <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" onclick="openMarketUpdateModal()" style="font-size: 0.75rem;">
                       <i class="fas fa-pen-to-square me-1"></i>Manage Market Rates
                    </button>
                    
                    <button id="volatility-btn" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-3 fw-bold shadow-sm position-relative" style="font-size: 0.75rem;" onclick="openActionAlertsModal()">
-                      <i class="fas fa-exclamation-circle text-warning me-1"></i>Attention Required
+                      <i class="fas fa-exclamation-circle text-warning me-1" title="Unstable Cost"></i>Needs attention
                       <span id="volatility-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none shadow-sm" style="font-size: 0.65rem;">0</span>
+                   </button>
+
+                   <button id="manual-sync-btn" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold shadow-sm" onclick="triggerManualCostSync()" style="font-size: 0.75rem;" title="Force Cost Engine Sync">
+                      <i class="fas fa-sync-alt me-1"></i>Re-Sync Costs
                    </button>
                 </div>
              </div>
@@ -764,7 +768,7 @@
                 <div class="d-flex align-items-center justify-content-md-center justify-content-start gap-3 overflow-auto pb-4 border-bottom mb-4" id="costing-category-toggles" style="scrollbar-width:none; -ms-overflow-style:none;"></div>
                 
                 <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 2: Select Product</h6>
-                <div class="d-flex flex-wrap justify-content-center gap-2 pb-2 px-2" id="costing-product-toggles" style="max-height: 160px; overflow-y: auto; scrollbar-width: thin;"></div>
+                <div class="d-flex flex-wrap justify-content-center gap-2 pb-2 px-2" id="costing-product-toggles" style="max-height: 300px; overflow-y: auto; scrollbar-width: thin;"></div>
              </div>
           </div>
 
@@ -1148,13 +1152,23 @@
   </div>
 
   <div class="modal fade" id="marketUpdateModal" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-          <div class="modal-header border-0 pb-0">
-            <h5 class="modal-title fw-bold"><i class="fas fa-pen-to-square text-danger me-2"></i>Manage Market Rates</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body p-4">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="fas fa-pen-to-square text-danger me-2"></i>Manage Market Rates</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+           
+           <div class="alert alert-info border-info bg-info bg-opacity-10 small mb-4" style="border-radius: 8px;">
+              <div class="d-flex align-items-start">
+                 <i class="fas fa-info-circle text-info mt-1 me-2" style="font-size: 1.1rem;"></i>
+                 <div>
+                    <strong>Important VAT Rule (Option A):</strong><br>
+                    If the material you are updating is used in a product that is <strong>VAT Exempt (0%)</strong>, ensure the price you enter below <em>includes</em> the unrecoverable VAT.
+                 </div>
+              </div>
+           </div>
             
             <div class="card border border-light shadow-sm mb-4">
               <div class="card-body bg-light rounded-3 p-3">
@@ -1273,7 +1287,7 @@
       pCompareYears: [], // Dynamic array of selected past years
       pChartViewMode: 'detailed', // Default view
       pYearlyTrend: null, // Holds data for the Drill Down
-      pCompareTarget: false, // Target Toggle
+      pCompareTarget: true, // Target Toggle (ON by default)
       targetConfig: { yoy: 25, mom: 30 },
       pMasterItems: {}, 
       kpiModalState: { type: 'value', targetId: 'current', viewLevel: 'category' },
@@ -1287,6 +1301,8 @@
     };
 
     function toggleCompareTarget() {
+       // Ensure at least 1 comparison parameter remains active (Target OR a Year)
+       if (appState.pCompareTarget && appState.pCompareYears.length === 0) return;
        appState.pCompareTarget = !appState.pCompareTarget;
        renderProductDashboard();
     }
@@ -1310,14 +1326,17 @@
        renderProductDashboard();
     }
 
-function toggleCompareYear(year) {
+    function toggleCompareYear(year) {
        const idx = appState.pCompareYears.indexOf(year);
        if (idx > -1) {
-          if (appState.pCompareYears.length > 1) appState.pCompareYears.splice(idx, 1); // Always keep at least 1 selected
+          // Ensure at least 1 comparison parameter remains active (Target OR a Year)
+          if (appState.pCompareYears.length > 1 || appState.pCompareTarget) {
+              appState.pCompareYears.splice(idx, 1);
+          }
        } else {
           appState.pCompareYears.push(year);
        }
-       appState.pCompareYears.sort((a, b) => b - a); // Sort descending
+       appState.pCompareYears.sort((a, b) => b - a);
        renderProductDashboard();
     }
     
@@ -1512,9 +1531,9 @@ function toggleCompareYear(year) {
        const categories = [...new Set(appState.productData.map(d => d.category))].sort();
        const catContainer = document.getElementById('filter-category-container');
        
-       // Default comparison to just Last Year if empty
-       if (appState.pCompareYears.length === 0) {
-          appState.pCompareYears = [new Date().getFullYear() - 1];
+       // Default comparison: Target is ON by default, no past years needed initially
+       if (appState.pCompareYears.length === 0 && !appState.pCompareTarget) {
+          appState.pCompareTarget = true; // Fallback in case both are empty
        }
 
        // --- NEW: Generate Dynamic Segment UI ---
@@ -2315,9 +2334,9 @@ function toggleCompareYear(year) {
       // 5. Render UI
       renderCompareToggles(currentYear);
       renderDynamicKPIs(currTotal, comparisons, startCurr, endCurr, measure, targetData);
-      updateProductChart(currTrend, comparisons, startCurr, endCurr, periodicBuckets, pData, currentYear, targetData);
+      updateProductChart(currTrend, comparisons, startCurr, endCurr, periodicBuckets, pData, currentYear, targetData, timeframe);
       updateProductList(currItems, measure);
-    }
+}
 
         // --- SUB-RENDERERS ---
 
@@ -2435,7 +2454,7 @@ function toggleCompareYear(year) {
        }
        container.innerHTML = html;
     }
-    function updateProductChart(currTrend, comparisons, start, end, pBuckets, pData, currentYear, targetData) {
+    function updateProductChart(currTrend, comparisons, start, end, pBuckets, pData, currentYear, targetData, timeframe) {
        const ctx = document.getElementById('productTrendChart').getContext('2d');
        if(appState.pChart) appState.pChart.destroy();
        
@@ -2448,7 +2467,15 @@ function toggleCompareYear(year) {
 
           for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
              const key = ('0' + (d.getMonth()+1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
-             labels.push(key);
+             
+             // DYNAMIC X-AXIS LABELS
+             let label = key;
+             if (timeframe === 'month') {
+                label = d.getDate().toString(); // Just show "1", "2", "3" for MTD
+             } else {
+                label = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); // "1 Jan", "15 Feb" for QTD/YTD
+             }
+             labels.push(label);
              cAcc += (currTrend[key] || 0); cData.push(cAcc);
              if (targetData.active) { tAcc += (targetData.trend[key] || 0); tData.push(tAcc); }
              comparisons.forEach(comp => { comp.acc += (comp.trend[key] || 0); comp.dataArray.push(comp.acc); });
@@ -2471,7 +2498,16 @@ function toggleCompareYear(year) {
              responsive: true, 
              maintainAspectRatio: false, 
              plugins: { legend: { position: 'top' } }, 
-             scales: { x: { display: appState.pChartViewMode !== 'detailed' } },
+             // FIX: Display is set to true so the dynamic labels are visible!
+             scales: { 
+                 x: { 
+                     display: true,
+                     ticks: {
+                         autoSkip: true,
+                         maxTicksLimit: timeframe === 'month' ? 31 : 15 // Keeps the axis clean
+                     }
+                 } 
+             },
              onClick: (e, elements) => {
                 if (appState.pChartViewMode === 'periodic' && elements.length) {
                    // Pass the Target Data to the drill-down modal!
@@ -2807,12 +2843,13 @@ function toggleCompareYear(year) {
     // COSTING DASHBOARD LOGIC
     // ==========================================
     function initCostingView() {
+       // Auto-sync removed to preserve loading speed. Engine sync is now purely manual.
+       
        document.getElementById('main-dashboard').style.display = 'block';
        document.getElementById('client-view-container').style.display = 'none';
        document.getElementById('product-controls').style.display = 'none';
        document.getElementById('product-content-area').style.display = 'none';
        document.getElementById('costing-view-container').style.display = 'block';
-
        if (!appState.costingData || appState.costingData.length === 0) {
           document.getElementById('costing-runs-list').innerHTML = '<div class="alert alert-warning m-3"><i class="fas fa-exclamation-triangle me-2"></i><strong>No Costing Data Found.</strong></div>';
           return;
@@ -3697,6 +3734,39 @@ function toggleCompareYear(year) {
         setTimeout(() => {
             openMaterialHistory(matName);
         }, 400);
+    };
+
+    // --- NEW: MANUAL COST ENGINE SYNC ---
+    window.triggerManualCostSync = function() {
+        let btn = document.getElementById('manual-sync-btn');
+        
+        // Set UI to loading state to prevent double-clicking
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-sync-alt fa-spin me-1"></i>Syncing...`;
+
+        google.script.run.withSuccessHandler(function(response) {
+            // Success UI State
+            btn.innerHTML = `<i class="fas fa-check-circle me-1"></i>Synced!`;
+            btn.classList.replace('btn-outline-primary', 'btn-success');
+            btn.classList.remove('text-primary');
+            btn.classList.add('text-white');
+            
+            // Revert button styling after 3 seconds
+            setTimeout(() => {
+                btn.innerHTML = `<i class="fas fa-sync-alt me-1"></i>Sync Engine`;
+                btn.classList.replace('btn-success', 'btn-outline-primary');
+                btn.classList.remove('text-white');
+                btn.disabled = false;
+            }, 3000);
+            
+            // Alert user to refresh
+            alert("Cost Engine Synced Successfully!\n\nPlease refresh the page to load the latest data into the dashboard.");
+            
+        }).withFailureHandler(function(err) {
+            alert("Sync Failed: " + err);
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fas fa-sync-alt me-1"></i>Sync Engine`;
+        }).syncCostLedger();
     };
   </script>
 </body>
