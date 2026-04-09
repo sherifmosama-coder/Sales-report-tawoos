@@ -203,76 +203,38 @@ function consumeFIFO(queues, searchKey, isGeneral, requiredQty) {
   return cost;
 }
 
-// HELPER: CALCULATES THE EXACT COST AT A SPECIFIC DATE
-function getMaterialRates(targetDateMs, specData, genData) {
-  let bestActPrice = 0; let bestActDate = -1; let bestUnit = '';
-  let bestUpdPrice = 0; let bestUpdDate = -1;
-
-  // Prioritize Specific ID Matches
-  if (specData) {
-    for (let i = 0; i < specData.actuals.length; i++) {
-      if (specData.actuals[i].dateMs <= targetDateMs) { bestActPrice = specData.actuals[i].price; bestActDate = specData.actuals[i].dateMs; if (specData.actuals[i].unit) bestUnit = specData.actuals[i].unit; } else break;
-    }
-    for (let i = 0; i < specData.updates.length; i++) {
-      if (specData.updates[i].dateMs <= targetDateMs) { bestUpdPrice = specData.updates[i].price; bestUpdDate = specData.updates[i].dateMs; } else break;
-    }
-  }
-
-  // Fallback to Generic Material Name Matches
-  if (genData) {
-    if (bestActDate === -1) {
-      for (let i = 0; i < genData.actuals.length; i++) {
-        if (genData.actuals[i].dateMs <= targetDateMs) { bestActPrice = genData.actuals[i].price; bestActDate = genData.actuals[i].dateMs; if (genData.actuals[i].unit) bestUnit = genData.actuals[i].unit; } else break;
-      }
-    }
-    for (let i = 0; i < genData.updates.length; i++) {
-      if (genData.updates[i].dateMs <= targetDateMs) {
-        if (genData.updates[i].dateMs >= bestUpdDate) { bestUpdPrice = genData.updates[i].price; bestUpdDate = genData.updates[i].dateMs; }
-      } else break;
-    }
-  }
-
-  // CORE LOGIC: Market mirrors Actual, unless Manual Update is newer!
-  let actRate = bestActPrice;
-  let mktRate = bestActPrice; 
-  if (bestUpdDate >= bestActDate && bestUpdPrice > 0) {
-    mktRate = bestUpdPrice;
-  }
-
-  return { actRate: actRate, mktRate: mktRate, unit: bestUnit };
-}
-
 function buildMarketPrices(purchasesSheet, updatesSheet) {
   let priceMaps = { bySpecId: {}, byMatName: {} };
 
-  // 1. EXTRACT ACTUAL PURCHASES (Strict Validation)
+  // 1. EXTRACT ACTUAL PURCHASES (Now Captures Both Base & VAT-Inclusive Prices)
   if (purchasesSheet) {
     const pData = purchasesSheet.getDataRange().getValues();
     for(let i = 1; i < pData.length; i++) {
       let rawDate = pData[i][0];
       let matName = String(pData[i][3] || "").trim();
       let specId = String(pData[i][4] || "").trim();
-      let price = Number(pData[i][6]) || 0;
+      
+      let basePrice = Number(pData[i][6]) || 0; // Col G: Base Price
+      let vatPrice = Number(pData[i][9]) || basePrice; // Col J: VAT Inclusive Price (falls back to base if empty)
       let unit = String(pData[i][7] || "").trim();
 
-      // STOPS GHOST ROWS: Only process if there is a Date, a Name, and a Price > 0
-      if (rawDate && matName.length > 1 && price > 0) {
+      if (rawDate && matName.length > 1 && basePrice > 0) {
         let dateMs = new Date(rawDate).getTime();
         if (isNaN(dateMs)) continue;
 
         if (specId) {
           if (!priceMaps.bySpecId[specId]) priceMaps.bySpecId[specId] = { actuals: [], updates: [] };
-          priceMaps.bySpecId[specId].actuals.push({ dateMs: dateMs, price: price, unit: unit });
+          priceMaps.bySpecId[specId].actuals.push({ dateMs: dateMs, basePrice: basePrice, vatPrice: vatPrice, unit: unit });
         }
         if (matName) {
           if (!priceMaps.byMatName[matName]) priceMaps.byMatName[matName] = { actuals: [], updates: [] };
-          priceMaps.byMatName[matName].actuals.push({ dateMs: dateMs, price: price, unit: unit });
+          priceMaps.byMatName[matName].actuals.push({ dateMs: dateMs, basePrice: basePrice, vatPrice: vatPrice, unit: unit });
         }
       }
     }
   }
 
-  // 2. EXTRACT MANUAL OVERRIDES (Strict Validation)
+  // 2. EXTRACT MANUAL OVERRIDES
   if (updatesSheet) {
     const uData = updatesSheet.getDataRange().getValues();
     for(let i = 1; i < uData.length; i++) {
@@ -296,14 +258,60 @@ function buildMarketPrices(purchasesSheet, updatesSheet) {
   return priceMaps;
 }
 
+function getMaterialRates(targetDateMs, specMap, genMap) {
+  let bestAct = null; let bestMkt = null;
+
+  const findBest = (map) => {
+    if (!map) return;
+    if (map.actuals) {
+      for (let i = map.actuals.length - 1; i >= 0; i--) {
+        if (map.actuals[i].dateMs <= targetDateMs) {
+          if (!bestAct || map.actuals[i].dateMs > bestAct.dateMs) bestAct = map.actuals[i];
+          break;
+        }
+      }
+    }
+    if (map.updates) {
+      for (let i = map.updates.length - 1; i >= 0; i--) {
+        if (map.updates[i].dateMs <= targetDateMs) {
+          if (!bestMkt || map.updates[i].dateMs > bestMkt.dateMs) bestMkt = map.updates[i];
+          break;
+        }
+      }
+    }
+  };
+
+  findBest(genMap);
+  findBest(specMap);
+
+  return {
+    actBaseRate: bestAct ? bestAct.basePrice : 0,
+    actVatRate: bestAct ? bestAct.vatPrice : 0,
+    mktRate: bestMkt ? bestMkt.price : 0,
+    hasMktOverride: !!bestMkt,
+    unit: bestAct ? bestAct.unit : ''
+  };
+}
+
 function syncCostLedger() {
   const ss = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo");
   const costSheet = ss.getSheetByName("Items costs");
   const palletsSheet = ss.getSheetByName("Pallets");
+  const productsSheet = ss.getSheetByName("Products");
   const maps = buildCostEngineMaps();
 
-  // 1. GATHER DATES AND TRACK WHICH MATERIALS CHANGED ON WHICH DATE
-  let dateToMats = {}; // { dateMs: Set(matNames) }
+  // NEW: EXTRACT PRODUCT VAT RATIOS (Maps concise name to VAT Rate)
+  const prodData = productsSheet.getDataRange().getValues();
+  let productVatMap = {};
+  for (let i = 1; i < prodData.length; i++) {
+     // FIX: Use Column B (Index 1) for the Concise Name to match the Pallets sheet
+     let pName = String(prodData[i][1]).trim(); 
+     let pVat = Number(prodData[i][6]) || 0; // Col G is the VAT Rate
+     if (pName) productVatMap[pName] = pVat;
+  }
+
+  // 1. GATHER DATES AND TRACK MATS
+  let dateToMats = {}; 
   let eventDates = new Set();
 
   if (maps.marketPrices) {
@@ -334,7 +342,7 @@ function syncCostLedger() {
   // 2. MAP PRODUCTS AND RECIPES
   const palletsData = palletsSheet.getDataRange().getValues();
   let activeProducts = {};
-  let matToProducts = {}; // { matName: Set(productConciseNames) }
+  let matToProducts = {}; 
 
   for (let i = 1; i < palletsData.length; i++) {
     if (String(palletsData[i][0]).toUpperCase() !== "TRUE") continue; 
@@ -345,7 +353,6 @@ function syncCostLedger() {
     if (planId && recipeId && !activeProducts[conciseName]) {
       activeProducts[conciseName] = { planId, recipeId };
       
-      // Build the dependency map
       let recipe = maps.recipes[recipeId];
       let plan = maps.plans[planId];
       if (recipe) {
@@ -353,14 +360,12 @@ function syncCostLedger() {
           if (!matToProducts[genMat]) matToProducts[genMat] = new Set();
           matToProducts[genMat].add(conciseName);
           
-          // Check for sub-materials if manufactured
           if (maps.manufacturing[genMat]) {
             Object.keys(maps.manufacturing[genMat].rawMats).forEach(raw => {
               if (!matToProducts[raw]) matToProducts[raw] = new Set();
               matToProducts[raw].add(conciseName);
             });
           }
-          // Check for specific IDs
           if (plan && plan.materials[genMat]) {
             let specId = plan.materials[genMat];
             if (!matToProducts[specId]) matToProducts[specId] = new Set();
@@ -371,7 +376,7 @@ function syncCostLedger() {
     }
   }
 
-  // 3. GENERATE TARGETED ROWS
+  // 3. GENERATE TARGETED ROWS WITH INTELLIGENT VAT ROUTING
   let newRows = [];
   let timeZone = ss.getSpreadsheetTimeZone() || "GMT";
 
@@ -379,13 +384,10 @@ function syncCostLedger() {
      let dateStr = Utilities.formatDate(new Date(dateMs), timeZone, "yyyy-MM-dd");
      let changedMats = dateToMats[dateMs];
      
-     // Determine which products to calculate for this specific date
      let targetProducts = [];
      if (dateMs === minDateMs) {
-       // BASELINE: Every product gets a row on the first day
        targetProducts = Object.keys(activeProducts);
      } else {
-       // TARGETED: Only products that use the materials changed on this day
        let affected = new Set();
        changedMats.forEach(m => {
          if (matToProducts[m]) matToProducts[m].forEach(p => affected.add(p));
@@ -398,6 +400,9 @@ function syncCostLedger() {
         let recipe = maps.recipes[p.recipeId]; let plan = maps.plans[p.planId];
         if (!recipe || !plan) return;
 
+        // VAT RULE: If product has 0% VAT, materials must absorb their VAT into the cost
+        let isVatExempt = (productVatMap[conciseName] === 0);
+
         let totalAct = 0; let totalMkt = 0;
         let bomAct = {}; let bomMkt = {}; let bomMeta = {};
 
@@ -408,16 +413,28 @@ function syncCostLedger() {
             Object.keys(mfg.rawMats).forEach(raw => {
               let qty = mfg.rawMats[raw] * (reqQty / mfg.yield);
               let r = getMaterialRates(dateMs, null, maps.marketPrices.byMatName[raw]);
-              bomMeta[raw] = { actRate: r.actRate, mktRate: r.mktRate, unit: r.unit };
-              totalAct += (r.actRate * qty); totalMkt += (r.mktRate * qty);
-              bomAct[raw] = Number((r.actRate * qty).toFixed(2)); bomMkt[raw] = Number((r.mktRate * qty).toFixed(2));
+              
+              // Smart Switch: Selects Base Price or VAT Price based on Product's VAT status
+              let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
+              
+              // Option A: If Manual Market Override exists, use it exactly as typed. Otherwise, fall back to the relevant Actual Rate.
+              let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
+
+              bomMeta[raw] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit };
+              totalAct += (actRateToUse * qty); totalMkt += (mktRateToUse * qty);
+              bomAct[raw] = Number((actRateToUse * qty).toFixed(2)); bomMkt[raw] = Number((mktRateToUse * qty).toFixed(2));
             });
           } else {
             let specId = plan.materials[genMat];
             let r = getMaterialRates(dateMs, specId ? maps.marketPrices.bySpecId[specId] : null, maps.marketPrices.byMatName[genMat]);
-            bomMeta[genMat] = { actRate: r.actRate, mktRate: r.mktRate, unit: r.unit };
-            totalAct += (r.actRate * reqQty); totalMkt += (r.mktRate * reqQty);
-            bomAct[genMat] = Number((r.actRate * reqQty).toFixed(2)); bomMkt[genMat] = Number((r.mktRate * reqQty).toFixed(2));
+            
+            // Smart Switch: Selects Base Price or VAT Price based on Product's VAT status
+            let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
+            let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
+
+            bomMeta[genMat] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit };
+            totalAct += (actRateToUse * reqQty); totalMkt += (mktRateToUse * reqQty);
+            bomAct[genMat] = Number((actRateToUse * reqQty).toFixed(2)); bomMkt[genMat] = Number((mktRateToUse * reqQty).toFixed(2));
           }
         });
         
@@ -431,7 +448,7 @@ function syncCostLedger() {
   costSheet.getRange(2, 1, Math.max(costSheet.getMaxRows()-1, 1), 12).clearContent();
   if (newRows.length > 0) costSheet.getRange(2, 1, newRows.length, 12).setValues(newRows);
 
-  return "Cost Engine Synced (Baseline + Targeted Mode).";
+  return "Cost Engine Synced (Intelligent VAT Routing).";
 }
 // --- DASHBOARD API ---
 
