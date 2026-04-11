@@ -1258,26 +1258,35 @@
           <div class="w-100">
             <div class="d-flex justify-content-between align-items-start mb-3">
                <div>
-                 <h5 class="modal-title fw-bold text-dark"><i class="fas fa-clock-rotate-left text-danger me-2"></i>Late Clients Watchlist</h5>
-                 <p class="text-muted small mb-0 mt-1">Click any client row to view their last 5 orders.</p>
+                 <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
+                    <i class="fas fa-clock-rotate-left text-danger me-2"></i>Late Clients Watchlist
+                    <span id="cadence-detailed-counter" class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-3" style="font-size: 0.75rem;">
+                       <i class="fas fa-spinner fa-spin"></i>
+                    </span>
+                 </h5>
+                 <p class="text-muted small mb-0 mt-1">Click the address book for quick contacts, or click the row for order history.</p>
                </div>
                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             
-            <div class="bg-light p-3 rounded-3 border">
+            <div class="bg-light p-3 rounded-3 border shadow-sm">
                <div class="fw-bold text-dark mb-2" style="font-size: 0.75rem;">FILTER BY SEGMENT</div>
                <div class="d-flex flex-wrap gap-2 mb-3" id="cadence-segment-filters">
                   </div>
                
                <div class="row g-2">
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                      <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-period" onchange="handleCadencePeriodChange()">
-                        <option value="12">Last Order within 12 Months</option>
-                        <option value="6">Last Order within 6 Months</option>
+                        <option value="12">Orders in Last 12 Mos</option>
+                        <option value="6">Orders in Last 6 Mos</option>
                         <option value="all">All Years (Deep Fetch)</option>
                      </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
+                     <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-region" onchange="renderCadenceTable()">
+                        </select>
+                  </div>
+                  <div class="col-md-3">
                      <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-prod" onchange="renderCadenceTable()">
                         <option value="All">All Products</option>
                         <option value="Vinegar">Vinegar</option>
@@ -1286,10 +1295,10 @@
                         <option value="Others">Others</option>
                      </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                      <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-sort" onchange="renderCadenceTable()">
-                        <option value="desc">Sort: Most Days Late First</option>
-                        <option value="asc">Sort: Least Days Late First</option>
+                        <option value="desc">Sort: Most Late First</option>
+                        <option value="asc">Sort: Least Late First</option>
                      </select>
                   </div>
                </div>
@@ -1299,10 +1308,10 @@
 
         <div class="modal-body p-0 bg-light">
            <div class="table-responsive">
-              <table class="table table-hover align-middle bg-white mb-0">
+              <table class="table table-hover align-middle bg-white mb-0" style="border-collapse: collapse;">
                  <thead class="table-light text-muted sticky-top" style="font-size: 0.75rem;">
                     <tr>
-                       <th class="ps-4 border-0">CLIENT NAME</th>
+                       <th class="ps-4 border-0">CLIENT INFO</th>
                        <th class="border-0">CATEGORY</th>
                        <th class="border-0">LAST ORDER</th>
                        <th class="border-0">EXPECTED CYCLE</th>
@@ -3847,7 +3856,7 @@
     };
 
     // ==========================================
-    // DYNAMIC DEPLETION ENGINE & WATCHLIST (CATEGORY & SAME-DAY AGGREGATION)
+    // DYNAMIC DEPLETION ENGINE (CONTACTS & COLORS)
     // ==========================================
     appState.cadDataLevel = '12m'; 
     appState.cadenceAlerts = [];
@@ -3861,17 +3870,24 @@
         return 'Others';
     }
 
+    // Assigns a consistent pale color based on the segment name
+    function getSegmentColorClass(segment) {
+        // Removed 'dark', 'secondary', and 'light' to guarantee no grey/dull colors
+        const colors = ['primary', 'success', 'danger', 'warning', 'info'];
+        let hash = 0;
+        for (let i = 0; i < segment.length; i++) { hash = segment.charCodeAt(i) + ((hash << 5) - hash); }
+        let c = colors[Math.abs(hash) % colors.length];
+        let textC = (c === 'warning' || c === 'info') ? 'text-dark' : `text-${c}`;
+        return `bg-${c} bg-opacity-10 ${textC} border border-${c} border-opacity-25`;
+    }
+
     function processClientCadence(data) {
         let grouped = {};
-        
-        // 1. Group by Client -> Category -> Date (Same-Day Aggregation)
         data.forEach(row => {
             let cat = getProductCategory(row.item);
             let client = row.client;
             
-            // Normalize the date to midnight to catch multiple purchases on the exact same day
-            let d = new Date(row.date);
-            d.setHours(0, 0, 0, 0);
+            let d = new Date(row.date); d.setHours(0, 0, 0, 0);
             let dateKey = d.getTime();
 
             if (!grouped[client]) grouped[client] = {};
@@ -3879,37 +3895,28 @@
             
             if (!grouped[client][cat][dateKey]) {
                 grouped[client][cat][dateKey] = {
-                    date: dateKey,
-                    totalQty: 0,
-                    segment: row.segment,
-                    items: [] // Will hold the specific SKUs for the popover
+                    date: dateKey, totalQty: 0, segment: row.segment, 
+                    region: row.region, contact: row.contactInfo, items: []
                 };
             }
 
-            // Add quantity to the day's total
             grouped[client][cat][dateKey].totalQty += row.qty;
             
-            // Track specific SKU for the history popover
             let existingItem = grouped[client][cat][dateKey].items.find(i => i.name === row.item);
-            if (existingItem) {
-                existingItem.qty += row.qty;
-            } else {
-                grouped[client][cat][dateKey].items.push({ name: row.item, qty: row.qty });
-            }
+            if (existingItem) existingItem.qty += row.qty;
+            else grouped[client][cat][dateKey].items.push({ name: row.item, qty: row.qty });
         });
 
         let alerts = [];
         let todayMs = Date.now();
         const msPerDay = 1000 * 60 * 60 * 24;
 
-        // 2. Calculate Math based on Aggregated Dates
         for (let client in grouped) {
             for (let cat in grouped[client]) {
-                // Convert the dates object back to an array and sort chronologically
                 let orders = Object.values(grouped[client][cat]).sort((a, b) => a.date - b.date);
                 if (orders.length < 2) continue;
 
-                let recentOrders = orders.slice(-6); // Max 6 dates for 5 intervals
+                let recentOrders = orders.slice(-6); 
                 let firstOfRecent = recentOrders[0];
                 let lastOrder = recentOrders[recentOrders.length - 1];
 
@@ -3922,7 +3929,6 @@
                 }
                 if (totalConsumedQty <= 0) continue;
 
-                // MATH: Average Cycle Duration
                 let dcr = totalConsumedQty / daysElapsed; 
                 let expectedInterval = lastOrder.totalQty / dcr; 
                 let expectedNextDateMs = lastOrder.date + (expectedInterval * msPerDay);
@@ -3932,12 +3938,14 @@
                     alerts.push({
                         client: client,
                         segment: lastOrder.segment,
+                        region: lastOrder.region,
+                        contact: lastOrder.contact,
                         category: cat,
                         lastOrderDate: lastOrder.date,
                         lastOrderQty: lastOrder.totalQty,
                         expectedInterval: Math.round(expectedInterval),
                         daysLate: Math.floor(daysLate),
-                        history: recentOrders.slice(-5).reverse() // Pass last 5 aggregated orders
+                        history: recentOrders.slice(-5).reverse() 
                     });
                 }
             }
@@ -3945,20 +3953,24 @@
         return alerts;
     }
 
-    // TIER 1: FAST FETCH (12 Months)
     function runCadenceScanner() {
         if (appState.rawCadenceData.length > 0) return;
-        
         let badge = document.getElementById('cadence-badge');
-        if(badge) { badge.classList.remove('d-none'); badge.innerText = "..."; badge.classList.replace('bg-danger', 'bg-warning'); }
+        if(badge) { 
+            badge.classList.remove('d-none'); 
+            // FIX: Show spinning FontAwesome icon while loading
+            badge.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`; 
+            badge.classList.replace('bg-danger', 'bg-warning'); 
+        }
 
         google.script.run.withSuccessHandler(res => {
             appState.rawCadenceData = res;
             appState.cadenceAlerts = processClientCadence(res);
             appState.cadDataLevel = '12m';
             
-            let uniqueSegs = [...new Set(res.map(d => d.segment || 'Uncategorized'))].sort();
-            appState.cadenceAvailableSegments = uniqueSegs;
+            appState.cadenceAvailableSegments = [...new Set(res.map(d => d.segment || 'Uncategorized'))].sort();
+            appState.cadenceAvailableRegions = [...new Set(res.map(d => d.region || 'Unspecified'))].sort();
+            
             updateCadenceBadge();
         }).getClientCadenceData(12);
     }
@@ -3967,7 +3979,9 @@
         let badge = document.getElementById('cadence-badge');
         if (!badge) return;
         if (appState.cadenceAlerts.length > 0) {
-            badge.innerText = appState.cadenceAlerts.length;
+            // FIX: Calculate Unique Clients instead of total alerts
+            let uniqueClients = new Set(appState.cadenceAlerts.map(a => a.client)).size;
+            badge.innerText = uniqueClients;
             badge.classList.replace('bg-warning', 'bg-danger');
             badge.classList.remove('d-none');
         } else {
@@ -3975,10 +3989,8 @@
         }
     }
 
-    // TIER 2: DEEP FETCH TRIGGER
     function handleCadencePeriodChange() {
         let period = document.getElementById('cad-filter-period').value;
-        
         if (period === 'all' && appState.cadDataLevel !== 'all') {
             document.getElementById('cadence-table-body').innerHTML = `<tr><td colspan="5" class="text-center p-5 text-primary"><i class="fas fa-spinner fa-spin fs-3 mb-2 d-block"></i>Fetching deep historical data...</td></tr>`;
             
@@ -3987,8 +3999,10 @@
                 appState.cadenceAlerts = processClientCadence(res);
                 appState.cadDataLevel = 'all';
                 
-                let uniqueSegs = [...new Set(res.map(d => d.segment || 'Uncategorized'))].sort();
-                appState.cadenceAvailableSegments = uniqueSegs;
+                appState.cadenceAvailableSegments = [...new Set(res.map(d => d.segment || 'Uncategorized'))].sort();
+                appState.cadenceAvailableRegions = [...new Set(res.map(d => d.region || 'Unspecified'))].sort();
+                
+                populateCadenceDropdowns();
                 renderCadenceSegmentChips();
                 renderCadenceTable();
             }).getClientCadenceData(0);
@@ -3998,50 +4012,96 @@
     }
 
     // --- FILTER & RENDER LOGIC ---
+    function populateCadenceDropdowns() {
+        let regHtml = `<option value="All">All Regions</option>`;
+        if (appState.cadenceAvailableRegions) {
+            appState.cadenceAvailableRegions.forEach(r => regHtml += `<option value="${r}">${r}</option>`);
+        }
+        document.getElementById('cad-filter-region').innerHTML = regHtml;
+    }
+
     function toggleCadenceSegment(seg) {
         let arr = appState.cadFilters.segments;
-        if (seg === 'All') {
-            appState.cadFilters.segments = ['All'];
-        } else {
+        if (seg === 'All') { arr.segments = ['All']; } 
+        else {
             let allIdx = arr.indexOf('All');
             if (allIdx > -1) arr.splice(allIdx, 1);
             let idx = arr.indexOf(seg);
             if (idx > -1) {
                 arr.splice(idx, 1);
                 if (arr.length === 0) appState.cadFilters.segments = ['All'];
-            } else {
-                arr.push(seg);
-            }
+            } else { arr.push(seg); }
         }
         renderCadenceSegmentChips();
         renderCadenceTable();
     }
 
     function renderCadenceSegmentChips() {
-        let html = `<button class="btn btn-sm rounded-pill ${appState.cadFilters.segments.includes('All') ? 'btn-primary' : 'btn-outline-secondary'}" onclick="toggleCadenceSegment('All')" style="font-size: 0.75rem;">All Segments</button>`;
+        let html = `<button class="btn btn-sm rounded-pill ${appState.cadFilters.segments.includes('All') ? 'btn-primary shadow-sm' : 'btn-outline-secondary'}" onclick="toggleCadenceSegment('All')" style="font-size: 0.75rem;">All Segments</button>`;
         if(appState.cadenceAvailableSegments) {
             appState.cadenceAvailableSegments.forEach(s => {
                 let isActive = appState.cadFilters.segments.includes(s);
-                html += `<button class="btn btn-sm rounded-pill ${isActive ? 'btn-primary' : 'btn-outline-secondary'} ms-1" onclick="toggleCadenceSegment('${s.replace(/'/g, "\\'")}')" style="font-size: 0.75rem;">${s}</button>`;
+                let colorClass = isActive ? getSegmentColorClass(s) + ' shadow-sm border-2' : 'btn-outline-secondary';
+                html += `<button class="btn btn-sm rounded-pill ms-2 ${colorClass}" onclick="toggleCadenceSegment('${s.replace(/'/g, "\\'")}')" style="font-size: 0.75rem;">${s}</button>`;
             });
         }
         document.getElementById('cadence-segment-filters').innerHTML = html;
     }
 
+    // INLINE CONTACT REVEAL ACTION (No Modals)
+    window.toggleInlineContact = function(e, btn, targetId) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        
+        let targetEl = document.getElementById(targetId);
+        let isOpening = targetEl.classList.contains('d-none');
+
+        // Optional: Close any previously opened inline contact cards to keep the UI clean
+        document.querySelectorAll('.inline-contact-card').forEach(card => card.classList.add('d-none'));
+        document.querySelectorAll('.inline-contact-btn').forEach(b => {
+            b.classList.remove('btn-primary', 'text-white');
+            b.classList.add('btn-light', 'text-primary');
+        });
+
+        // If it was closed, open it and highlight the button
+        if (isOpening) {
+            targetEl.classList.remove('d-none');
+            btn.classList.add('btn-primary', 'text-white');
+            btn.classList.remove('btn-light', 'text-primary');
+        }
+    };
+
+    // PROGRAMMATIC ROW EXPANSION (Guarantees isolation from contact button)
+    window.toggleRowCollapse = function(e, targetId) {
+        // Ignore clicks that originate from the contact button or the contact card itself
+        if (e.target.closest('.inline-contact-btn') || e.target.closest('.inline-contact-card')) {
+            return;
+        }
+        
+        let targetEl = document.getElementById(targetId);
+        if (targetEl) {
+            let bsCollapse = bootstrap.Collapse.getInstance(targetEl);
+            if (!bsCollapse) {
+                bsCollapse = new bootstrap.Collapse(targetEl, { toggle: false });
+            }
+            bsCollapse.toggle();
+        }
+    };
+
     function renderCadenceTable() {
         let period = document.getElementById('cad-filter-period').value;
         let pType = document.getElementById('cad-filter-prod').value;
+        let regionFilter = document.getElementById('cad-filter-region').value;
         let sortMode = document.getElementById('cad-filter-sort').value;
         
         let msPerDay = 1000 * 60 * 60 * 24;
-        let now = Date.now();
         let cutoffMs = 0;
-        if (period === '12') cutoffMs = now - (365 * msPerDay);
-        if (period === '6') cutoffMs = now - (180 * msPerDay);
+        if (period === '12') cutoffMs = Date.now() - (365 * msPerDay);
+        if (period === '6') cutoffMs = Date.now() - (180 * msPerDay);
 
         let filtered = appState.cadenceAlerts.filter(a => {
             if (cutoffMs > 0 && a.lastOrderDate < cutoffMs) return false;
             if (pType !== 'All' && a.category !== pType) return false;
+            if (regionFilter !== 'All' && a.region !== regionFilter) return false;
             if (!appState.cadFilters.segments.includes('All') && !appState.cadFilters.segments.includes(a.segment)) return false;
             return true;
         });
@@ -4053,69 +4113,105 @@
             let orderDate = new Date(a.lastOrderDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
             let lateColor = a.daysLate > 10 ? 'text-danger fw-bold' : 'text-warning text-dark fw-bold';
             let uid = 'cad-row-' + index;
+            let segColor = getSegmentColorClass(a.segment);
 
-            // Generate Detailed History Popover
             let histHtml = '';
             a.history.forEach(h => {
                 let d = new Date(h.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-                
-                // Break down the aggregated total into specific items
                 let details = h.items.map(i => `<span class="text-secondary">${i.qty}x ${i.name}</span>`).join('<br>');
-                
                 histHtml += `
                 <div class="border-bottom py-2">
                    <div class="d-flex justify-content-between align-items-center mb-1">
                       <span class="text-dark fw-bold" style="font-size: 0.75rem;"><i class="far fa-calendar-alt me-1 text-muted"></i>${d}</span>
                       <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">${h.totalQty} units</span>
                    </div>
-                   <div style="font-size: 0.7rem; line-height: 1.4; padding-left: 16px;">
-                      ${details}
-                   </div>
+                   <div style="font-size: 0.7rem; line-height: 1.4; padding-left: 16px;">${details}</div>
                 </div>`;
             });
 
             html += `
-            <tr class="bg-white border-bottom" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#${uid}">
-               <td class="ps-4 py-3">
-                  <div class="fw-bold text-dark" style="font-size: 0.85rem;">${a.client}</div>
-                  <div class="badge bg-light text-secondary border mt-1" style="font-size: 0.65rem;">${a.segment}</div>
+            <tr class="bg-white border-bottom position-relative main-table-row" style="cursor: pointer; transition: all 0.3s ease;" onclick="toggleRowCollapse(event, '${uid}')">
+               <td class="ps-4 py-3" style="min-width: 250px;">
+                  <div class="d-flex align-items-center">
+                     
+                     <button class="btn btn-sm btn-light text-primary rounded-circle shadow-sm me-3 flex-shrink-0 d-flex align-items-center justify-content-center inline-contact-btn" 
+                             style="width: 32px; height: 32px; padding: 0; transition: all 0.2s;"
+                             onclick="toggleInlineContact(event, this, 'contact-card-${uid}');" 
+                             title="Reveal Contact Info">
+                        <i class="fas fa-address-book" style="font-size: 0.9rem;"></i>
+                     </button>
+                     
+                     <div id="contact-card-${uid}" class="d-none inline-contact-card bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-3 p-2 me-3 shadow-sm flex-shrink-0" style="min-width: 160px; max-width: 220px; cursor: default;">
+                        <div class="fw-bold text-dark mb-1 border-bottom border-primary border-opacity-25 pb-1" style="font-size: 0.7rem;"><i class="fas fa-map-marker-alt text-primary me-1"></i>${a.region}</div>
+                        <div class="text-dark" style="font-size: 0.75rem; white-space: pre-line; line-height: 1.3;">${a.contact}</div>
+                     </div>
+
+                     <div>
+                        <div class="fw-bold text-dark" style="font-size: 0.85rem;">${a.client}</div>
+                        <div class="badge ${segColor} rounded-pill mt-1" style="font-size: 0.65rem;">${a.segment}</div>
+                     </div>
+
+                  </div>
                </td>
-               <td>
-                  <span class="fw-bold text-dark" style="font-size: 0.85rem;">${a.category}</span>
-               </td>
+               <td><span class="fw-bold text-dark" style="font-size: 0.85rem;">${a.category}</span></td>
                <td>
                   <div class="text-dark fw-bold" style="font-size: 0.8rem;">${a.lastOrderQty} <span class="text-muted fw-normal">units</span></div>
                   <div class="text-muted" style="font-size: 0.7rem;">on ${orderDate}</div>
                </td>
-               <td>
-                  <div class="text-primary fw-bold" style="font-size: 0.8rem;"><i class="fas fa-rotate me-1"></i>~${a.expectedInterval} Days</div>
-               </td>
+               <td><div class="text-primary fw-bold" style="font-size: 0.8rem;"><i class="fas fa-rotate me-1"></i>~${a.expectedInterval} Days</div></td>
                <td>
                   <div class="${lateColor}" style="font-size: 0.85rem;"><i class="fas fa-exclamation-circle me-1"></i>${a.daysLate} Days Late</div>
-                  <div class="text-primary small mt-1" style="font-size: 0.65rem;">View order details <i class="fas fa-chevron-down ms-1"></i></div>
+                  <div class="text-primary small mt-1" style="font-size: 0.65rem;">View history <i class="fas fa-chevron-down ms-1"></i></div>
                </td>
             </tr>
             
             <tr class="collapse bg-light" id="${uid}">
                <td colspan="5" class="p-0 border-bottom shadow-inner">
-                  <div class="p-3 ms-4" style="border-left: 3px solid #3b82f6;">
-                     <h6 class="fw-bold text-primary mb-2" style="font-size: 0.75rem; letter-spacing: 0.5px;">LAST 5 ORDERS TIMELINE</h6>
-                     <div style="max-width: 350px;">
-                        ${histHtml}
+                  <div class="row g-0 p-3 ms-2">
+                     <div class="col-md-5 pe-3 mb-3 mb-md-0">
+                        <div class="p-3 bg-white rounded-3 border shadow-sm h-100">
+                           <h6 class="fw-bold text-dark mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px;"><i class="fas fa-id-card text-primary me-2"></i>CLIENT PROFILE</h6>
+                           <div class="mb-2"><span class="text-muted" style="font-size: 0.75rem;">Region:</span> <span class="badge bg-light text-secondary border ms-1">${a.region}</span></div>
+                           <div>
+                              <span class="text-muted" style="font-size: 0.75rem;">Contact Information:</span><br>
+                              <div class="fw-medium text-dark mt-1 p-2 bg-light rounded" style="white-space: pre-line; font-size: 0.8rem;">${a.contact}</div>
+                           </div>
+                        </div>
+                     </div>
+                     <div class="col-md-7 ps-md-3" style="border-left: 2px dashed #dee2e6;">
+                        <h6 class="fw-bold text-primary mb-2" style="font-size: 0.75rem; letter-spacing: 0.5px;"><i class="fas fa-history me-2"></i>LAST 5 ORDERS TIMELINE</h6>
+                        <div style="max-width: 400px;">
+                           ${histHtml}
+                        </div>
                      </div>
                   </div>
                </td>
             </tr>`;
         });
         
-        if (html === '') {
-            html = `<tr><td colspan="5" class="text-center p-5 text-muted"><i class="fas fa-filter fs-3 mb-2 d-block"></i>No late clients match these filters.</td></tr>`;
-        }
+        if (html === '') { html = `<tr><td colspan="5" class="text-center p-5 text-muted"><i class="fas fa-filter fs-3 mb-2 d-block"></i>No late clients match these filters.</td></tr>`; }
         document.getElementById('cadence-table-body').innerHTML = html;
+        
+        let counterEl = document.getElementById('cadence-detailed-counter');
+        if (counterEl) {
+            let uniqueFilteredClients = new Set(filtered.map(a => a.client)).size;
+            counterEl.innerHTML = `<i class="fas fa-user-clock me-1"></i>${uniqueFilteredClients} Clients (${filtered.length} Alerts)`;
+            
+            if (uniqueFilteredClients === 0) {
+                counterEl.classList.replace('text-danger', 'text-success');
+                counterEl.classList.replace('border-danger', 'border-success');
+                counterEl.classList.replace('bg-danger', 'bg-success');
+            } else {
+                counterEl.classList.replace('text-success', 'text-danger');
+                counterEl.classList.replace('border-success', 'border-danger');
+                counterEl.classList.replace('bg-success', 'bg-danger');
+            }
+        }
     }
 
     window.openCadenceModal = function() {
         if (!appState.cadenceAlerts) return;
+        populateCadenceDropdowns();
         renderCadenceSegmentChips();
         renderCadenceTable();
         new bootstrap.Modal(document.getElementById('cadenceModal')).show();
