@@ -373,3 +373,67 @@ function saveAndResyncMarketPrice(dateStr, material, price) {
    forceResyncCostLedger(); 
    return true;
 }
+
+// ==========================================
+// NEW: CLIENT ORDER CADENCE FETCH (SMART TWO-TIER)
+// ==========================================
+function getClientCadenceData(monthsBack = 12) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const masterSheet = ss.getSheetByName("All Data"); 
+  if (!masterSheet) return [];
+
+  const data = masterSheet.getDataRange().getValues();
+  let output = [];
+
+  const ROW_PROD_NAMES = 7;  // Row 8
+  const ROW_DATA_START = 9;  // Row 10
+  const COL_CLIENT = 2;      // Col C
+  const COL_SEGMENT = 4;     // Col E
+  const COL_DATE = 6;        // Col G
+  const COL_PROD_START = 17; // Col R
+
+  // Pre-Map ALL Products
+  let targetProductCols = {}; 
+  let numCols = data[ROW_PROD_NAMES].length;
+  for (let c = COL_PROD_START; c < numCols; c += 2) { 
+    let itemName = String(data[ROW_PROD_NAMES][c]).trim();
+    if (itemName) targetProductCols[c] = itemName;
+  }
+
+  if (Object.keys(targetProductCols).length === 0) return [];
+
+  // Determine Cutoff Date
+  let cutoffMs = 0;
+  if (monthsBack > 0) {
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+    cutoffMs = cutoffDate.getTime();
+  }
+
+  for (let i = ROW_DATA_START; i < data.length; i++) {
+    let rowDate = data[i][COL_DATE];
+    let dateMs = new Date(rowDate).getTime();
+    
+    // If monthsBack is 0, cutoffMs is 0, so it fetches ALL years
+    if (dateMs && (cutoffMs === 0 || dateMs > cutoffMs)) { 
+      let clientName = String(data[i][COL_CLIENT]).trim();
+      let segment = String(data[i][COL_SEGMENT]).trim();
+      if (!clientName) continue;
+
+      for (let colStr in targetProductCols) {
+        let c = parseInt(colStr);
+        let qty = Number(data[i][c]) || 0;
+        if (qty > 0) {
+          output.push({
+            date: dateMs,
+            client: clientName,
+            segment: segment || 'Uncategorized',
+            item: targetProductCols[c],
+            qty: qty
+          });
+        }
+      }
+    }
+  }
+  return output;
+}
