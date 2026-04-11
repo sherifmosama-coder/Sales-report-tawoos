@@ -850,7 +850,14 @@
                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Client Retention & Growth</span>
             </div>
          </div>
-         <div class="col-md-6 order-2 d-flex justify-content-center justify-content-md-end">
+
+         <div class="col-md-6 order-2 d-flex flex-wrap justify-content-center justify-content-md-end align-items-center gap-3">
+            
+            <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm position-relative" onclick="openCadenceModal()">
+               <i class="fas fa-exclamation-triangle me-1"></i>Late Orders
+               <span id="cadence-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none shadow-sm" style="font-size: 0.65rem;">0</span>
+            </button>
+            
             <div class="segmented-control shadow-sm bg-white border">
                <input type="radio" class="btn-check" name="vmode" id="vmode1" autocomplete="off" checked onchange="setView('qty')">
                <label for="vmode1" class="mb-0 px-4"><i class="fas fa-box me-1"></i> Volume</label>
@@ -1242,6 +1249,74 @@
       </div>
     </div>
   </div>
+
+  <div class="modal fade" id="cadenceModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        
+        <div class="modal-header border-0 pb-3 bg-white sticky-top z-index-10" style="border-radius: 16px 16px 0 0;">
+          <div class="w-100">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+               <div>
+                 <h5 class="modal-title fw-bold text-dark"><i class="fas fa-clock-rotate-left text-danger me-2"></i>Late Clients Watchlist</h5>
+                 <p class="text-muted small mb-0 mt-1">Click any client row to view their last 5 orders.</p>
+               </div>
+               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <div class="bg-light p-3 rounded-3 border">
+               <div class="fw-bold text-dark mb-2" style="font-size: 0.75rem;">FILTER BY SEGMENT</div>
+               <div class="d-flex flex-wrap gap-2 mb-3" id="cadence-segment-filters">
+                  </div>
+               
+               <div class="row g-2">
+                  <div class="col-md-4">
+                     <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-period" onchange="handleCadencePeriodChange()">
+                        <option value="12">Last Order within 12 Months</option>
+                        <option value="6">Last Order within 6 Months</option>
+                        <option value="all">All Years (Deep Fetch)</option>
+                     </select>
+                  </div>
+                  <div class="col-md-4">
+                     <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-prod" onchange="renderCadenceTable()">
+                        <option value="All">All Products</option>
+                        <option value="Vinegar">Vinegar</option>
+                        <option value="Tahini">Tahini</option>
+                        <option value="Rice">Rice</option>
+                        <option value="Others">Others</option>
+                     </select>
+                  </div>
+                  <div class="col-md-4">
+                     <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-sort" onchange="renderCadenceTable()">
+                        <option value="desc">Sort: Most Days Late First</option>
+                        <option value="asc">Sort: Least Days Late First</option>
+                     </select>
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-body p-0 bg-light">
+           <div class="table-responsive">
+              <table class="table table-hover align-middle bg-white mb-0">
+                 <thead class="table-light text-muted sticky-top" style="font-size: 0.75rem;">
+                    <tr>
+                       <th class="ps-4 border-0">CLIENT NAME</th>
+                       <th class="border-0">CATEGORY</th>
+                       <th class="border-0">LAST ORDER</th>
+                       <th class="border-0">EXPECTED CYCLE</th>
+                       <th class="border-0">LATE STATUS</th>
+                    </tr>
+                 </thead>
+                 <tbody id="cadence-table-body">
+                    </tbody>
+              </table>
+           </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -1514,6 +1589,8 @@
        document.getElementById('costing-view-container').style.display = 'none'; // NEW: Hide Costing
 
        renderDashboard(); 
+      // Inside your client dashboard initialization function
+      runCadenceScanner(); 
     }
 
     function initProductView() {
@@ -3767,6 +3844,281 @@
             btn.disabled = false;
             btn.innerHTML = `<i class="fas fa-sync-alt me-1"></i>Sync Engine`;
         }).syncCostLedger();
+    };
+
+    // ==========================================
+    // DYNAMIC DEPLETION ENGINE & WATCHLIST (CATEGORY & SAME-DAY AGGREGATION)
+    // ==========================================
+    appState.cadDataLevel = '12m'; 
+    appState.cadenceAlerts = [];
+    appState.rawCadenceData = [];
+    appState.cadFilters = { segments: ['All'] };
+
+    function getProductCategory(item) {
+        if (item.includes('خل') && !item.includes('تفاح')) return 'Vinegar';
+        if (item.includes('طحينة') || item.includes('طحينه')) return 'Tahini';
+        if (item.includes('ارز') || item.includes('أرز') || item.includes('رز')) return 'Rice';
+        return 'Others';
+    }
+
+    function processClientCadence(data) {
+        let grouped = {};
+        
+        // 1. Group by Client -> Category -> Date (Same-Day Aggregation)
+        data.forEach(row => {
+            let cat = getProductCategory(row.item);
+            let client = row.client;
+            
+            // Normalize the date to midnight to catch multiple purchases on the exact same day
+            let d = new Date(row.date);
+            d.setHours(0, 0, 0, 0);
+            let dateKey = d.getTime();
+
+            if (!grouped[client]) grouped[client] = {};
+            if (!grouped[client][cat]) grouped[client][cat] = {};
+            
+            if (!grouped[client][cat][dateKey]) {
+                grouped[client][cat][dateKey] = {
+                    date: dateKey,
+                    totalQty: 0,
+                    segment: row.segment,
+                    items: [] // Will hold the specific SKUs for the popover
+                };
+            }
+
+            // Add quantity to the day's total
+            grouped[client][cat][dateKey].totalQty += row.qty;
+            
+            // Track specific SKU for the history popover
+            let existingItem = grouped[client][cat][dateKey].items.find(i => i.name === row.item);
+            if (existingItem) {
+                existingItem.qty += row.qty;
+            } else {
+                grouped[client][cat][dateKey].items.push({ name: row.item, qty: row.qty });
+            }
+        });
+
+        let alerts = [];
+        let todayMs = Date.now();
+        const msPerDay = 1000 * 60 * 60 * 24;
+
+        // 2. Calculate Math based on Aggregated Dates
+        for (let client in grouped) {
+            for (let cat in grouped[client]) {
+                // Convert the dates object back to an array and sort chronologically
+                let orders = Object.values(grouped[client][cat]).sort((a, b) => a.date - b.date);
+                if (orders.length < 2) continue;
+
+                let recentOrders = orders.slice(-6); // Max 6 dates for 5 intervals
+                let firstOfRecent = recentOrders[0];
+                let lastOrder = recentOrders[recentOrders.length - 1];
+
+                let daysElapsed = (lastOrder.date - firstOfRecent.date) / msPerDay;
+                if (daysElapsed <= 0) continue;
+
+                let totalConsumedQty = 0;
+                for (let i = 0; i < recentOrders.length - 1; i++) {
+                    totalConsumedQty += recentOrders[i].totalQty;
+                }
+                if (totalConsumedQty <= 0) continue;
+
+                // MATH: Average Cycle Duration
+                let dcr = totalConsumedQty / daysElapsed; 
+                let expectedInterval = lastOrder.totalQty / dcr; 
+                let expectedNextDateMs = lastOrder.date + (expectedInterval * msPerDay);
+                let daysLate = (todayMs - expectedNextDateMs) / msPerDay;
+
+                if (daysLate > 0) {
+                    alerts.push({
+                        client: client,
+                        segment: lastOrder.segment,
+                        category: cat,
+                        lastOrderDate: lastOrder.date,
+                        lastOrderQty: lastOrder.totalQty,
+                        expectedInterval: Math.round(expectedInterval),
+                        daysLate: Math.floor(daysLate),
+                        history: recentOrders.slice(-5).reverse() // Pass last 5 aggregated orders
+                    });
+                }
+            }
+        }
+        return alerts;
+    }
+
+    // TIER 1: FAST FETCH (12 Months)
+    function runCadenceScanner() {
+        if (appState.rawCadenceData.length > 0) return;
+        
+        let badge = document.getElementById('cadence-badge');
+        if(badge) { badge.classList.remove('d-none'); badge.innerText = "..."; badge.classList.replace('bg-danger', 'bg-warning'); }
+
+        google.script.run.withSuccessHandler(res => {
+            appState.rawCadenceData = res;
+            appState.cadenceAlerts = processClientCadence(res);
+            appState.cadDataLevel = '12m';
+            
+            let uniqueSegs = [...new Set(res.map(d => d.segment || 'Uncategorized'))].sort();
+            appState.cadenceAvailableSegments = uniqueSegs;
+            updateCadenceBadge();
+        }).getClientCadenceData(12);
+    }
+
+    function updateCadenceBadge() {
+        let badge = document.getElementById('cadence-badge');
+        if (!badge) return;
+        if (appState.cadenceAlerts.length > 0) {
+            badge.innerText = appState.cadenceAlerts.length;
+            badge.classList.replace('bg-warning', 'bg-danger');
+            badge.classList.remove('d-none');
+        } else {
+            badge.classList.add('d-none');
+        }
+    }
+
+    // TIER 2: DEEP FETCH TRIGGER
+    function handleCadencePeriodChange() {
+        let period = document.getElementById('cad-filter-period').value;
+        
+        if (period === 'all' && appState.cadDataLevel !== 'all') {
+            document.getElementById('cadence-table-body').innerHTML = `<tr><td colspan="5" class="text-center p-5 text-primary"><i class="fas fa-spinner fa-spin fs-3 mb-2 d-block"></i>Fetching deep historical data...</td></tr>`;
+            
+            google.script.run.withSuccessHandler(res => {
+                appState.rawCadenceData = res;
+                appState.cadenceAlerts = processClientCadence(res);
+                appState.cadDataLevel = 'all';
+                
+                let uniqueSegs = [...new Set(res.map(d => d.segment || 'Uncategorized'))].sort();
+                appState.cadenceAvailableSegments = uniqueSegs;
+                renderCadenceSegmentChips();
+                renderCadenceTable();
+            }).getClientCadenceData(0);
+        } else {
+            renderCadenceTable();
+        }
+    }
+
+    // --- FILTER & RENDER LOGIC ---
+    function toggleCadenceSegment(seg) {
+        let arr = appState.cadFilters.segments;
+        if (seg === 'All') {
+            appState.cadFilters.segments = ['All'];
+        } else {
+            let allIdx = arr.indexOf('All');
+            if (allIdx > -1) arr.splice(allIdx, 1);
+            let idx = arr.indexOf(seg);
+            if (idx > -1) {
+                arr.splice(idx, 1);
+                if (arr.length === 0) appState.cadFilters.segments = ['All'];
+            } else {
+                arr.push(seg);
+            }
+        }
+        renderCadenceSegmentChips();
+        renderCadenceTable();
+    }
+
+    function renderCadenceSegmentChips() {
+        let html = `<button class="btn btn-sm rounded-pill ${appState.cadFilters.segments.includes('All') ? 'btn-primary' : 'btn-outline-secondary'}" onclick="toggleCadenceSegment('All')" style="font-size: 0.75rem;">All Segments</button>`;
+        if(appState.cadenceAvailableSegments) {
+            appState.cadenceAvailableSegments.forEach(s => {
+                let isActive = appState.cadFilters.segments.includes(s);
+                html += `<button class="btn btn-sm rounded-pill ${isActive ? 'btn-primary' : 'btn-outline-secondary'} ms-1" onclick="toggleCadenceSegment('${s.replace(/'/g, "\\'")}')" style="font-size: 0.75rem;">${s}</button>`;
+            });
+        }
+        document.getElementById('cadence-segment-filters').innerHTML = html;
+    }
+
+    function renderCadenceTable() {
+        let period = document.getElementById('cad-filter-period').value;
+        let pType = document.getElementById('cad-filter-prod').value;
+        let sortMode = document.getElementById('cad-filter-sort').value;
+        
+        let msPerDay = 1000 * 60 * 60 * 24;
+        let now = Date.now();
+        let cutoffMs = 0;
+        if (period === '12') cutoffMs = now - (365 * msPerDay);
+        if (period === '6') cutoffMs = now - (180 * msPerDay);
+
+        let filtered = appState.cadenceAlerts.filter(a => {
+            if (cutoffMs > 0 && a.lastOrderDate < cutoffMs) return false;
+            if (pType !== 'All' && a.category !== pType) return false;
+            if (!appState.cadFilters.segments.includes('All') && !appState.cadFilters.segments.includes(a.segment)) return false;
+            return true;
+        });
+
+        filtered.sort((a, b) => sortMode === 'desc' ? b.daysLate - a.daysLate : a.daysLate - b.daysLate);
+
+        let html = '';
+        filtered.forEach((a, index) => {
+            let orderDate = new Date(a.lastOrderDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            let lateColor = a.daysLate > 10 ? 'text-danger fw-bold' : 'text-warning text-dark fw-bold';
+            let uid = 'cad-row-' + index;
+
+            // Generate Detailed History Popover
+            let histHtml = '';
+            a.history.forEach(h => {
+                let d = new Date(h.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                
+                // Break down the aggregated total into specific items
+                let details = h.items.map(i => `<span class="text-secondary">${i.qty}x ${i.name}</span>`).join('<br>');
+                
+                histHtml += `
+                <div class="border-bottom py-2">
+                   <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="text-dark fw-bold" style="font-size: 0.75rem;"><i class="far fa-calendar-alt me-1 text-muted"></i>${d}</span>
+                      <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">${h.totalQty} units</span>
+                   </div>
+                   <div style="font-size: 0.7rem; line-height: 1.4; padding-left: 16px;">
+                      ${details}
+                   </div>
+                </div>`;
+            });
+
+            html += `
+            <tr class="bg-white border-bottom" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#${uid}">
+               <td class="ps-4 py-3">
+                  <div class="fw-bold text-dark" style="font-size: 0.85rem;">${a.client}</div>
+                  <div class="badge bg-light text-secondary border mt-1" style="font-size: 0.65rem;">${a.segment}</div>
+               </td>
+               <td>
+                  <span class="fw-bold text-dark" style="font-size: 0.85rem;">${a.category}</span>
+               </td>
+               <td>
+                  <div class="text-dark fw-bold" style="font-size: 0.8rem;">${a.lastOrderQty} <span class="text-muted fw-normal">units</span></div>
+                  <div class="text-muted" style="font-size: 0.7rem;">on ${orderDate}</div>
+               </td>
+               <td>
+                  <div class="text-primary fw-bold" style="font-size: 0.8rem;"><i class="fas fa-rotate me-1"></i>~${a.expectedInterval} Days</div>
+               </td>
+               <td>
+                  <div class="${lateColor}" style="font-size: 0.85rem;"><i class="fas fa-exclamation-circle me-1"></i>${a.daysLate} Days Late</div>
+                  <div class="text-primary small mt-1" style="font-size: 0.65rem;">View order details <i class="fas fa-chevron-down ms-1"></i></div>
+               </td>
+            </tr>
+            
+            <tr class="collapse bg-light" id="${uid}">
+               <td colspan="5" class="p-0 border-bottom shadow-inner">
+                  <div class="p-3 ms-4" style="border-left: 3px solid #3b82f6;">
+                     <h6 class="fw-bold text-primary mb-2" style="font-size: 0.75rem; letter-spacing: 0.5px;">LAST 5 ORDERS TIMELINE</h6>
+                     <div style="max-width: 350px;">
+                        ${histHtml}
+                     </div>
+                  </div>
+               </td>
+            </tr>`;
+        });
+        
+        if (html === '') {
+            html = `<tr><td colspan="5" class="text-center p-5 text-muted"><i class="fas fa-filter fs-3 mb-2 d-block"></i>No late clients match these filters.</td></tr>`;
+        }
+        document.getElementById('cadence-table-body').innerHTML = html;
+    }
+
+    window.openCadenceModal = function() {
+        if (!appState.cadenceAlerts) return;
+        renderCadenceSegmentChips();
+        renderCadenceTable();
+        new bootstrap.Modal(document.getElementById('cadenceModal')).show();
     };
   </script>
 </body>
