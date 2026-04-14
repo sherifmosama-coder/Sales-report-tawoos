@@ -375,10 +375,29 @@ function saveAndResyncMarketPrice(dateStr, material, price) {
 }
 
 // ==========================================
-// NEW: CLIENT ORDER CADENCE FETCH (SMART TWO-TIER)
+// NEW: CLIENT ORDER CADENCE FETCH (SMART TWO-TIER + CONTACTS)
 // ==========================================
 function getClientCadenceData(monthsBack = 12) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. EXTRACT CONTACT MAP FROM "Clients" SHEET
+  const clientsSheet = ss.getSheetByName("Clients");
+  let contactMap = {};
+  if (clientsSheet) {
+    const cData = clientsSheet.getDataRange().getValues();
+    // Assuming row 1 is headers, start at index 1
+    for (let i = 1; i < cData.length; i++) {
+      let cName = String(cData[i][0]).trim(); // Col A
+      if (cName) {
+        contactMap[cName] = {
+          region: String(cData[i][3]).trim() || 'Unspecified', // Col D
+          contact: String(cData[i][4]).trim() || 'No contact provided' // Col E
+        };
+      }
+    }
+  }
+
+  // 2. FETCH MAIN SALES MATRIX
   const masterSheet = ss.getSheetByName("All Data"); 
   if (!masterSheet) return [];
 
@@ -402,7 +421,6 @@ function getClientCadenceData(monthsBack = 12) {
 
   if (Object.keys(targetProductCols).length === 0) return [];
 
-  // Determine Cutoff Date
   let cutoffMs = 0;
   if (monthsBack > 0) {
     const cutoffDate = new Date();
@@ -414,11 +432,12 @@ function getClientCadenceData(monthsBack = 12) {
     let rowDate = data[i][COL_DATE];
     let dateMs = new Date(rowDate).getTime();
     
-    // If monthsBack is 0, cutoffMs is 0, so it fetches ALL years
     if (dateMs && (cutoffMs === 0 || dateMs > cutoffMs)) { 
       let clientName = String(data[i][COL_CLIENT]).trim();
       let segment = String(data[i][COL_SEGMENT]).trim();
       if (!clientName) continue;
+
+      let cInfo = contactMap[clientName] || { region: 'Unspecified', contact: 'No contact provided' };
 
       for (let colStr in targetProductCols) {
         let c = parseInt(colStr);
@@ -428,6 +447,8 @@ function getClientCadenceData(monthsBack = 12) {
             date: dateMs,
             client: clientName,
             segment: segment || 'Uncategorized',
+            region: cInfo.region,
+            contactInfo: cInfo.contact,
             item: targetProductCols[c],
             qty: qty
           });
@@ -436,4 +457,84 @@ function getClientCadenceData(monthsBack = 12) {
     }
   }
   return output;
+}
+
+// ==========================================
+// NEW: CADENCE EXPORT ENGINE (PDF & EXCEL)
+// ==========================================
+function generateCadenceExportUrl(payloadStr, format) {
+  const data = JSON.parse(payloadStr);
+  const ss = SpreadsheetApp.create("[TEMP EXPORT] Late Clients Watchlist");
+  const sheet = ss.getSheets()[0];
+
+  // 1. Format Headers
+  const headers = ["Client Name", "Segment", "Region", "Contact Data", "Category", "Last Order Qty", "Last Order Date", "Expected Cycle (Days)", "Days Late"];
+  sheet.appendRow(headers);
+  let headerRange = sheet.getRange(1, 1, 1, headers.length);
+  headerRange.setFontWeight("bold").setBackground("#3b82f6").setFontColor("white");
+
+  let rowIndex = 2;
+
+  // 2. Populate Data with Grouping
+  data.forEach(item => {
+    let orderDate = new Date(item.lastOrderDate).toLocaleDateString('en-GB');
+
+    // Main Row (Summary View)
+    sheet.getRange(rowIndex, 1, 1, headers.length).setValues([[
+      item.client, item.segment, item.region, item.contact, item.category,
+      item.lastOrderQty, orderDate, item.expectedInterval, item.daysLate
+    ]]);
+    sheet.getRange(rowIndex, 1, 1, headers.length).setFontWeight("bold").setBackground("#f8f9fa");
+    rowIndex++;
+
+    let startGroupRow = rowIndex;
+
+    // Detail Rows (Order History)
+    if (item.history && item.history.length > 0) {
+       item.history.forEach(h => {
+          let hDate = new Date(h.date).toLocaleDateString('en-GB');
+          let details = h.items.map(i => `${i.qty}x ${i.name}`).join(' | ');
+
+          sheet.getRange(rowIndex, 1, 1, headers.length).setValues([[
+            "↳ Order Details", "", "", details, "", h.totalQty, hDate, "", ""
+          ]]);
+          sheet.getRange(rowIndex, 1, 1, headers.length).setFontColor("#6c757d");
+          rowIndex++;
+       });
+
+       // Excel Grouping: Shift these detail rows into a collapsible group
+       let groupRange = sheet.getRange(startGroupRow, 1, item.history.length, sheet.getMaxColumns());
+       groupRange.shiftRowGroupDepth(1);
+    }
+  });
+
+  // 3. Final Beautification
+  sheet.collapseAllRowGroups(); // Collapses everything to show only the Main Rows initially
+  
+  // Format rows: Align everything to the top so it looks clean when wrapped
+  sheet.getRange(1, 1, rowIndex, headers.length).setVerticalAlignment("top");
+  
+  // Wrap text in the Contact Data column (Col 4) so phone numbers sit on multiple lines
+  sheet.getRange(1, 4, rowIndex, 1).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  
+  // Auto-resize all columns to perfectly fit their contents
+  sheet.autoResizeColumns(1, headers.length);
+  
+  // Safety net: ensure the Contact column isn't squeezed too tightly after autofit
+  if (sheet.getColumnWidth(4) < 200) {
+      sheet.setColumnWidth(4, 250); 
+  }
+  
+  SpreadsheetApp.flush();
+
+  // 4. Generate direct download URL
+  let url = `https://docs.google.com/spreadsheets/d/${ss.getId()}/export?format=${format}&portrait=false&fitw=true`;
+
+  return { url: url, fileId: ss.getId() };
+}
+
+function deleteTempCadenceFile(fileId) {
+  try {
+    DriveApp.getFileById(fileId).setTrashed(true);
+  } catch (e) {}
 }
