@@ -39,48 +39,70 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-// SINGLE SOURCE OF TRUTH: Reading from Dashboard_Cache
-function getDashboardData() {
+// ==========================================
+// MAIN DASHBOARD CACHE GENERATOR
+// ==========================================
+function getDashboardDataFromCache() {
+  let cache = readCacheFile("Tawoos_Cache_Dashboard.json");
+  if (!cache) return generateDashboardCache();
+  return cache;
+}
+
+// ==========================================
+// MAIN DASHBOARD CACHE GENERATOR
+// ==========================================
+function getDashboardDataFromCache() {
+  let cache = readCacheFile("Tawoos_Cache_Dashboard.json");
+  if (!cache) return generateDashboardCache();
+  return cache;
+}
+
+// ==========================================
+// MAIN DASHBOARD CACHE GENERATOR (V8 OPTIMIZED)
+// ==========================================
+function generateDashboardCache() {
+  console.log("1. Starting Dashboard Generator...");
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName("Dashboard_Cache");
-  
-  if (!sheet) return []; 
+  const sheet = ss.getSheetByName("Dashboard_Cache"); 
+  if (!sheet) return;
 
+  console.log("2. Calculating Last Row...");
   const lastRow = sheet.getLastRow();
-  // Adjust startRow to 2 if you have headers in Row 1
-  if (lastRow < 2) return [];
+  console.log("--> Last Row is: " + lastRow);
+  if (lastRow < 2) return;
 
-  // Fetch Cols A to G (1 to 7)
-  // Col A: Main Client, B: Branch, C: Type, D: Year, E: Qty, F: Orders, G: Max Date
+  console.log("3. FETCHING DATA FROM SHEET (If it hangs here, heavy formulas are the culprit!)...");
   const rawData = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
-  
-  const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
+  console.log("--> Data fetched successfully! Rows: " + rawData.length);
 
-  // Map rows to Objects (No Aggregation here - we send detailed data)
-  const output = rawData.map(row => {
-    const rawDate = row[7]; // Adjusted Index for Col H
+  console.log("4. Processing Array Logic...");
+  let output = [];
+  for (let i = 0; i < rawData.length; i++) {
+    const row = rawData[i];
+    let clientName = row[0];
+    let yearVal = row[3];
+    if (!clientName || !yearVal) continue;
+
+    let rawDate = row[7];
     let dateStr = "";
-    
-    // Date Formatting
     if (rawDate instanceof Date) {
-      dateStr = Utilities.formatDate(rawDate, timeZone, "yyyy-MM-dd");
-    } else if (typeof rawDate === 'string' && rawDate.length >= 10) {
-      dateStr = rawDate.replace(/\//g, "-").slice(0, 10);
+      dateStr = rawDate.getFullYear() + "-" + String(rawDate.getMonth() + 1).padStart(2, '0') + "-" + String(rawDate.getDate()).padStart(2, '0');
+    } else if (rawDate) {
+      dateStr = String(rawDate).replace(/\//g, "-").slice(0, 10);
     }
 
-    return {
-      client: row[0],   // Main Client (Group Key)
-      branch: row[1],   // Branch Name (Detail Key)
-      type: row[2],
-      year: row[3],
-      qty: Number(row[4]) || 0,
-      rev: Number(row[5]) || 0, // New Revenue Field
-      orders: Number(row[6]) || 0,
-      lastTx: dateStr
-    };
-  }).filter(item => item.client && item.year); // Filter empty rows
+    output.push({
+      client: clientName, branch: row[1], type: row[2], year: yearVal,
+      qty: Number(row[4]) || 0, rev: Number(row[5]) || 0, orders: Number(row[6]) || 0, lastTx: dateStr
+    });
+  }
+  console.log("--> Array processing complete! Valid items: " + output.length);
+
+  console.log("5. Saving to Google Drive...");
+  writeCacheFile("Tawoos_Cache_Dashboard.json", output);
+  console.log("6. SUCCESS! File saved.");
   
-  return output;
+  return { lastUpdated: new Date().getTime(), data: output };
 }
 
 function parseNumber(val) {
@@ -253,7 +275,7 @@ function syncHistoricalArchive() {
   const fileName = "Tawoos_Product_Archive.json";
   
   // 🔴 IMPORTANT: Paste your personal Folder ID here again!
-  const FOLDER_ID = "1nKJ6hIXx200DrywN4AtGFTHugMvdQjuJ"; 
+  const FOLDER_ID = "1m25aWhRTLHCuyiVgf301I7XE_xc0xIb0"; 
   const folder = DriveApp.getFolderById(FOLDER_ID);
   
   const files = folder.getFilesByName(fileName);
@@ -377,41 +399,41 @@ function saveAndResyncMarketPrice(dateStr, material, price) {
 // ==========================================
 // NEW: CLIENT ORDER CADENCE FETCH (SMART TWO-TIER + CONTACTS)
 // ==========================================
-function getClientCadenceData(monthsBack = 12) {
+// ==========================================
+// CADENCE CACHE GENERATOR
+// ==========================================
+function getCadenceDataFromCache() {
+  let cache = readCacheFile("Tawoos_Cache_Cadence.json");
+  // If the file doesn't exist yet, force generate it right now
+  if (!cache) return generateCadenceCache();
+  return cache;
+}
+
+// ==========================================
+// CADENCE CACHE GENERATOR (V8 OPTIMIZED)
+// ==========================================
+function generateCadenceCache() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. EXTRACT CONTACT MAP FROM "Clients" SHEET
   const clientsSheet = ss.getSheetByName("Clients");
   let contactMap = {};
   if (clientsSheet) {
     const cData = clientsSheet.getDataRange().getValues();
-    // Assuming row 1 is headers, start at index 1
     for (let i = 1; i < cData.length; i++) {
-      let cName = String(cData[i][0]).trim(); // Col A
-      if (cName) {
-        contactMap[cName] = {
-          region: String(cData[i][3]).trim() || 'Unspecified', // Col D
-          contact: String(cData[i][4]).trim() || 'No contact provided' // Col E
-        };
-      }
+      let cName = String(cData[i][0]).trim();
+      if (cName) contactMap[cName] = { region: String(cData[i][3]).trim() || 'Unspecified', contact: String(cData[i][4]).trim() || 'No contact provided' };
     }
   }
 
-  // 2. FETCH MAIN SALES MATRIX
   const masterSheet = ss.getSheetByName("All Data"); 
-  if (!masterSheet) return [];
+  if (!masterSheet) return { lastUpdated: new Date().getTime(), data: [] };
 
   const data = masterSheet.getDataRange().getValues();
   let output = [];
 
-  const ROW_PROD_NAMES = 7;  // Row 8
-  const ROW_DATA_START = 9;  // Row 10
-  const COL_CLIENT = 2;      // Col C
-  const COL_SEGMENT = 4;     // Col E
-  const COL_DATE = 6;        // Col G
-  const COL_PROD_START = 17; // Col R
+  const ROW_PROD_NAMES = 7, ROW_DATA_START = 9;
+  const COL_CLIENT = 2, COL_SEGMENT = 4, COL_DATE = 6, COL_PROD_START = 17;
 
-  // Pre-Map ALL Products
   let targetProductCols = {}; 
   let numCols = data[ROW_PROD_NAMES].length;
   for (let c = COL_PROD_START; c < numCols; c += 2) { 
@@ -419,44 +441,39 @@ function getClientCadenceData(monthsBack = 12) {
     if (itemName) targetProductCols[c] = itemName;
   }
 
-  if (Object.keys(targetProductCols).length === 0) return [];
-
-  let cutoffMs = 0;
-  if (monthsBack > 0) {
-    const cutoffDate = new Date();
-    cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
-    cutoffMs = cutoffDate.getTime();
-  }
-
   for (let i = ROW_DATA_START; i < data.length; i++) {
     let rowDate = data[i][COL_DATE];
-    let dateMs = new Date(rowDate).getTime();
+    // FAST-FAIL: Skip blank rows instantly
+    if (!rowDate) continue; 
     
-    if (dateMs && (cutoffMs === 0 || dateMs > cutoffMs)) { 
-      let clientName = String(data[i][COL_CLIENT]).trim();
-      let segment = String(data[i][COL_SEGMENT]).trim();
-      if (!clientName) continue;
+    let dateMs = (rowDate instanceof Date) ? rowDate.getTime() : new Date(rowDate).getTime();
+    if (!dateMs || isNaN(dateMs)) continue;
+    
+    let clientName = String(data[i][COL_CLIENT]).trim();
+    if (!clientName) continue;
 
-      let cInfo = contactMap[clientName] || { region: 'Unspecified', contact: 'No contact provided' };
+    let segmentCache = String(data[i][COL_SEGMENT]).trim() || 'Uncategorized';
+    let cInfo = contactMap[clientName] || { region: 'Unspecified', contact: 'No contact provided' };
 
-      for (let colStr in targetProductCols) {
-        let c = parseInt(colStr);
-        let qty = Number(data[i][c]) || 0;
-        if (qty > 0) {
-          output.push({
-            date: dateMs,
-            client: clientName,
-            segment: segment || 'Uncategorized',
-            region: cInfo.region,
-            contactInfo: cInfo.contact,
-            item: targetProductCols[c],
-            qty: qty
-          });
-        }
+    for (let colStr in targetProductCols) {
+      let c = parseInt(colStr);
+      let rawQty = data[i][c];
+      
+      // FAST-FAIL: Instantly skip blanks/zeroes before doing math or pushing objects
+      if (!rawQty) continue; 
+      
+      let qty = Number(rawQty);
+      if (qty > 0) {
+        output.push({
+          date: dateMs, client: clientName, segment: segmentCache,
+          region: cInfo.region, contactInfo: cInfo.contact, item: targetProductCols[c], qty: qty
+        });
       }
     }
   }
-  return output;
+
+  writeCacheFile("Tawoos_Cache_Cadence.json", output);
+  return { lastUpdated: new Date().getTime(), data: output };
 }
 
 // ==========================================
@@ -537,4 +554,193 @@ function deleteTempCadenceFile(fileId) {
   try {
     DriveApp.getFileById(fileId).setTrashed(true);
   } catch (e) {}
+}
+
+
+// ==========================================
+// NEW: MASTER CACHE ENGINE & TRIGGERS
+// ==========================================
+// We use your existing Folder ID to instantly bypass Google Drive's slow search algorithm!
+const CACHE_FOLDER_ID = "1m25aWhRTLHCuyiVgf301I7XE_xc0xIb0";
+
+function getCacheFolder() {
+  return DriveApp.getFolderById(CACHE_FOLDER_ID);
+}
+
+function writeCacheFile(fileName, dataObj) {
+  const folder = getCacheFolder();
+  let files = folder.getFilesByName(fileName);
+  
+  // TRASH OLD FILES FIRST (Prevents setContent hangs and duplicates)
+  while (files.hasNext()) {
+    files.next().setTrashed(true);
+  }
+  
+  // CREATE FRESH FILE
+  let payload = JSON.stringify({ lastUpdated: new Date().getTime(), data: dataObj });
+  folder.createFile(fileName, payload, MimeType.PLAIN_TEXT);
+}
+function readCacheFile(fileName) {
+  const folder = getCacheFolder();
+  let files = folder.getFilesByName(fileName);
+  if (files.hasNext()) {
+    return JSON.parse(files.next().getBlob().getDataAsString());
+  }
+  return null;
+}
+
+function setupCacheTriggers() {
+  let triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction().includes("generate")) {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  
+  // Setup ALL robots to run every 3 hours in the background
+  ScriptApp.newTrigger("generateDashboardCache").timeBased().everyHours(3).create();
+  ScriptApp.newTrigger("generateCadenceCache").timeBased().everyHours(3).create();
+  ScriptApp.newTrigger("generateProductsCache").timeBased().everyHours(3).create();
+  ScriptApp.newTrigger("generateCostingCache").timeBased().everyHours(3).create();
+}
+
+// ==========================================
+// PRODUCTS CACHE GENERATOR (Archive + Live Merge)
+// ==========================================
+function getProductDataFromCache() {
+  let cache = readCacheFile("Tawoos_Cache_Products.json");
+  if (!cache) return generateProductsCache();
+  return cache;
+}
+
+// ==========================================
+// PRODUCTS CACHE GENERATOR (V8 OPTIMIZED)
+// ==========================================
+function generateProductsCache() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Product_Cache");
+  let liveData = [];
+  
+  const lastCol = sheet ? sheet.getLastColumn() : 0;
+  if (sheet && sheet.getLastRow() >= 2 && lastCol >= 2) {
+      const headerBlock = sheet.getRange(1, 2, 3, lastCol - 1).getValues();
+      let headers = headerBlock[0];
+      for (let i = 0; i < 3; i++) { if (headerBlock[i].join('').toLowerCase().includes('qty')) { headers = headerBlock[i]; break; } }
+
+      const segmentMap = {};
+      headers.forEach((h, idx) => {
+         let headerStr = String(h).toLowerCase();
+         if (headerStr.includes('qty') && headerStr.includes('[')) {
+            let segName = headerStr.replace(/\[.*?qty.*?\]/i, '').replace(/\]|\[/g, '').trim();
+            if (segName) { if (!segmentMap[segName]) segmentMap[segName] = {}; segmentMap[segName].qtyIdx = idx; }
+         } else if (headerStr.includes('rev') && headerStr.includes('[')) {
+            let segName = headerStr.replace(/\[.*?rev.*?\]/i, '').replace(/\]|\[/g, '').trim();
+            if (segName) { if (!segmentMap[segName]) segmentMap[segName] = {}; segmentMap[segName].revIdx = idx; }
+         }
+      });
+
+      const startRow = 11839;
+      if (sheet.getLastRow() >= startRow) {
+        const numRows = sheet.getLastRow() - startRow + 1;
+        const rawData = sheet.getRange(startRow, 2, numRows, lastCol - 1).getValues();
+        const currentYear = new Date().getFullYear();
+        
+        for (let i = 0; i < rawData.length; i++) {
+          const row = rawData[i];
+          let rowYear = Number(row[4]);
+          
+          if (rowYear >= currentYear && row[1]) {
+            let rawDate = row[0];
+            let dateStr = "";
+            // V8 OPTIMIZATION
+            if (rawDate instanceof Date) {
+              dateStr = rawDate.getFullYear() + "-" + String(rawDate.getMonth() + 1).padStart(2, '0') + "-" + String(rawDate.getDate()).padStart(2, '0');
+            } else if (rawDate) {
+              dateStr = String(rawDate).substring(0, 10);
+            }
+            
+            let rowSegments = {};
+            Object.keys(segmentMap).forEach(segName => {
+               rowSegments[segName] = { qty: Number(row[segmentMap[segName].qtyIdx]) || 0, rev: Number(row[segmentMap[segName].revIdx]) || 0 };
+            });
+
+            liveData.push({
+              date: dateStr, item: String(row[1]), qty: Number(row[2]) || 0, rev: Number(row[3]) || 0,
+              year: String(rowYear), month: String(row[5]), line: String(row[6]), category: String(row[7]), segments: rowSegments
+            });
+          }
+        }
+      }
+  }
+
+  let archiveArray = [];
+  const fileId = PropertiesService.getScriptProperties().getProperty('ARCHIVE_FILE_ID');
+  if (fileId) {
+     try {
+       const file = DriveApp.getFileById(fileId);
+       archiveArray = JSON.parse(file.getBlob().getDataAsString());
+     } catch(e) {}
+  }
+
+  let combinedData = archiveArray.concat(liveData);
+  writeCacheFile("Tawoos_Cache_Products.json", combinedData);
+  return { lastUpdated: new Date().getTime(), data: combinedData };
+}
+
+// ==========================================
+// COSTING CACHE GENERATOR
+// ==========================================
+function getCostingDataFromCache() {
+  let cache = readCacheFile("Tawoos_Cache_Costing.json");
+  if (!cache) return generateCostingCache();
+  return cache;
+}
+
+// ==========================================
+// COSTING CACHE GENERATOR (V8 OPTIMIZED)
+// ==========================================
+function generateCostingCache() {
+  try {
+      syncCostLedger();
+      
+      const ss = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo");
+      const sheet = ss.getSheetByName("Items costs");
+      if (!sheet || sheet.getLastRow() < 2) return { lastUpdated: new Date().getTime(), data: [] };
+
+      const rawData = sheet.getRange(2, 1, sheet.getLastRow() - 1, 12).getValues();
+      let output = [];
+
+      for (let i = 0; i < rawData.length; i++) {
+        const row = rawData[i];
+        let rawDate = row[0];
+        if (!rawDate) continue;
+        
+        let dateStr = "";
+        // V8 OPTIMIZATION
+        if (rawDate instanceof Date) {
+          dateStr = rawDate.getFullYear() + "-" + String(rawDate.getMonth() + 1).padStart(2, '0') + "-" + String(rawDate.getDate()).padStart(2, '0');
+        } else {
+          dateStr = String(rawDate).substring(0, 10);
+        }
+        
+        let parsedBomActual = {}, parsedBomMarket = {}, parsedBomMeta = {};
+        // FAST-FAIL: Only attempt to parse JSON if the string actually exists
+        if (row[6]) try { parsedBomActual = JSON.parse(String(row[6])); } catch(e) {}
+        if (row[10]) try { parsedBomMarket = JSON.parse(String(row[10])); } catch(e) {}
+        if (row[11]) try { parsedBomMeta = JSON.parse(String(row[11])); } catch(e) {}
+        
+        output.push({
+          date: dateStr, product: String(row[1]).trim(), qty: Number(row[3]) || 0,
+          unitActual: Number(row[4]) || 0, totalActual: Number(row[5]) || 0, bomActual: parsedBomActual,
+          planId: String(row[7]), unitMarket: Number(row[8]) || 0, totalMarket: Number(row[9]) || 0, 
+          bomMarket: parsedBomMarket, bomMeta: parsedBomMeta
+        });
+      }
+      
+      output.sort((a, b) => new Date(b.date) - new Date(a.date));
+      writeCacheFile("Tawoos_Cache_Costing.json", output);
+      return { lastUpdated: new Date().getTime(), data: output };
+  } catch(e) {
+      return { error: e.message };
+  }
 }
