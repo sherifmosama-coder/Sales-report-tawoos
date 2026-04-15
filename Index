@@ -606,6 +606,13 @@
               <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-4 border shadow-sm flex-wrap justify-content-center">
                  <div class="input-group input-group-sm border-end pe-2" style="width: auto;">
                     <span class="input-group-text bg-transparent border-0 text-muted"><i class="far fa-calendar-alt"></i></span>
+                    <button id="btn-sync-products" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3 me-2" onclick="forceSyncProductsDashboard()" title="Sync recent data">
+                        <i class="fas fa-sync-alt text-success me-2" id="icon-sync-products"></i>
+                        <div class="text-start" style="line-height: 1.1;">
+                          <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Products</div>
+                          <div class="text-muted" id="product-last-sync" style="font-size: 0.6rem;">Checking...</div>
+                        </div>
+                    </button>
                     <input type="date" id="report-date" class="form-control border-0 fw-bold text-secondary" style="width: 125px;" onchange="renderProductDashboard()">
                  </div>
                  
@@ -745,9 +752,13 @@
                       <span id="volatility-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none shadow-sm" style="font-size: 0.65rem;">0</span>
                    </button>
 
-                   <button id="manual-sync-btn" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold shadow-sm" onclick="triggerManualCostSync()" style="font-size: 0.75rem;" title="Force Cost Engine Sync">
-                      <i class="fas fa-sync-alt me-1"></i>Re-Sync Costs
-                   </button>
+                   <button id="btn-sync-costing" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3 me-2" onclick="forceSyncCostingDashboard()" title="Sync recent data">
+                  <i class="fas fa-sync-alt text-warning me-2" id="icon-sync-costing"></i>
+                  <div class="text-start" style="line-height: 1.1;">
+                     <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Costing</div>
+                     <div class="text-muted" id="costing-last-sync" style="font-size: 0.6rem;">Checking...</div>
+                  </div>
+               </button>
                 </div>
              </div>
           </div>
@@ -1493,17 +1504,54 @@
     }
 
     function loadSource(mode) {
+      appState.mode = mode;
+
+      // ==========================================
+      // 1. IN-MEMORY CACHE (INSTANT VIEW SWITCHING)
+      // ==========================================
+      let hasData = false;
+      if (mode === 'client' && appState.rawData && appState.rawData.length > 0) hasData = true;
+      if (mode === 'product' && appState.productData && appState.productData.length > 0) hasData = true;
+      if (mode === 'costing' && appState.costingData && appState.costingData.length > 0 && appState.productData && appState.productData.length > 0) hasData = true;
+
+      if (hasData) {
+          document.getElementById('landing-screen').style.display = 'none';
+          document.getElementById('smart-loader').style.display = 'none';
+          document.getElementById('main-dashboard').style.display = 'none'; 
+          document.getElementById('floating-navigator').style.display = 'flex';
+          
+          document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
+          document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
+          document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
+          
+          if (mode === 'product') {
+             if (!document.getElementById('report-date').value) document.getElementById('report-date').valueAsDate = new Date();
+             
+             // BUG FIX: Restore pristine data just in case the Costing engine mutated the master array!
+             if (appState.pristineProductData) {
+                 appState.productData = JSON.parse(JSON.stringify(appState.pristineProductData));
+             }
+             initProductView();
+          } else if (mode === 'costing') {
+             initCostingView();
+          } else {
+             initClientView();
+          }
+          return; // Instantly bypass the server fetch
+      }
+
+      // ==========================================
+      // 2. FETCH FROM SERVER (FIRST LOAD ONLY)
+      // ==========================================
       document.getElementById('landing-screen').style.display = 'none';
       document.getElementById('main-dashboard').style.display = 'none';
       document.getElementById('floating-navigator').style.display = 'none';
-      appState.mode = mode;
 
       const loader = document.getElementById('smart-loader');
       const icon = document.getElementById('loader-icon');
       const title = document.getElementById('loader-title');
       const insightEl = document.getElementById('loader-insight');
       
-      // 1. UI Loading Screen Setup
       let insights = [];
       if (mode === 'client') {
          icon.className = 'fas fa-users-viewfinder text-primary';
@@ -1547,16 +1595,13 @@
          }, 400); 
       }, 2500);
 
-      // --- 2. CRITICAL ROUTING LOGIC ---
       let backendFn = 'getDashboardDataFromCache'; 
       if (mode === 'product') backendFn = 'getProductDataFromCache';
       if (mode === 'costing') backendFn = 'getCostingDataFromCache';
 
-      // 3. Fetch from Cache
       google.script.run
         .withSuccessHandler(response => {
           
-          // HELPER: Executes the final UI transition after data is ready
           const finishLoad = (modeToInit) => {
              clearInterval(loaderInterval); 
              clearInterval(progressInterval); 
@@ -1581,10 +1626,11 @@
 
           if (!response) { alert("System Alert: Unable to retrieve dataset."); return; }
 
-          // --- RESPONSE HANDLING ---
           if (mode === 'product') {
              if (!response.data) { alert("System Alert: Product Dataset error."); return; }
-             appState.productData = response.data; // Store in productData
+             
+             appState.productData = response.data; 
+             appState.pristineProductData = JSON.parse(JSON.stringify(response.data)); // Create pristine backup
              
              let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
              let syncText = document.getElementById('product-last-sync');
@@ -1594,39 +1640,41 @@
 
           } else if (mode === 'client') {
              if (!response.data) { alert("System Alert: Dataset error."); return; }
-             
-             appState.rawData = response.data; // Store in rawData for Main Dashboard
+             appState.rawData = response.data; 
              
              let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
              let syncText = document.getElementById('main-last-sync');
              if(syncText) syncText.innerText = "Updated " + syncTime;
 
              finishLoad('client');
-             
-             if (typeof runCadenceScanner === 'function') {
-                setTimeout(runCadenceScanner, 500);
-             }
+             if (typeof runCadenceScanner === 'function') setTimeout(runCadenceScanner, 500);
              
           } else if (mode === 'costing') {
              if (response.error) { alert("Cost Engine Error: " + response.error); return; }
              if (!response.data) { alert("System Alert: Costing Dataset error."); return; }
-             appState.costingData = response.data; // Store in costingData
+             appState.costingData = response.data; 
              
              let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
              let syncText = document.getElementById('costing-last-sync');
              if(syncText) syncText.innerText = "Updated " + syncTime;
 
-             // CROSS-REFERENCE CHECK: Ensure Product Data is loaded for ASP math
+             // Check if Product Data needs to be loaded for ASP math
              if (!appState.productData || appState.productData.length === 0) {
                  document.getElementById('loader-insight').innerText = "Cross-referencing sales ledger...";
                  google.script.run.withSuccessHandler(prodRes => {
                      if (prodRes && prodRes.data) {
                          appState.productData = prodRes.data;
+                         appState.pristineProductData = JSON.parse(JSON.stringify(prodRes.data)); // Create pristine backup
+                         
+                         // Pre-fill the product sync UI just in case!
+                         let prodTime = new Date(prodRes.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+                         let pText = document.getElementById('product-last-sync');
+                         if(pText) pText.innerText = "Updated " + prodTime;
                      } else {
                          appState.productData = [];
                      }
                      finishLoad('costing');
-                 }).getProductDataFromCache(); // Call the cache function safely!
+                 }).getProductDataFromCache();
              } else {
                  finishLoad('costing');
              }
