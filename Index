@@ -853,6 +853,14 @@
 
          <div class="col-md-6 order-2 d-flex flex-wrap justify-content-center justify-content-md-end align-items-center gap-3">
             
+            <button id="btn-sync-main" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3" onclick="forceSyncMainDashboard()" title="Force real-time update from Sheets">
+               <i class="fas fa-sync-alt text-primary me-2" id="icon-sync-main"></i>
+               <div class="text-start" style="line-height: 1.1;">
+                  <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Dashboard</div>
+                  <div class="text-muted" id="main-last-sync" style="font-size: 0.6rem;">Checking...</div>
+               </div>
+            </button>
+
             <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm position-relative" onclick="openCadenceModal()">
                <i class="fas fa-exclamation-triangle me-1"></i>Late Orders
                <span id="cadence-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none shadow-sm" style="font-size: 0.65rem;">0</span>
@@ -1268,6 +1276,15 @@
                </div>
                
                <div class="d-flex align-items-center gap-3">
+                  
+                  <button id="btn-sync-cadence" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3" onclick="forceSyncCadence()" title="Force real-time update from Sheets">
+                     <i class="fas fa-sync-alt text-primary me-2" id="icon-sync-cadence"></i>
+                     <div class="text-start" style="line-height: 1.1;">
+                        <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Data</div>
+                        <div class="text-muted" id="cadence-last-sync" style="font-size: 0.6rem;">Checking...</div>
+                     </div>
+                  </button>
+
                   <div class="dropdown">
                      <button class="btn btn-sm btn-outline-primary fw-bold rounded-pill dropdown-toggle shadow-sm" type="button" id="exportCadenceBtn" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="fas fa-file-export me-1"></i>Export
@@ -1486,6 +1503,7 @@
       const title = document.getElementById('loader-title');
       const insightEl = document.getElementById('loader-insight');
       
+      // 1. UI Loading Screen Setup
       let insights = [];
       if (mode === 'client') {
          icon.className = 'fas fa-users-viewfinder text-primary';
@@ -1493,15 +1511,15 @@
          title.innerText = "Clients' Sales across Years";
          insights = ["Mapping client Orders...", "Analyzing longitudinal order frequencies...", "Calculating risk of losing clients...", "Rendering client behavior segments..."];
       } else if (mode === 'product') {
-         icon.className = 'fas fa-chart-line text-success';
+         icon.className = 'fas fa-boxes text-success';
          document.getElementById('loader-icon-box').style.color = '#10b981';
-         title.innerText = "SKUs Analytics across Years";
-         insights = ["Aggregating SKU-level transaction volumes...", "Reconciling historical comparison periods...", "Projecting dynamic baseline targets...", "Compiling periodic trend horizons..."];
+         title.innerText = "Product Trends & Trajectories";
+         insights = ["Fetching historical product performance...", "Aligning SKU variants...", "Calculating category growth...", "Preparing seasonal trend charts..."];
       } else if (mode === 'costing') {
-         icon.className = 'fas fa-industry text-danger';
-         document.getElementById('loader-icon-box').style.color = '#ef4444';
-         title.innerText = "Production Costing Analysis";
-         insights = ["Syncing Two-Tier FIFO Engine...", "Resolving Bill of Materials...", "Calculating Actual vs Market Discrepancies...", "Rendering Unit Costs..."];
+         icon.className = 'fas fa-calculator text-warning';
+         document.getElementById('loader-icon-box').style.color = '#f59e0b';
+         title.innerText = "Live Cost Engine & Margins";
+         insights = ["Syncing Bill of Materials...", "Updating latest raw material costs...", "Calculating direct labor overheads...", "Evaluating target margins..."];
       }
 
       loader.style.display = 'flex';
@@ -1529,11 +1547,12 @@
          }, 400); 
       }, 2500);
 
-      // --- CRITICAL ROUTING LOGIC ---
-      let backendFn = 'getDashboardData';
-      if (mode === 'product') backendFn = 'getProductData';
-      if (mode === 'costing') backendFn = 'getCostingData';
+      // --- 2. CRITICAL ROUTING LOGIC ---
+      let backendFn = 'getDashboardDataFromCache'; 
+      if (mode === 'product') backendFn = 'getProductDataFromCache';
+      if (mode === 'costing') backendFn = 'getCostingDataFromCache';
 
+      // 3. Fetch from Cache
       google.script.run
         .withSuccessHandler(response => {
           
@@ -1562,30 +1581,52 @@
 
           if (!response) { alert("System Alert: Unable to retrieve dataset."); return; }
 
+          // --- RESPONSE HANDLING ---
           if (mode === 'product') {
-             try {
-                const archive = JSON.parse(response.archiveString || "[]");
-                appState.productData = archive.concat(response.liveData || []);
-             } catch(e) { appState.productData = response.liveData || []; }
+             if (!response.data) { alert("System Alert: Product Dataset error."); return; }
+             appState.productData = response.data; // Store in productData
+             
+             let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+             let syncText = document.getElementById('product-last-sync');
+             if(syncText) syncText.innerText = "Updated " + syncTime;
+
              finishLoad('product');
+
           } else if (mode === 'client') {
-             if (!Array.isArray(response)) { alert("System Alert: Dataset error."); return; }
-             appState.rawData = response;
+             if (!response.data) { alert("System Alert: Dataset error."); return; }
+             
+             appState.rawData = response.data; // Store in rawData for Main Dashboard
+             
+             let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+             let syncText = document.getElementById('main-last-sync');
+             if(syncText) syncText.innerText = "Updated " + syncTime;
+
              finishLoad('client');
+             
+             if (typeof runCadenceScanner === 'function') {
+                setTimeout(runCadenceScanner, 500);
+             }
+             
           } else if (mode === 'costing') {
              if (response.error) { alert("Cost Engine Error: " + response.error); return; }
-             appState.costingData = response;
+             if (!response.data) { alert("System Alert: Costing Dataset error."); return; }
+             appState.costingData = response.data; // Store in costingData
              
+             let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+             let syncText = document.getElementById('costing-last-sync');
+             if(syncText) syncText.innerText = "Updated " + syncTime;
+
              // CROSS-REFERENCE CHECK: Ensure Product Data is loaded for ASP math
              if (!appState.productData || appState.productData.length === 0) {
                  document.getElementById('loader-insight').innerText = "Cross-referencing sales ledger...";
                  google.script.run.withSuccessHandler(prodRes => {
-                     try {
-                        const archive = JSON.parse(prodRes.archiveString || "[]");
-                        appState.productData = archive.concat(prodRes.liveData || []);
-                     } catch(e) { appState.productData = prodRes.liveData || []; }
+                     if (prodRes && prodRes.data) {
+                         appState.productData = prodRes.data;
+                     } else {
+                         appState.productData = [];
+                     }
                      finishLoad('costing');
-                 }).getProductData();
+                 }).getProductDataFromCache(); // Call the cache function safely!
              } else {
                  finishLoad('costing');
              }
@@ -3965,26 +4006,55 @@
         return alerts;
     }
 
+// TIER 1: INSTANT CACHE FETCH
     function runCadenceScanner() {
         if (appState.rawCadenceData.length > 0) return;
+        
         let badge = document.getElementById('cadence-badge');
-        if(badge) { 
-            badge.classList.remove('d-none'); 
-            // FIX: Show spinning FontAwesome icon while loading
-            badge.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`; 
-            badge.classList.replace('bg-danger', 'bg-warning'); 
-        }
+        if(badge) { badge.classList.remove('d-none'); badge.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`; badge.classList.replace('bg-danger', 'bg-warning'); }
 
         google.script.run.withSuccessHandler(res => {
-            appState.rawCadenceData = res;
-            appState.cadenceAlerts = processClientCadence(res);
-            appState.cadDataLevel = '12m';
+            appState.rawCadenceData = res.data; // Note: data is now nested inside res.data
+            appState.cadenceAlerts = processClientCadence(res.data);
             
-            appState.cadenceAvailableSegments = [...new Set(res.map(d => d.segment || 'Uncategorized'))].sort();
-            appState.cadenceAvailableRegions = [...new Set(res.map(d => d.region || 'Unspecified'))].sort();
+            // Update the Sync UI
+            let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('cadence-last-sync').innerText = "Updated " + syncTime;
+            
+            appState.cadenceAvailableSegments = [...new Set(res.data.map(d => d.segment || 'Uncategorized'))].sort();
+            appState.cadenceAvailableRegions = [...new Set(res.data.map(d => d.region || 'Unspecified'))].sort();
             
             updateCadenceBadge();
-        }).getClientCadenceData(12);
+        }).getCadenceDataFromCache(); // Call the new Cache Reader
+    }
+
+    // TIER 2: MANUAL FORCE SYNC
+    window.forceSyncCadence = function() {
+        let icon = document.getElementById('icon-sync-cadence');
+        let text = document.getElementById('cadence-last-sync');
+        icon.classList.add('fa-spin');
+        text.innerText = "Syncing with Sheets...";
+        
+        google.script.run.withSuccessHandler(res => {
+            icon.classList.remove('fa-spin');
+            let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+            text.innerText = "Updated " + syncTime;
+            
+            appState.rawCadenceData = res.data;
+            appState.cadenceAlerts = processClientCadence(res.data);
+            appState.cadenceAvailableSegments = [...new Set(res.data.map(d => d.segment || 'Uncategorized'))].sort();
+            appState.cadenceAvailableRegions = [...new Set(res.data.map(d => d.region || 'Unspecified'))].sort();
+            
+            populateCadenceDropdowns();
+            renderCadenceSegmentChips();
+            renderCadenceTable();
+            updateCadenceBadge();
+        }).generateCadenceCache(); // Force the heavy generator
+    };
+
+    // Because the Cache holds ALL years instantly, we no longer need backend calls here!
+    function handleCadencePeriodChange() {
+        renderCadenceTable(); 
     }
 
     function updateCadenceBadge() {
@@ -4001,27 +4071,6 @@
         }
     }
 
-    function handleCadencePeriodChange() {
-        let period = document.getElementById('cad-filter-period').value;
-        if (period === 'all' && appState.cadDataLevel !== 'all') {
-            document.getElementById('cadence-table-body').innerHTML = `<tr><td colspan="5" class="text-center p-5 text-primary"><i class="fas fa-spinner fa-spin fs-3 mb-2 d-block"></i>Fetching deep historical data...</td></tr>`;
-            
-            google.script.run.withSuccessHandler(res => {
-                appState.rawCadenceData = res;
-                appState.cadenceAlerts = processClientCadence(res);
-                appState.cadDataLevel = 'all';
-                
-                appState.cadenceAvailableSegments = [...new Set(res.map(d => d.segment || 'Uncategorized'))].sort();
-                appState.cadenceAvailableRegions = [...new Set(res.map(d => d.region || 'Unspecified'))].sort();
-                
-                populateCadenceDropdowns();
-                renderCadenceSegmentChips();
-                renderCadenceTable();
-            }).getClientCadenceData(0);
-        } else {
-            renderCadenceTable();
-        }
-    }
 
     // --- FILTER & RENDER LOGIC ---
     function populateCadenceDropdowns() {
@@ -4383,6 +4432,63 @@
             btn.disabled = false;
             alert("Export failed: " + err.message);
         }).generateCadenceExportUrl(JSON.stringify(appState.currentFilteredCadence), format);
+    };
+
+    // ==========================================
+    // MANUAL SYNC: MAIN DASHBOARD
+    // ==========================================
+    window.forceSyncMainDashboard = function() {
+        let icon = document.getElementById('icon-sync-main');
+        let text = document.getElementById('main-last-sync');
+        icon.classList.add('fa-spin');
+        text.innerText = "Syncing with Sheets...";
+        
+        google.script.run.withSuccessHandler(res => {
+            icon.classList.remove('fa-spin');
+            let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+            text.innerText = "Updated " + syncTime;
+            
+            appState.rawDashboardData = res.data;
+            processDashboardData(); // Re-render charts
+        }).generateDashboardCache();
+    };
+
+    // ==========================================
+    // MANUAL SYNC: PRODUCTS DASHBOARD
+    // ==========================================
+    window.forceSyncProductsDashboard = function() {
+        let icon = document.getElementById('icon-sync-products');
+        let text = document.getElementById('product-last-sync');
+        if(icon) icon.classList.add('fa-spin');
+        if(text) text.innerText = "Syncing with Sheets...";
+        
+        google.script.run.withSuccessHandler(res => {
+            if(icon) icon.classList.remove('fa-spin');
+            let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+            if(text) text.innerText = "Updated " + syncTime;
+            
+            appState.rawData = res.data;
+            renderProducts(); // Re-render charts and tables (Update this to match your actual render function)
+        }).generateProductsCache();
+    };
+
+    // ==========================================
+    // MANUAL SYNC: COSTING DASHBOARD
+    // ==========================================
+    window.forceSyncCostingDashboard = function() {
+        let icon = document.getElementById('icon-sync-costing');
+        let text = document.getElementById('costing-last-sync');
+        if(icon) icon.classList.add('fa-spin');
+        if(text) text.innerText = "Syncing Cost Engine...";
+        
+        google.script.run.withSuccessHandler(res => {
+            if(icon) icon.classList.remove('fa-spin');
+            let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+            if(text) text.innerText = "Updated " + syncTime;
+            
+            appState.rawData = res.data;
+            renderCosting(); // Re-render charts and tables (Update this to match your actual render function)
+        }).generateCostingCache();
     };
   </script>
 </body>
