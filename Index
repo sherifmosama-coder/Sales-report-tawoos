@@ -1,21 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Sales Analytics Portal</title>
-  
+
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  
+
   <style>
-    :root { --bg: #f8fafc; --text-dark: #1e293b; }
-    body { background-color: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text-dark); padding-bottom: 80px;}
+    :root {
+      --bg: #f8fafc;
+      --text-dark: #1e293b;
+    }
+
+    body {
+      background-color: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-dark);
+      padding-bottom: 80px;
+    }
 
     /* --- TOGGLES --- */
-    .toggle-container { display: flex; overflow-x: auto; gap: 10px; padding: 5px 2px; -ms-overflow-style: none; scrollbar-width: none; }
-    .toggle-container::-webkit-scrollbar { display: none; } 
+    .toggle-container {
+      display: flex;
+      overflow-x: auto;
+      gap: 10px;
+      padding: 5px 2px;
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .toggle-container::-webkit-scrollbar {
+      display: none;
+    }
 
     .smart-toggle {
       flex: 0 0 auto;
@@ -29,464 +49,810 @@
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       text-align: center;
     }
+
     .smart-toggle:hover {
       background: white;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
       transform: translateY(-2px);
     }
-    .smart-toggle:active { transform: scale(0.97); }
-    .smart-toggle.active { background-color: var(--theme-color, #2563eb); color: white; border-color: var(--theme-color); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-    .smart-toggle .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; margin-bottom: 4px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
-    .smart-toggle .value { font-size: 1.1rem; font-weight: 700; display: block;}
-    .smart-toggle.active .label { opacity: 0.9; color: rgba(255,255,255,0.8); }
+
+    .smart-toggle:active {
+      transform: scale(0.97);
+    }
+
+    .smart-toggle.active {
+      background-color: var(--theme-color, #2563eb);
+      color: white;
+      border-color: var(--theme-color);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .smart-toggle .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.7;
+      margin-bottom: 4px;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .smart-toggle .value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: block;
+    }
+
+    .smart-toggle.active .label {
+      opacity: 0.9;
+      color: rgba(255, 255, 255, 0.8);
+    }
 
     /* --- CHART --- */
-    .chart-card { background: white; border-radius: 16px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 20px; height: 300px; position: relative; }
+    .chart-card {
+      background: white;
+      border-radius: 16px;
+      padding: 15px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+      margin-bottom: 20px;
+      height: 300px;
+      position: relative;
+    }
 
     /* --- MODERN DASHBOARD --- */
     .control-deck {
-       background: rgba(255, 255, 255, 0.9);
-       backdrop-filter: blur(12px);
-       border: 1px solid rgba(226, 232, 240, 0.8);
-       border-radius: 20px;
-       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-       padding: 20px;
-       margin-bottom: 25px;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      border-radius: 20px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+      padding: 20px;
+      margin-bottom: 25px;
     }
 
     .segmented-control {
-       background: #f1f5f9;
-       padding: 4px;
-       border-radius: 10px;
-       display: inline-flex;
-       gap: 2px;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 10px;
+      display: inline-flex;
+      gap: 2px;
     }
-    .segmented-control .btn-check + label {
-       border: none;
-       background: transparent;
-       color: #64748b;
-       font-size: 0.85rem;
-       font-weight: 600;
-       border-radius: 8px;
-       padding: 6px 16px;
-       transition: all 0.2s ease;
+
+    .segmented-control .btn-check+label {
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 6px 16px;
+      transition: all 0.2s ease;
     }
-    .segmented-control .btn-check:checked + label {
-       background: white;
-       color: #0f172a;
-       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+
+    .segmented-control .btn-check:checked+label {
+      background: white;
+      color: #0f172a;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
     .filter-chip {
-       background: white;
-       border: 1px solid #e2e8f0;
-       border-radius: 50rem;
-       padding: 6px 14px;
-       font-size: 0.8rem;
-       font-weight: 600;
-       color: #64748b;
-       cursor: pointer;
-       transition: all 0.2s;
-       white-space: nowrap;
-       display: inline-flex;
-       align-items: center;
-       gap: 6px;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 50rem;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
-    .filter-chip:hover { background: #f8fafc; }
+
+    .filter-chip:hover {
+      background: #f8fafc;
+    }
+
     .filter-chip.active {
-       background: #ecfdf5;
-       color: #059669;
-       border-color: #10b981;
-       box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.15);
+      background: #ecfdf5;
+      color: #059669;
+      border-color: #10b981;
+      box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.15);
     }
 
     .kpi-modern {
-       background: white;
-       border-radius: 18px;
-       padding: 20px;
-       height: 100%;
-       position: relative;
-       overflow: hidden;
-       border: 1px solid #f1f5f9;
-       transition: transform 0.2s;
-       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+      background: white;
+      border-radius: 18px;
+      padding: 20px;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #f1f5f9;
+      transition: transform 0.2s;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
     }
-    .kpi-modern:hover { transform: translateY(-3px); box-shadow: 0 12px 20px -5px rgba(0,0,0,0.08); }
+
+    .kpi-modern:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.08);
+    }
+
     .kpi-icon-bg {
-       position: absolute;
-       right: -10px;
-       bottom: -10px;
-       font-size: 5rem;
-       opacity: 0.05;
-       transform: rotate(-15deg);
+      position: absolute;
+      right: -10px;
+      bottom: -10px;
+      font-size: 5rem;
+      opacity: 0.05;
+      transform: rotate(-15deg);
     }
 
     .prod-list-item {
-       background: white;
-       border-radius: 12px;
-       padding: 12px 16px;
-       border: 1px solid #f1f5f9;
-       transition: all 0.2s;
-       display: flex;
-       align-items: center;
-       justify-content: space-between;
+      background: white;
+      border-radius: 12px;
+      padding: 12px 16px;
+      border: 1px solid #f1f5f9;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
+
     .prod-list-item:hover {
-       border-color: #cbd5e1;
-       background: #f8fafc;
+      border-color: #cbd5e1;
+      background: #f8fafc;
     }
+
     .rank-badge {
-       width: 24px; height: 24px;
-       background: #f1f5f9; color: #64748b;
-       border-radius: 50%;
-       display: flex; align-items: center; justify-content: center;
-       font-size: 0.7rem; font-weight: bold;
-       margin-right: 10px;
+      width: 24px;
+      height: 24px;
+      background: #f1f5f9;
+      color: #64748b;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+      margin-right: 10px;
     }
 
     /* --- LIST & CARDS --- */
-    .client-card { 
-       background: white; 
-       border-radius: 12px;
-       padding: 14px 18px; 
-       margin-bottom: 8px; 
-       border: 1px solid #e2e8f0; 
-       display: flex; 
-       align-items: center; 
-       justify-content: space-between; 
-       border-left: 4px solid transparent;
-       transition: all 0.2s ease; 
-       cursor: pointer;
+    .client-card {
+      background: white;
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 8px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-left: 4px solid transparent;
+      transition: all 0.2s ease;
+      cursor: pointer;
     }
-    .client-card:hover { 
-       transform: translateY(-2px) translateX(2px);
-       box-shadow: 0 8px 15px -3px rgba(0,0,0,0.08);
-       border-color: #cbd5e1;
+
+    .client-card:hover {
+      transform: translateY(-2px) translateX(2px);
+      box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.08);
+      border-color: #cbd5e1;
     }
-    .client-card:active { transform: scale(0.99); }
-    
-    .client-name { font-weight: 600; color: var(--text-dark); margin-bottom: 4px; font-size: 0.95rem; }
-    .client-meta { font-size: 0.75rem; color: #64748b; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-    .client-val { font-weight: 700; font-size: 1rem; color: #334155; text-align: right; }
-    
-    .trend-up { color: #10b981; font-size: 0.75rem; font-weight: 600; }
-    .trend-down { color: #ef4444; font-size: 0.75rem; font-weight: 600; }
-    .type-badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; color: white; background-color: var(--badge-color, #94a3b8); display: inline-block; }
-    
-    .date-span { direction: rtl; unicode-bidi: embed; color: #94a3b8; font-size: 0.7rem; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; }
+
+    .client-card:active {
+      transform: scale(0.99);
+    }
+
+    .client-name {
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 4px;
+      font-size: 0.95rem;
+    }
+
+    .client-meta {
+      font-size: 0.75rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .client-val {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #334155;
+      text-align: right;
+    }
+
+    .trend-up {
+      color: #10b981;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .trend-down {
+      color: #ef4444;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .type-badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: white;
+      background-color: var(--badge-color, #94a3b8);
+      display: inline-block;
+    }
+
+    .date-span {
+      direction: rtl;
+      unicode-bidi: embed;
+      color: #94a3b8;
+      font-size: 0.7rem;
+      background: #f1f5f9;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
 
     /* --- GROUP HEADER --- */
-    .group-header { 
-       background: #f8fafc;
-       color: #334155; 
-       padding: 10px 16px; 
-       border-radius: 10px; 
-       font-weight: 800; 
-       font-size: 0.9rem; 
-       margin-top: 20px; 
-       margin-bottom: 12px; 
-       display: flex; 
-       justify-content: space-between;
-       align-items: center; 
-       border: 1px solid #e2e8f0;
-       box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    .group-header {
+      background: #f8fafc;
+      color: #334155;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 0.9rem;
+      margin-top: 20px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     }
 
     /* --- CONTROLS --- */
-    .control-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
-    .form-select-xs { font-size: 0.8rem; padding: 0.25rem 2rem 0.25rem 0.5rem; background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 600; color: #475569; }
+    .control-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
 
-/* --- MODE SWITCHER --- */
-    .mode-switcher { background: white; padding: 4px; border-radius: 50rem; border: 1px solid #e2e8f0; display: inline-flex; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
-    .mode-btn { border: none; border-radius: 50rem; padding: 8px 24px; font-weight: 700; color: #64748b; display: flex; align-items: center; gap: 8px; transition: all 0.2s ease; font-size: 0.9rem; }
-    .mode-btn:hover { background-color: #f8fafc; color: #475569; }
-    
+    .form-select-xs {
+      font-size: 0.8rem;
+      padding: 0.25rem 2rem 0.25rem 0.5rem;
+      background-color: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    /* --- MODE SWITCHER --- */
+    .mode-switcher {
+      background: white;
+      padding: 4px;
+      border-radius: 50rem;
+      border: 1px solid #e2e8f0;
+      display: inline-flex;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+
+    .mode-btn {
+      border: none;
+      border-radius: 50rem;
+      padding: 8px 24px;
+      font-weight: 700;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+    }
+
+    .mode-btn:hover {
+      background-color: #f8fafc;
+      color: #475569;
+    }
+
     /* Active States */
-    #vmode1:checked + label { background-color: #eff6ff; color: #2563eb; box-shadow: 0 2px 4px rgba(37,99,235,0.1); }
-    #vmode2:checked + label { background-color: #f0fdf4; color: #16a34a; box-shadow: 0 2px 4px rgba(22,163,74,0.1); }
+    #vmode1:checked+label {
+      background-color: #eff6ff;
+      color: #2563eb;
+      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+    }
 
-    .section-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; margin-top: 20px; letter-spacing: 1px;}
-    .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-  /* --- PORTAL LANDING SCREEN --- */
-      #landing-screen {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background-color: #f4f6f9; /* Professional Light Grey */
-        z-index: 2000;
-        overflow-y: auto;
-      }
-      
-      .portal-header {
-        background: white;
-        padding: 3rem 1rem;
-        border-bottom: 1px solid #e9ecef;
-        margin-bottom: 2rem;
-      }
-      
-      .report-card {
-        background: white;
-        border: 1px solid #e9ecef;
-        border-radius: 16px;
-        padding: 2.5rem 2rem;
-        height: 100%;
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        cursor: pointer;
-        position: relative;
-        overflow: hidden;
-      }
-      
-      .report-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.06);
-        border-color: #cfe2ff;
-      }
-      
-      /* Hover Line Effect */
-      .report-card::after {
-        content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px;
-        background: #0d6efd; transform: scaleX(0); transform-origin: left;
-        transition: transform 0.3s ease;
-      }
-      .report-card:hover::after { transform: scaleX(1); }
+    #vmode2:checked+label {
+      background-color: #f0fdf4;
+      color: #16a34a;
+      box-shadow: 0 2px 4px rgba(22, 163, 74, 0.1);
+    }
 
-      .card-icon-box {
-        width: 64px; height: 64px;
-        background: #eff6ff;
-        color: #2563eb;
-        border-radius: 12px;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 1.75rem;
-        margin-bottom: 1.5rem;
-      }
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      margin-top: 20px;
+      letter-spacing: 1px;
+    }
 
-      .system-note {
-        margin-top: 3rem;
-        padding: 1rem;
-        border-radius: 8px;
-        background: rgba(0,0,0,0.03);
-        font-size: 0.85rem;
-        color: #6c757d;
-        display: inline-flex;
-        align-items: center;
-      }
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
 
-      /* --- FLOATING NAVIGATOR --- */
+    /* --- PORTAL LANDING SCREEN --- */
+    #landing-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #f4f6f9;
+      /* Professional Light Grey */
+      z-index: 2000;
+      overflow-y: auto;
+    }
+
+    .portal-header {
+      background: white;
+      padding: 3rem 1rem;
+      border-bottom: 1px solid #e9ecef;
+      margin-bottom: 2rem;
+    }
+
+    .report-card {
+      background: white;
+      border: 1px solid #e9ecef;
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      height: 100%;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .report-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.06);
+      border-color: #cfe2ff;
+    }
+
+    /* Hover Line Effect */
+    .report-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: #0d6efd;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s ease;
+    }
+
+    .report-card:hover::after {
+      transform: scaleX(1);
+    }
+
+    .card-icon-box {
+      width: 64px;
+      height: 64px;
+      background: #eff6ff;
+      color: #2563eb;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .system-note {
+      margin-top: 3rem;
+      padding: 1rem;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.03);
+      font-size: 0.85rem;
+      color: #6c757d;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    /* --- FLOATING NAVIGATOR --- */
     .floating-nav {
-       position: fixed;
-       bottom: 25px;
-       left: 50%;
-       transform: translateX(-50%);
-       background: rgba(255, 255, 255, 0.85);
-       backdrop-filter: blur(12px);
-       border: 1px solid rgba(226, 232, 240, 0.8);
-       padding: 6px;
-       border-radius: 50rem;
-       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
-       display: flex;
-       gap: 4px;
-       z-index: 1050;
-       transition: all 0.3s ease;
+      position: fixed;
+      bottom: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      padding: 6px;
+      border-radius: 50rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+      display: flex;
+      gap: 4px;
+      z-index: 1050;
+      transition: all 0.3s ease;
     }
+
     .floating-nav .nav-btn {
-       border: none;
-       background: transparent;
-       padding: 8px 20px;
-       border-radius: 50rem;
-       font-weight: 700;
-       font-size: 0.85rem;
-       color: #64748b;
-       transition: all 0.2s;
+      border: none;
+      background: transparent;
+      padding: 8px 20px;
+      border-radius: 50rem;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #64748b;
+      transition: all 0.2s;
     }
-    .floating-nav .nav-btn:hover { color: #0f172a; }
+
+    .floating-nav .nav-btn:hover {
+      color: #0f172a;
+    }
+
     .floating-nav .nav-btn.active {
-       background: #0f172a;
-       color: white;
-       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      background: #0f172a;
+      color: white;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
 
     /* --- SMART ANIMATED LOADER --- */
     .smart-loader-overlay {
-       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-       background: rgba(248, 250, 252, 0.95);
-       backdrop-filter: blur(8px);
-       display: flex; flex-direction: column; align-items: center; justify-content: center;
-       z-index: 2000;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(248, 250, 252, 0.95);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
     }
+
     .loader-icon-container {
-       width: 80px;
-       height: 80px;
-       background: white;
-       border-radius: 20px;
-       display: flex; align-items: center; justify-content: center;
-       font-size: 2.5rem;
-       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-       margin-bottom: 20px;
-       position: relative;
-       animation: pulse-glow 2s infinite ease-in-out;
+      width: 80px;
+      height: 80px;
+      background: white;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+      margin-bottom: 20px;
+      position: relative;
+      animation: pulse-glow 2s infinite ease-in-out;
     }
+
     @keyframes pulse-glow {
-       0% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2); }
-       50% { transform: scale(1.05); box-shadow: 0 20px 35px -5px rgba(59, 130, 246, 0.4); }
-       100% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2); }
+      0% {
+        transform: scale(1);
+        box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2);
+      }
+
+      50% {
+        transform: scale(1.05);
+        box-shadow: 0 20px 35px -5px rgba(59, 130, 246, 0.4);
+      }
+
+      100% {
+        transform: scale(1);
+        box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.2);
+      }
     }
-    
+
     .insight-text-box {
-       height: 30px; overflow: hidden; position: relative; width: 300px; text-align: center;
+      height: 30px;
+      overflow: hidden;
+      position: relative;
+      width: 300px;
+      text-align: center;
     }
+
     .insight-text {
-       position: absolute; width: 100%; left: 0;
-       font-weight: 600; font-size: 0.9rem; color: #475569;
-       opacity: 0; transform: translateY(10px);
-       transition: all 0.4s ease;
+      position: absolute;
+      width: 100%;
+      left: 0;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #475569;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.4s ease;
     }
-    .insight-text.active { opacity: 1; transform: translateY(0); }
-    
+
+    .insight-text.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
     /* --- INTERACTIVE KPI CARDS --- */
     .kpi-clickable {
-       cursor: pointer;
-       transition: transform 0.2s ease, box-shadow 0.2s ease;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
+
     .kpi-clickable:hover {
-       transform: translateY(-4px);
-       box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.15) !important;
-       z-index: 10;
+      transform: translateY(-4px);
+      box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.15) !important;
+      z-index: 10;
     }
 
     /* --- OVERRIDE BOOTSTRAP MODAL Z-INDEX --- */
     /* Forces modals and their dark backgrounds to appear ABOVE the landing screen (z-index: 2000) */
-    .modal { z-index: 2050 !important; }
-    .modal-backdrop { z-index: 2040 !important; }
+    .modal {
+      z-index: 2050 !important;
+    }
+
+    .modal-backdrop {
+      z-index: 2040 !important;
+    }
 
     /* --- EXPANDING SYNC BUTTON --- */
     .btn-sync-archive {
-       display: inline-flex;
-       align-items: center;
-       background: #ffffff;
-       border: 1px solid #e2e8f0;
-       color: #64748b;
-       border-radius: 50rem;
-       height: 32px;
-       padding: 0 12px; /* Small padding for just the icon */
-       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-       font-size: 0.75rem;
-       font-weight: 700;
-       white-space: nowrap;
-       cursor: pointer;
-       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      display: inline-flex;
+      align-items: center;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      color: #64748b;
+      border-radius: 50rem;
+      height: 32px;
+      padding: 0 12px;
+      /* Small padding for just the icon */
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
+
     .btn-sync-archive i {
-       font-size: 0.85rem;
-       transition: color 0.3s ease;
+      font-size: 0.85rem;
+      transition: color 0.3s ease;
     }
+
     .btn-sync-archive .sync-text {
-       display: inline-block;
-       max-width: 0;
-       opacity: 0;
-       overflow: hidden;
-       margin-left: 0;
-       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-       vertical-align: middle;
+      display: inline-block;
+      max-width: 0;
+      opacity: 0;
+      overflow: hidden;
+      margin-left: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      vertical-align: middle;
     }
-    
+
     /* Hover Effects */
     .btn-sync-archive:hover {
-       background: #f8fafc;
-       border-color: #94a3b8;
-       color: #0f172a;
-       box-shadow: 0 4px 10px -2px rgba(0,0,0,0.1);
+      background: #f8fafc;
+      border-color: #94a3b8;
+      color: #0f172a;
+      box-shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.1);
     }
+
     .btn-sync-archive:hover i {
-       color: #3b82f6; /* Icon turns primary blue on hover */
+      color: #3b82f6;
+      /* Icon turns primary blue on hover */
     }
+
     .btn-sync-archive:hover .sync-text {
-       max-width: 100px; /* Expands to fit text */
-       opacity: 1;
-       margin-left: 6px;
+      max-width: 100px;
+      /* Expands to fit text */
+      opacity: 1;
+      margin-left: 6px;
     }
+
     .btn-sync-archive:active {
-       transform: scale(0.95);
+      transform: scale(0.95);
     }
 
     /* --- NEW: BOM TABLE STYLES --- */
-    .bom-table th { background: #f8fafc; color: #475569; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; }
-    .bom-table td { font-size: 0.85rem; vertical-align: middle; }
+    .bom-table th {
+      background: #f8fafc;
+      color: #475569;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .bom-table td {
+      font-size: 0.85rem;
+      vertical-align: middle;
+    }
 
     /* --- NEW: COSTING SMART CHIPS --- */
-    .category-chip { font-size: 0.85rem; padding: 10px 20px; border-radius: 12px; border: 2px solid #e2e8f0; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); background: white; white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-    .category-chip:hover { border-color: #cbd5e1; background: #f8fafc; transform: translateY(-1px); }
-    .category-chip.active { background: #eff6ff; color: #2563eb; border-color: #3b82f6; box-shadow: 0 4px 12px rgba(59,130,246,0.15); }
-    
-    .product-chip { font-size: 0.8rem; padding: 6px 14px; border-radius: 8px; border: 1px solid #e2e8f0; color: #64748b; cursor: pointer; transition: all 0.2s; background: white; font-weight: 600; }
-    .product-chip:hover { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
-    .product-chip.active { background: #10b981; color: white; border-color: #059669; box-shadow: 0 4px 8px rgba(16,185,129,0.2); }
-    
+    .category-chip {
+      font-size: 0.85rem;
+      padding: 10px 20px;
+      border-radius: 12px;
+      border: 2px solid #e2e8f0;
+      font-weight: 700;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      background: white;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .category-chip:hover {
+      border-color: #cbd5e1;
+      background: #f8fafc;
+      transform: translateY(-1px);
+    }
+
+    .category-chip.active {
+      background: #eff6ff;
+      color: #2563eb;
+      border-color: #3b82f6;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    }
+
+    .product-chip {
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: white;
+      font-weight: 600;
+    }
+
+    .product-chip:hover {
+      background: #f1f5f9;
+      color: #334155;
+      border-color: #cbd5e1;
+    }
+
+    .product-chip.active {
+      background: #10b981;
+      color: white;
+      border-color: #059669;
+      box-shadow: 0 4px 8px rgba(16, 185, 129, 0.2);
+    }
+
     /* --- NEW: INTERACTIVE BOM ROWS --- */
-    .bom-row-clickable { cursor: pointer; transition: background-color 0.2s ease; }
-    .bom-row-clickable:hover > td { background-color: #f1f5f9; }
+    .bom-row-clickable {
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .bom-row-clickable:hover>td {
+      background-color: #f1f5f9;
+    }
 
     /* --- NEW: CINEMATIC VOLATILITY ALERT ANIMATIONS --- */
     #flying-alert-card {
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: 380px; z-index: 10000; border-radius: 16px; opacity: 0; pointer-events: none;
-        transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.8s ease-in-out;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 380px;
+      z-index: 10000;
+      border-radius: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.8s ease-in-out;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
     }
-    
+
     @keyframes heartbeat {
-        0% { transform: scale(1); }
-        25% { transform: scale(1.2); }
-        50% { transform: scale(1); }
-        75% { transform: scale(1.2); }
-        100% { transform: scale(1); }
+      0% {
+        transform: scale(1);
+      }
+
+      25% {
+        transform: scale(1.2);
+      }
+
+      50% {
+        transform: scale(1);
+      }
+
+      75% {
+        transform: scale(1.2);
+      }
+
+      100% {
+        transform: scale(1);
+      }
     }
-    .badge-pulse { animation: heartbeat 1s ease-in-out; }
+
+    .badge-pulse {
+      animation: heartbeat 1s ease-in-out;
+    }
 
     /* --- PRODUCT SCORECARD STYLING --- */
     .product-card {
-        cursor: pointer;
-        transition: all 0.2s ease-in-out;
-        border: 1px solid #e2e8f0;
-        background: #fff;
-        min-width: 180px;
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      min-width: 180px;
     }
+
     .product-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        border-color: #cbd5e1;
+      transform: translateY(-3px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      border-color: #cbd5e1;
     }
+
     .product-card.active {
-        background: #f8fafc;
-        border-color: #3b82f6;
-        box-shadow: inset 0 0 0 2px #3b82f6;
+      background: #f8fafc;
+      border-color: #3b82f6;
+      box-shadow: inset 0 0 0 2px #3b82f6;
     }
-    
+
     /* Prominent Red Border for Volatile Products */
     .product-card.needs-attention {
-        border: 2px solid #ef4444 !important;
-        box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+      border: 2px solid #ef4444 !important;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
     }
+
     .alert-pulse {
-        animation: alert-glow 2s infinite;
+      animation: alert-glow 2s infinite;
     }
+
     @keyframes alert-glow {
-        0% { box-shadow: 0 0 0 0px rgba(239, 68, 68, 0.4); }
-        70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-        100% { box-shadow: 0 0 0 0px rgba(239, 68, 68, 0); }
+      0% {
+        box-shadow: 0 0 0 0px rgba(239, 68, 68, 0.4);
+      }
+
+      70% {
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0px rgba(239, 68, 68, 0);
+      }
     }
 
     /* --- DYNAMIC CHART HEADER STYLING --- */
     #costing-chart-header h4 {
-        color: #1e293b;
-        font-family: 'Segoe UI', Roboto, sans-serif;
+      color: #1e293b;
+      font-family: 'Segoe UI', Roboto, sans-serif;
     }
+
     #costing-chart-header p {
-        border-left: 3px solid #e2e8f0;
-        padding-left: 15px;
+      border-left: 3px solid #e2e8f0;
+      padding-left: 15px;
     }
   </style>
 </head>
+
 <body>
   <div id="landing-screen">
-    
+
     <div class="portal-header text-center">
       <h1 class="fw-bold text-dark mb-2">Sales Analytics Portal</h1>
       <p class="text-muted mb-0">Select a reporting module to begin analysis</p>
@@ -494,7 +860,7 @@
 
     <div class="container pb-5">
       <div class="row justify-content-center g-4">
-        
+
         <div class="col-md-6 col-lg-5 col-xl-4">
           <div class="report-card" onclick="loadSource('client')">
             <div class="card-icon-box">
@@ -502,7 +868,8 @@
             </div>
             <h3 class="h4 fw-bold mb-3">Clients Report</h3>
             <p class="text-muted mb-4">
-              Longitudinal analysis of client retention, ordering frequency, and volume distribution across fiscal years.
+              Longitudinal analysis of client retention, ordering frequency, and volume distribution across fiscal
+              years.
             </p>
             <div class="d-flex align-items-center text-primary fw-bold small">
               OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
@@ -512,7 +879,7 @@
 
         <div class="col-md-6 col-lg-5 col-xl-4">
           <div class="report-card" onclick="loadSource('product')">
-           
+
             <div class="card-icon-box" style="background: #ecfdf5; color: #059669;">
               <i class="fas fa-chart-line"></i>
             </div>
@@ -521,10 +888,10 @@
               Daily tracking with YTD/MTD comparisons, category drill-downs, and trend analysis.
             </p>
             <div class="d-flex justify-content-between align-items-center">
-               <div class="d-flex align-items-center fw-bold small" style="color: #059669;">
-                 OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
-               </div>
-               <button class="btn-sync-archive" onclick="handleSyncClick(event)" title="Sync Archive">
+              <div class="d-flex align-items-center fw-bold small" style="color: #059669;">
+                OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
+              </div>
+              <button class="btn-sync-archive" onclick="handleSyncClick(event)" title="Sync Archive">
                   <i class="fas fa-database"></i><span class="sync-text">Sync Archive</span>
                </button>
             </div>
@@ -532,28 +899,32 @@
         </div>
         <div class="col-md-6 col-lg-5 col-xl-4">
           <div class="report-card" onclick="loadSource('costing')">
-            <div class="card-icon-box" style="background: #fef2f2; color: #ef4444;"><i class="fas fa-industry"></i></div>
+            <div class="card-icon-box" style="background: #fef2f2; color: #ef4444;"><i class="fas fa-industry"></i>
+            </div>
             <h3 class="h4 fw-bold mb-3">Production Costing</h3>
-            <p class="text-muted mb-4">Two-tier FIFO calculation analyzing Actual vs Market raw material costs and BOM breakdowns.</p>
-            
+            <p class="text-muted mb-4">Two-tier FIFO calculation analyzing Actual vs Market raw material costs and BOM
+              breakdowns.</p>
+
             <div class="d-flex justify-content-between align-items-center" style="min-height: 32px;">
-               <div class="d-flex align-items-center fw-bold small" style="color: #ef4444;">OPEN REPORT <i class="fas fa-arrow-right ms-2"></i></div>
-               
-               <button id="btn-costing-sync" class="btn-sync-archive" onclick="triggerCostingSyncConfirm(event)" title="Force Full Recalculation">
+              <div class="d-flex align-items-center fw-bold small" style="color: #ef4444;">OPEN REPORT
+                <i class="fas fa-arrow-right ms-2"></i></div>
+
+              <button id="btn-costing-sync" class="btn-sync-archive" onclick="triggerCostingSyncConfirm(event)" title="Force Full Recalculation">
                   <i class="fas fa-sync-alt"></i><span class="sync-text">Force Sync</span>
                </button>
-               
-               <div id="costing-sync-confirm" class="d-none align-items-center bg-white border rounded-pill shadow-sm" style="padding: 2px 4px;">
-                  <span class="small fw-bold text-danger px-2" style="font-size:0.7rem; white-space:nowrap;">Clear & Sync?</span>
-                  <button class="btn btn-sm btn-danger rounded-circle p-0 d-flex justify-content-center align-items-center shadow-sm" style="width:22px;height:22px;font-size:0.6rem; border:none;" onclick="executeCostingSync(event)"><i class="fas fa-check"></i></button>
-                  <button class="btn btn-sm btn-light rounded-circle p-0 d-flex justify-content-center align-items-center ms-1 border shadow-sm" style="width:22px;height:22px;font-size:0.6rem;" onclick="cancelCostingSync(event)"><i class="fas fa-times text-muted"></i></button>
-               </div>
+
+              <div id="costing-sync-confirm" class="d-none align-items-center bg-white border rounded-pill shadow-sm"
+                style="padding: 2px 4px;">
+                <span class="small fw-bold text-danger px-2" style="font-size:0.7rem; white-space:nowrap;">Clear & Sync?</span>
+                <button class="btn btn-sm btn-danger rounded-circle p-0 d-flex justify-content-center align-items-center shadow-sm" style="width:22px;height:22px;font-size:0.6rem; border:none;" onclick="executeCostingSync(event)"><i class="fas fa-check"></i></button>
+                <button class="btn btn-sm btn-light rounded-circle p-0 d-flex justify-content-center align-items-center ms-1 border shadow-sm" style="width:22px;height:22px;font-size:0.6rem;" onclick="cancelCostingSync(event)"><i class="fas fa-times text-muted"></i></button>
+              </div>
             </div>
 
           </div>
         </div>
 
-        </div>
+      </div>
 
       <div class="text-center">
         <div class="system-note">
@@ -564,307 +935,326 @@
           </span>
         </div>
       </div>
-      
+
     </div>
   </div>
 
   <div id="smart-loader" class="smart-loader-overlay" style="display: none;">
-     <div class="loader-icon-container text-primary" id="loader-icon-box">
-        <i class="fas fa-server" id="loader-icon"></i>
-     </div>
-     <h4 class="fw-bold text-dark mb-1" id="loader-title">System Initialization</h4>
-     <div class="insight-text-box mt-2">
-        <div class="insight-text active" id="loader-insight">Establishing secure connection...</div>
-     </div>
-     <div class="w-100 px-5 mt-4" style="max-width: 400px;">
-        <div class="progress shadow-sm" style="height: 6px; border-radius: 10px; background-color: #e2e8f0;">
-           <div id="loader-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%; transition: width 0.2s linear;"></div>
-        </div>
-     </div>
+    <div class="loader-icon-container text-primary" id="loader-icon-box">
+      <i class="fas fa-server" id="loader-icon"></i>
+    </div>
+    <h4 class="fw-bold text-dark mb-1" id="loader-title">System Initialization</h4>
+    <div class="insight-text-box mt-2">
+      <div class="insight-text active" id="loader-insight">Establishing secure connection...</div>
+    </div>
+    <div class="w-100 px-5 mt-4" style="max-width: 400px;">
+      <div class="progress shadow-sm" style="height: 6px; border-radius: 10px; background-color: #e2e8f0;">
+        <div id="loader-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+          role="progressbar" style="width: 0%; transition: width 0.2s linear;"></div>
+      </div>
+    </div>
   </div>
 
   <div id="floating-navigator" class="floating-nav" style="display: none;">
-     <button class="nav-btn" id="nav-btn-client" onclick="switchModule('client')"><i class="fas fa-users-viewfinder me-2"></i>Clients</button>
-     <button class="nav-btn" id="nav-btn-product" onclick="switchModule('product')"><i class="fas fa-cubes me-2"></i>Products</button>
-     <button class="nav-btn" id="nav-btn-costing" onclick="switchModule('costing')"><i class="fas fa-industry me-2"></i>Costing</button>
+    <button class="nav-btn" id="nav-btn-client" onclick="switchModule('client')"><i class="fas fa-users-viewfinder me-2"></i>Clients</button>
+    <button class="nav-btn" id="nav-btn-product" onclick="switchModule('product')"><i class="fas fa-cubes me-2"></i>Products</button>
+    <button class="nav-btn" id="nav-btn-costing" onclick="switchModule('costing')"><i class="fas fa-industry me-2"></i>Costing</button>
   </div>
 
   <div class="container-fluid px-3 pt-3" id="main-dashboard" style="display:none;">
 
     <div id="product-controls" class="control-deck" style="display: none;">
-        
-        <div class="row align-items-center mb-4 gy-3">
-           
-           <div class="col-md-4 order-1 text-center text-md-start">
-              <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-cubes me-2 text-success"></i>Product Analytics</h4>
-              <div class="mt-1">
-                 <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Equivalent Periods</span>
-              </div>
-           </div>
 
-           <div class="col-md-4 order-3 order-md-2 d-flex justify-content-center">
-              <div class="d-flex align-items-center gap-3 bg-white p-2 rounded-4 border shadow-sm flex-wrap justify-content-center">
-                 <div class="input-group input-group-sm border-end pe-2" style="width: auto;">
-                    <span class="input-group-text bg-transparent border-0 text-muted"><i class="far fa-calendar-alt"></i></span>
-                    <button id="btn-sync-products" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3 me-2" onclick="forceSyncProductsDashboard()" title="Sync recent data">
+      <div class="row align-items-center mb-4 gy-3">
+
+        <div class="col-md-4 order-1 text-center text-md-start">
+          <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-cubes me-2 text-success"></i>Product Analytics</h4>
+          <div class="mt-1">
+            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Equivalent Periods</span>
+          </div>
+        </div>
+
+        <div class="col-md-4 order-3 order-md-2 d-flex justify-content-center">
+          <div
+            class="d-flex align-items-center gap-3 bg-white p-2 rounded-4 border shadow-sm flex-wrap justify-content-center">
+            <div class="input-group input-group-sm border-end pe-2" style="width: auto;">
+              <span class="input-group-text bg-transparent border-0 text-muted"><i class="far fa-calendar-alt"></i></span>
+              <button id="btn-sync-products" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3 me-2" onclick="forceSyncProductsDashboard(event)" title="Click: Fast Sync (Last 12 Days)&#10;SHIFT+Click: Full Historical Rebuild">
                         <i class="fas fa-sync-alt text-success me-2" id="icon-sync-products"></i>
                         <div class="text-start" style="line-height: 1.1;">
                           <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Products</div>
                           <div class="text-muted" id="product-last-sync" style="font-size: 0.6rem;">Checking...</div>
                         </div>
                     </button>
-                    <input type="date" id="report-date" class="form-control border-0 fw-bold text-secondary" style="width: 125px;" onchange="renderProductDashboard()">
-                 </div>
-                 
-                 <div class="segmented-control">
-                    <input type="radio" class="btn-check" name="measure" id="meas-qty" value="qty" checked onchange="renderProductDashboard()">
-                    <label for="meas-qty" class="mb-0"><i class="fas fa-box me-1"></i> Qty</label>
-                    
-                    <input type="radio" class="btn-check" name="measure" id="meas-rev" value="rev" onchange="renderProductDashboard()">
-                    <label for="meas-rev" class="mb-0"><i class="fa-solid fa-sack-dollar"></i> Rev</label>
-                 </div>
-              </div>
-           </div>
+              <input type="date" id="report-date" class="form-control border-0 fw-bold text-secondary" style="width: 125px;" onchange="renderProductDashboard()">
+            </div>
 
-           <div class="col-md-4 order-2 order-md-3 d-flex justify-content-center justify-content-md-end">
-              </div>
-           
+            <div class="segmented-control">
+              <input type="radio" class="btn-check" name="measure" id="meas-qty" value="qty" checked onchange="renderProductDashboard()">
+              <label for="meas-qty" class="mb-0"><i class="fas fa-box me-1"></i> Qty</label>
+
+              <input type="radio" class="btn-check" name="measure" id="meas-rev" value="rev" onchange="renderProductDashboard()">
+              <label for="meas-rev" class="mb-0"><i class="fa-solid fa-sack-dollar"></i> Rev</label>
+            </div>
+          </div>
         </div>
 
-        <div class="row g-3">
-           <div class="col-lg-5 d-flex flex-column gap-3">
-              
+        <div class="col-md-4 order-2 order-md-3 d-flex justify-content-center justify-content-md-end">
+        </div>
 
-              <div class="d-flex align-items-center gap-2">
-                 <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Time Scope</small>
-           
-                 <div class="segmented-control w-100">
-                   <input type="radio" class="btn-check" name="timeframe" id="tf-year" value="year" checked onchange="renderProductDashboard()">
-                   <label for="tf-year" class="flex-fill text-center">YTD</label>
-                   <input type="radio" class="btn-check" name="timeframe" id="tf-qtr" value="quarter" onchange="renderProductDashboard()">
-                   <label for="tf-qtr" class="flex-fill text-center">QTD</label>
-                   <input type="radio" class="btn-check" name="timeframe" id="tf-month" value="month" onchange="renderProductDashboard()">
-                   <label for="tf-month" class="flex-fill text-center">MTD</label>
-                 </div>
-              </div>
+      </div>
 
-              <div class="d-flex align-items-center gap-2">
-                 <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Brand Vs Private label</small>
-                 <div class="segmented-control w-100" id="filter-line-group">
-                   <input type="radio" class="btn-check" name="filter-line" id="line-all" value="All" checked onchange="updateProductState('line', 'All')">
-                   <label for="line-all" class="flex-fill text-center">All</label>
-                   <input type="radio" class="btn-check" name="filter-line" id="line-own" value="Own" onchange="updateProductState('line', 'Own')">
-                   <label for="line-own" class="flex-fill text-center"><i class="fas fa-crown me-1 text-warning"></i>Tawoos</label>
-                   <input type="radio" class="btn-check" name="filter-line" id="line-private" value="Private" onchange="updateProductState('line', 'Private')">
-                   <label for="line-private" class="flex-fill text-center"><i class="fas fa-industry me-1 text-secondary"></i>Private</label>
-                 </div>
-              </div>
+      <div class="row g-3">
+        <div class="col-lg-5 d-flex flex-column gap-3">
 
-              <div class="d-flex align-items-center gap-2">
-                 <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Client segment</small>
-                 <div class="segmented-control w-100" id="filter-segment-container" style="overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; justify-content: flex-start;">
-                   <input type="radio" class="btn-check" name="filter-segment" id="seg-all" value="All" checked onchange="updateProductState('segment', 'All')">
-                   <label for="seg-all" class="flex-fill text-center px-3"><i class="fas fa-layer-group me-1"></i>All</label>
-                 </div>
-              </div>
-           </div>
 
-           <div class="col-lg-7">
-              <div class="mb-2 d-flex align-items-center gap-2 overflow-auto pb-1" id="filter-category-container" style="scrollbar-width:none;">
-                 </div>
-              
-              <div class="position-relative">
-                 <i class="fas fa-search position-absolute text-muted" style="left:12px; top:10px;"></i>
-                 <select id="filter-product" class="form-select ps-5 border-0 shadow-sm" style="background-color:#f8fafc;" onchange="updateProductState('item', this.value)">
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Time Scope</small>
+
+            <div class="segmented-control w-100">
+              <input type="radio" class="btn-check" name="timeframe" id="tf-year" value="year" checked onchange="renderProductDashboard()">
+              <label for="tf-year" class="flex-fill text-center">YTD</label>
+              <input type="radio" class="btn-check" name="timeframe" id="tf-qtr" value="quarter" onchange="renderProductDashboard()">
+              <label for="tf-qtr" class="flex-fill text-center">QTD</label>
+              <input type="radio" class="btn-check" name="timeframe" id="tf-month" value="month" onchange="renderProductDashboard()">
+              <label for="tf-month" class="flex-fill text-center">MTD</label>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Brand Vs Private label</small>
+            <div class="segmented-control w-100" id="filter-line-group">
+              <input type="radio" class="btn-check" name="filter-line" id="line-all" value="All" checked onchange="updateProductState('line', 'All')">
+              <label for="line-all" class="flex-fill text-center">All</label>
+              <input type="radio" class="btn-check" name="filter-line" id="line-own" value="Own" onchange="updateProductState('line', 'Own')">
+              <label for="line-own" class="flex-fill text-center"><i class="fas fa-crown me-1 text-warning"></i>Tawoos</label>
+              <input type="radio" class="btn-check" name="filter-line" id="line-private" value="Private" onchange="updateProductState('line', 'Private')">
+              <label for="line-private" class="flex-fill text-center"><i class="fas fa-industry me-1 text-secondary"></i>Private</label>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem; min-width:65px;">Client segment</small>
+            <div class="segmented-control w-100" id="filter-segment-container"
+              style="overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; justify-content: flex-start;">
+              <input type="radio" class="btn-check" name="filter-segment" id="seg-all" value="All" checked onchange="updateProductState('segment', 'All')">
+              <label for="seg-all" class="flex-fill text-center px-3"><i class="fas fa-layer-group me-1"></i>All</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="mb-2 d-flex align-items-center gap-2 overflow-auto pb-1" id="filter-category-container"
+            style="scrollbar-width:none;">
+          </div>
+
+          <div class="position-relative">
+            <i class="fas fa-search position-absolute text-muted" style="left:12px; top:10px;"></i>
+            <select id="filter-product" class="form-select ps-5 border-0 shadow-sm" style="background-color:#f8fafc;" onchange="updateProductState('item', this.value)">
                     <option value="All">Select a specific product...</option>
                  </select>
-              </div>
-           </div>
+          </div>
         </div>
-
       </div>
+
+    </div>
 
     <div id="product-content-area" style="display: none;">
-         
-         <div class="row g-3 mb-4" id="dynamic-kpi-section">
-            </div>
 
-         <div class="row g-4">
-            <div class="col-lg-8">
-               <div class="card border-0 shadow-sm h-100 rounded-4">
-                  <div class="card-body p-4">
-                     <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
-                        <div>
-                           <h5 class="fw-bold m-0 mb-2"><i class="fas fa-chart-line me-2 text-primary"></i>Performance Trend</h5>
-                           <div id="compare-years-toggles" class="d-flex flex-wrap gap-2 align-items-center">
-                              </div>
-                           <div class="mt-2 text-muted" style="font-size: 0.75rem;">
-                              <i class="fas fa-bullseye text-warning me-1"></i> 
-                              <span id="target-note-text">Target: +25% YoY (Established) | +30% MoM (New)</span>
-                              <button class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" onclick="openTargetConfig()"><i class="fas fa-cog"></i> Config</button>
-                           </div>
-                        </div>
-                        <div class="d-flex gap-2">
-                           <div class="segmented-control shadow-sm">
-                              <input type="radio" class="btn-check" name="chart-view-mode" id="cv-detailed" value="detailed" checked onchange="setChartViewMode('detailed')">
-                              <label for="cv-detailed" class="px-3"><i class="fas fa-chart-line me-1"></i>Detailed</label>
-                              <input type="radio" class="btn-check" name="chart-view-mode" id="cv-periodic" value="periodic" onchange="setChartViewMode('periodic')">
-                              <label for="cv-periodic" class="px-3"><i class="fas fa-chart-bar me-1"></i>Periodic</label>
-                           </div>
-                           <button class="btn btn-sm btn-light rounded-pill shadow-sm border bg-white" onclick="renderProductDashboard()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
-                        </div>
-                     </div>
-                     </div>
-                     <div style="height: 300px;">
-                        <canvas id="productTrendChart"></canvas>
-                     </div>
-                  </div>
-               </div>
-            </div>
-
-            <div class="col-lg-4">
-               <div class="card border-0 shadow-sm h-100 rounded-4">
-                  <div class="card-header bg-white border-0 py-3 rounded-top-4">
-                     <h6 class="fw-bold m-0"><i class="fas fa-list-ol me-2 text-warning"></i>Top Performers</h6>
-                  </div>
-                  <div class="card-body p-0">
-                     <div id="product-list-container" class="d-flex flex-column gap-2 p-3" style="max-height: 350px; overflow-y: auto;">
-                        </div>
-                  </div>
-               </div>
-            </div>
-         </div>
-
+      <div class="row g-3 mb-4" id="dynamic-kpi-section">
       </div>
-      <div id="costing-view-container" style="display: none; max-width: 1400px; margin: 0 auto; padding-left: 10px; padding-right: 10px;">
-          
-          <div class="row align-items-center mb-4 gy-3">
-             <div class="col-12 d-flex flex-column align-items-center text-center">
-                <h4 class="fw-bold mb-2 text-dark"><i class="fas fa-industry me-2 text-danger"></i>Production Costing</h4>
-                <div class="mb-2"><span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1 shadow-sm" style="letter-spacing: 0.5px;">Margin Analysis (Cost vs ASP)</span></div>
-                <div class="d-flex gap-2 justify-content-center mt-2 flex-wrap">
-                   <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" onclick="openMarketUpdateModal()" style="font-size: 0.75rem;">
+
+      <div class="row g-4">
+        <div class="col-lg-8">
+          <div class="card border-0 shadow-sm h-100 rounded-4">
+            <div class="card-body p-4">
+              <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+                <div>
+                  <h5 class="fw-bold m-0 mb-2"><i class="fas fa-chart-line me-2 text-primary"></i>Performance Trend</h5>
+                  <div id="compare-years-toggles" class="d-flex flex-wrap gap-2 align-items-center">
+                  </div>
+                  <div class="mt-2 text-muted" style="font-size: 0.75rem;">
+                    <i class="fas fa-bullseye text-warning me-1"></i>
+                    <span id="target-note-text">Target: +25% YoY (Established) | +30% MoM (New)</span>
+                    <button class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" onclick="openTargetConfig()"><i class="fas fa-cog"></i> Config</button>
+                  </div>
+                </div>
+                <div class="d-flex gap-2">
+                  <div class="segmented-control shadow-sm">
+                    <input type="radio" class="btn-check" name="chart-view-mode" id="cv-detailed" value="detailed" checked onchange="setChartViewMode('detailed')">
+                    <label for="cv-detailed" class="px-3"><i class="fas fa-chart-line me-1"></i>Detailed</label>
+                    <input type="radio" class="btn-check" name="chart-view-mode" id="cv-periodic" value="periodic" onchange="setChartViewMode('periodic')">
+                    <label for="cv-periodic" class="px-3"><i class="fas fa-chart-bar me-1"></i>Periodic</label>
+                  </div>
+                  <button class="btn btn-sm btn-light rounded-pill shadow-sm border bg-white" onclick="renderProductDashboard()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+                </div>
+              </div>
+            </div>
+            <div style="height: 300px;">
+              <canvas id="productTrendChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100 rounded-4">
+          <div class="card-header bg-white border-0 py-3 rounded-top-4">
+            <h6 class="fw-bold m-0"><i class="fas fa-list-ol me-2 text-warning"></i>Top Performers</h6>
+          </div>
+          <div class="card-body p-0">
+            <div id="product-list-container" class="d-flex flex-column gap-2 p-3"
+              style="max-height: 350px; overflow-y: auto;">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div id="costing-view-container"
+    style="display: none; max-width: 1400px; margin: 0 auto; padding-left: 10px; padding-right: 10px;">
+
+    <div class="row align-items-center mb-4 gy-3">
+      <div class="col-12 d-flex flex-column align-items-center text-center">
+        <h4 class="fw-bold mb-2 text-dark"><i class="fas fa-industry me-2 text-danger"></i>Production Costing</h4>
+        <div class="mb-2">
+          <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill px-4 py-1 shadow-sm" style="letter-spacing: 0.5px;">Margin Analysis (Cost vs ASP)</span>
+        </div>
+        <div class="d-flex gap-2 justify-content-center mt-2 flex-wrap">
+          <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" onclick="openMarketUpdateModal()" style="font-size: 0.75rem;">
                       <i class="fas fa-pen-to-square me-1"></i>Manage Market Rates
                    </button>
-                   
-                   <button id="volatility-btn" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-3 fw-bold shadow-sm position-relative" style="font-size: 0.75rem;" onclick="openActionAlertsModal()">
+
+          <button id="volatility-btn" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-3 fw-bold shadow-sm position-relative" style="font-size: 0.75rem;" onclick="openActionAlertsModal()">
                       <i class="fas fa-exclamation-circle text-warning me-1" title="Unstable Cost"></i>Needs attention
                       <span id="volatility-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none shadow-sm" style="font-size: 0.65rem;">0</span>
                    </button>
 
-                   <button id="btn-sync-costing" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3 me-2" onclick="forceSyncCostingDashboard()" title="Sync recent data">
+          <button id="btn-sync-costing" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3 me-2" onclick="forceSyncCostingDashboard(event)" title="Click: Fast Sync (Last 12 Days)&#10;SHIFT+Click: Full Historical Rebuild">
                   <i class="fas fa-sync-alt text-warning me-2" id="icon-sync-costing"></i>
                   <div class="text-start" style="line-height: 1.1;">
                      <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Costing</div>
                      <div class="text-muted" id="costing-last-sync" style="font-size: 0.6rem;">Checking...</div>
                   </div>
                </button>
-                </div>
-             </div>
-          </div>
-
-          <div id="flying-alert-card" class="bg-white border border-warning">
-             <div class="card-header bg-warning bg-opacity-10 border-bottom-0 py-3 rounded-top" style="border-radius: 16px 16px 0 0;">
-                <h6 class="fw-bold text-dark m-0 text-center"><i class="fas fa-exclamation-circle text-warning me-2"></i>Action Required (>2%)</h6>
-             </div>
-             <div class="card-body p-3">
-                <div id="flying-alert-content"></div>
-                <div class="text-center mt-3 small text-muted fw-bold" style="font-size: 0.65rem;">Routing to dashboard...</div>
-             </div>
-          </div>
-
-          <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
-             <div class="card-body p-4 text-center">
-                <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 1: Select Category</h6>
-                <div class="d-flex align-items-center justify-content-md-center justify-content-start gap-3 overflow-auto pb-4 border-bottom mb-4" id="costing-category-toggles" style="scrollbar-width:none; -ms-overflow-style:none;"></div>
-                
-                <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 2: Select Product</h6>
-                <div class="d-flex flex-wrap justify-content-center gap-2 pb-2 px-2" id="costing-product-toggles" style="max-height: 300px; overflow-y: auto; scrollbar-width: thin;"></div>
-             </div>
-          </div>
-
-          <div class="row g-4 mb-4">
-             <div class="col-lg-8">
-                <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-                   <div class="card-body p-4 position-relative">
-                    <div id="costing-chart-header" class="mb-4"></div>
-
-                      <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
-                         <h6 class="fw-bold m-0 mt-2"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Margin Trend</h6>
-                         
-                         <div class="d-flex gap-2 flex-wrap">
-                            <div class="segmented-control shadow-sm border bg-white" style="padding: 2px; border-radius: 8px;">
-                               <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" checked onchange="updateCostingState('view', 'actual')">
-                               <label for="cview-actual" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-file-invoice-dollar me-1 text-primary"></i> Actual</label>
-                               
-                               <input type="radio" class="btn-check" name="costing-view" id="cview-market" value="market" onchange="updateCostingState('view', 'market')">
-                               <label for="cview-market" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-chart-line me-1 text-danger"></i> Market</label>
-                               
-                               <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" onchange="updateCostingState('view', 'compare')">
-                               <label for="cview-compare" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-balance-scale me-1 text-dark"></i> Compare</label>
-                            </div>
-
-                            <div class="segmented-control shadow-sm border bg-light" style="padding: 2px; border-radius: 8px;">
-                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-daily" value="daily" onchange="updateCostingState('timeline', 'daily')">
-                               <label for="ctl-daily" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-day me-1"></i> Daily</label>
-                               
-                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" onchange="updateCostingState('timeline', 'weekly')">
-                               <label for="ctl-weekly" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-week me-1"></i> Weekly</label>
-                               
-                               <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" checked onchange="updateCostingState('timeline', 'monthly')">
-                               <label for="ctl-monthly" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-alt me-1"></i> Monthly</label>
-                            </div>
-                         </div>
-                      </div>
-
-                      <div style="height: 320px;"><canvas id="costingTrendChart"></canvas></div>
-                      <div class="text-center mt-2 small text-muted"><i class="fas fa-hand-pointer me-1 text-primary"></i> <b>Click any point on the chart</b> to reveal its specific Cost Breakdown</div>
-                   </div>
-                </div>
-             </div>
-
-             <div class="col-lg-4">
-                <div class="card border-0 shadow-sm h-100 rounded-4 bg-white d-flex flex-column">
-                   <div class="card-header bg-transparent border-0 pt-4 pb-2 text-center">
-                      <h6 class="fw-bold m-0"><i class="fas fa-search-dollar me-2 text-warning"></i>Cost Composition</h6>
-                      <div id="bom-panel-subtitle" class="badge bg-light text-dark border mt-2">Loading...</div>
-                   </div>
-                   <div class="card-body p-3 d-flex flex-column" style="flex-grow: 1;">
-                      
-                      <div style="height: 180px; margin-bottom: 20px;"><canvas id="bomDoughnut"></canvas></div>
-                      
-                      <div class="table-responsive border rounded-3 flex-grow-1" style="max-height: 250px; overflow-y: auto; scrollbar-width: thin;">
-                         <table class="table table-hover table-sm table-borderless align-middle mb-0">
-                            <thead class="table-light border-bottom sticky-top">
-                               <tr>
-                                  <th class="ps-2 text-muted fw-bold" style="font-size: 0.75rem;">MATERIAL</th>
-                                  <th class="text-end text-muted fw-bold" style="font-size: 0.75rem;">CONTRIBUTED</th>
-                                  <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.75rem;">MARKET RATE</th>
-                               </tr>
-                            </thead>
-                            <tbody id="bom-panel-table-body"></tbody>
-                         </table>
-                      </div>
-
-                   </div>
-                </div>
-             </div>
-          </div>
+        </div>
       </div>
+    </div>
+
+    <div id="flying-alert-card" class="bg-white border border-warning">
+      <div class="card-header bg-warning bg-opacity-10 border-bottom-0 py-3 rounded-top"
+        style="border-radius: 16px 16px 0 0;">
+        <h6 class="fw-bold text-dark m-0 text-center"><i class="fas fa-exclamation-circle text-warning me-2"></i>Action
+          Required (>2%)</h6>
       </div>
-  <div id="client-view-container" style="display: none;">
-    
-      <div class="row align-items-center mb-4 gy-3">
-         <div class="col-md-6 order-1 text-center text-md-start">
-            <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-users-viewfinder me-2 text-primary"></i>Clients' Sales across Years</h4>
-            <div class="mt-1">
-               <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Client Retention & Growth</span>
+      <div class="card-body p-3">
+        <div id="flying-alert-content"></div>
+        <div class="text-center mt-3 small text-muted fw-bold" style="font-size: 0.65rem;">Routing to dashboard...</div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+      <div class="card-body p-4 text-center">
+        <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 1:
+          Select Category</h6>
+        <div
+          class="d-flex align-items-center justify-content-md-center justify-content-start gap-3 overflow-auto pb-4 border-bottom mb-4"
+          id="costing-category-toggles" style="scrollbar-width:none; -ms-overflow-style:none;"></div>
+
+        <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 2:
+          Select Product</h6>
+        <div class="d-flex flex-wrap justify-content-center gap-2 pb-2 px-2" id="costing-product-toggles"
+          style="max-height: 300px; overflow-y: auto; scrollbar-width: thin;"></div>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+          <div class="card-body p-4 position-relative">
+            <div id="costing-chart-header" class="mb-4"></div>
+
+            <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
+              <h6 class="fw-bold m-0 mt-2"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Margin Trend</h6>
+
+              <div class="d-flex gap-2 flex-wrap">
+                <div class="segmented-control shadow-sm border bg-white" style="padding: 2px; border-radius: 8px;">
+                  <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" checked onchange="updateCostingState('view', 'actual')">
+                  <label for="cview-actual" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-file-invoice-dollar me-1 text-primary"></i> Actual</label>
+
+                  <input type="radio" class="btn-check" name="costing-view" id="cview-market" value="market" onchange="updateCostingState('view', 'market')">
+                  <label for="cview-market" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-chart-line me-1 text-danger"></i> Market</label>
+
+                  <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" onchange="updateCostingState('view', 'compare')">
+                  <label for="cview-compare" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-balance-scale me-1 text-dark"></i> Compare</label>
+                </div>
+
+                <div class="segmented-control shadow-sm border bg-light" style="padding: 2px; border-radius: 8px;">
+                  <input type="radio" class="btn-check" name="c-timeline" id="ctl-daily" value="daily" onchange="updateCostingState('timeline', 'daily')">
+                  <label for="ctl-daily" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-day me-1"></i> Daily</label>
+
+                  <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" onchange="updateCostingState('timeline', 'weekly')">
+                  <label for="ctl-weekly" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-week me-1"></i> Weekly</label>
+
+                  <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" checked onchange="updateCostingState('timeline', 'monthly')">
+                  <label for="ctl-monthly" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-alt me-1"></i> Monthly</label>
+                </div>
+              </div>
             </div>
-         </div>
 
-         <div class="col-md-6 order-2 d-flex flex-wrap justify-content-center justify-content-md-end align-items-center gap-3">
-            
-            <button id="btn-sync-main" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3" onclick="forceSyncMainDashboard()" title="Force real-time update from Sheets">
+            <div style="height: 320px;"><canvas id="costingTrendChart"></canvas></div>
+            <div class="text-center mt-2 small text-muted"><i class="fas fa-hand-pointer me-1 text-primary"></i>
+              <b>Click any point on the chart</b> to reveal its specific Cost Breakdown</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100 rounded-4 bg-white d-flex flex-column">
+          <div class="card-header bg-transparent border-0 pt-4 pb-2 text-center">
+            <h6 class="fw-bold m-0"><i class="fas fa-search-dollar me-2 text-warning"></i>Cost Composition</h6>
+            <div id="bom-panel-subtitle" class="badge bg-light text-dark border mt-2">Loading...</div>
+          </div>
+          <div class="card-body p-3 d-flex flex-column" style="flex-grow: 1;">
+
+            <div style="height: 180px; margin-bottom: 20px;"><canvas id="bomDoughnut"></canvas></div>
+
+            <div class="table-responsive border rounded-3 flex-grow-1"
+              style="max-height: 250px; overflow-y: auto; scrollbar-width: thin;">
+              <table class="table table-hover table-sm table-borderless align-middle mb-0">
+                <thead class="table-light border-bottom sticky-top">
+                  <tr>
+                    <th class="ps-2 text-muted fw-bold" style="font-size: 0.75rem;">MATERIAL</th>
+                    <th class="text-end text-muted fw-bold" style="font-size: 0.75rem;">CONTRIBUTED</th>
+                    <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.75rem;">MARKET RATE</th>
+                  </tr>
+                </thead>
+                <tbody id="bom-panel-table-body"></tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <div id="client-view-container" style="display: none;">
+
+    <div class="row align-items-center mb-4 gy-3">
+      <div class="col-md-6 order-1 text-center text-md-start">
+        <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-users-viewfinder me-2 text-primary"></i>Clients' Sales
+          across Years</h4>
+        <div class="mt-1">
+          <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill px-4 py-1" style="letter-spacing: 0.5px;">Client Retention & Growth</span>
+        </div>
+      </div>
+
+      <div
+        class="col-md-6 order-2 d-flex flex-wrap justify-content-center justify-content-md-end align-items-center gap-3">
+
+        <button id="btn-sync-main" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3" onclick="forceSyncMainDashboard(event)" title="Click: Fast Sync (Last 12 Days)&#10;SHIFT+Click: Full Historical Rebuild">
                <i class="fas fa-sync-alt text-primary me-2" id="icon-sync-main"></i>
                <div class="text-start" style="line-height: 1.1;">
                   <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Dashboard</div>
@@ -872,180 +1262,206 @@
                </div>
             </button>
 
-            <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm position-relative" onclick="openCadenceModal()">
+        <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm position-relative" onclick="openCadenceModal()">
                <i class="fas fa-exclamation-triangle me-1"></i>Late Orders
                <span id="cadence-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none shadow-sm" style="font-size: 0.65rem;">0</span>
             </button>
-            
-            <div class="segmented-control shadow-sm bg-white border">
-               <input type="radio" class="btn-check" name="vmode" id="vmode1" autocomplete="off" checked onchange="setView('qty')">
-               <label for="vmode1" class="mb-0 px-4"><i class="fas fa-box me-1"></i> Volume</label>
-               <input type="radio" class="btn-check" name="vmode" id="vmode2" autocomplete="off" onchange="setView('rev')">
-               <label for="vmode2" class="mb-0 px-4"><i class="fa-solid fa-sack-dollar"></i> Revenue</label>
-            </div>
-         </div>
-      </div>
 
-      <div class="row g-4 mb-4">
-         <div class="col-xl-6">
-            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-               <div class="card-body p-3">
-                  <h6 class="fw-bold text-muted small mb-3 text-uppercase"><i class="far fa-calendar-alt me-2"></i>Timeline Scope</h6>
-                  <div class="toggle-container pb-1" id="yearToggles"></div>
-               </div>
-            </div>
-         </div>
-         <div class="col-xl-6">
-            <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-               <div class="card-body p-3">
-                  <h6 class="fw-bold text-muted small mb-3 text-uppercase"><i class="fas fa-layer-group me-2"></i>Client Segments</h6>
-                  <div class="toggle-container pb-1" id="typeToggles"></div>
-               </div>
-            </div>
-         </div>
+        <div class="segmented-control shadow-sm bg-white border">
+          <input type="radio" class="btn-check" name="vmode" id="vmode1" autocomplete="off" checked onchange="setView('qty')">
+          <label for="vmode1" class="mb-0 px-4"><i class="fas fa-box me-1"></i> Volume</label>
+          <input type="radio" class="btn-check" name="vmode" id="vmode2" autocomplete="off" onchange="setView('rev')">
+          <label for="vmode2" class="mb-0 px-4"><i class="fa-solid fa-sack-dollar"></i> Revenue</label>
+        </div>
       </div>
+    </div>
 
-      <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
-         <div class="card-body p-4">
-            <h6 class="fw-bold m-0 mb-3"><i class="fas fa-chart-area me-2 text-primary"></i>Visual Analysis</h6>
-            <div style="height: 320px;">
-               <canvas id="mainChart"></canvas>
+    <div class="row g-4 mb-4">
+      <div class="col-xl-6">
+        <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+          <div class="card-body p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+              <h6 class="fw-bold text-muted small m-0 text-uppercase"><i class="far fa-calendar-alt me-2"></i>Timeline
+                Scope</h6>
+              <div class="segmented-control shadow-sm border bg-light" style="padding: 2px; border-radius: 8px;">
+                <input type="radio" class="btn-check" name="ts-mode" id="ts-ytd" value="YTD" checked onchange="setTimeScope('YTD')">
+                <label for="ts-ytd" class="mb-0 px-2 py-1" style="font-size:0.75rem;">YTD</label>
+
+                <input type="radio" class="btn-check" name="ts-mode" id="ts-qtd" value="QTD" onchange="setTimeScope('QTD')">
+                <label for="ts-qtd" class="mb-0 px-2 py-1" style="font-size:0.75rem;">QTD</label>
+
+                <input type="radio" class="btn-check" name="ts-mode" id="ts-mtd" value="MTD" onchange="setTimeScope('MTD')">
+                <label for="ts-mtd" class="mb-0 px-2 py-1" style="font-size:0.75rem;">MTD</label>
+
+                <input type="radio" class="btn-check" name="ts-mode" id="ts-full" value="FULL" onchange="setTimeScope('FULL')">
+                <label for="ts-full" class="mb-0 px-2 py-1" style="font-size:0.75rem;">FULL</label>
+              </div>
             </div>
-         </div>
+            <div class="toggle-container pb-1" id="yearToggles"></div>
+          </div>
+        </div>
       </div>
+      <div class="col-xl-6">
+        <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
+          <div class="card-body p-3">
+            <h6 class="fw-bold text-muted small mb-3 text-uppercase"><i class="fas fa-layer-group me-2"></i>Client
+              Segments</h6>
+            <div class="toggle-container pb-1" id="typeToggles"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
-         <div class="card-header bg-transparent border-0 pt-4 pb-0 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <h5 class="fw-bold m-0"><i class="fas fa-list-ol me-2 text-primary"></i>Client Directory</h5>
-            <div class="d-flex gap-2">
-               <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold shadow-sm" onclick="exportData('excel')">
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+      <div class="card-body p-4">
+        <h6 class="fw-bold m-0 mb-3"><i class="fas fa-chart-area me-2 text-primary"></i>Visual Analysis</h6>
+        <div style="height: 320px;">
+          <canvas id="mainChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
+      <div
+        class="card-header bg-transparent border-0 pt-4 pb-0 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <h5 class="fw-bold m-0"><i class="fas fa-list-ol me-2 text-primary"></i>Client Directory</h5>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold shadow-sm" onclick="exportData('excel')">
                  <i class="fas fa-file-excel me-1"></i> Excel
                </button>
-               <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" onclick="exportData('pdf')">
+          <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" onclick="exportData('pdf')">
                  <i class="fas fa-file-pdf me-1"></i> PDF
                </button>
-            </div>
-         </div>
-         <div class="card-body p-4">
-            <div class="d-flex align-items-center gap-3 bg-light p-2 rounded-4 border mb-4 flex-wrap">
-               <div class="input-group input-group-sm border-end pe-2" style="width: auto; flex-grow: 1; min-width: 200px;">
-                  <span class="input-group-text bg-transparent border-0 text-muted"><i class="fas fa-search"></i></span>
-                  <input type="text" id="search" class="form-control border-0 bg-transparent fw-bold text-secondary" placeholder="Search clients..." onkeyup="renderList()">
-               </div>
-               
-               <select id="sortBy" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-secondary px-3" style="width: auto; cursor: pointer;" onchange="setSort(this.value)">
+        </div>
+      </div>
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3 bg-light p-2 rounded-4 border mb-4 flex-wrap">
+          <div class="input-group input-group-sm border-end pe-2" style="width: auto; flex-grow: 1; min-width: 200px;">
+            <span class="input-group-text bg-transparent border-0 text-muted"><i class="fas fa-search"></i></span>
+            <input type="text" id="search" class="form-control border-0 bg-transparent fw-bold text-secondary" placeholder="Search clients..." onkeyup="renderList()">
+          </div>
+
+          <select id="sortBy" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-secondary px-3" style="width: auto; cursor: pointer;" onchange="setSort(this.value)">
                   <option value="qty">📈 Sort: High Vol</option>
                   <option value="growth">🚀 Sort: Growth %</option>
                   <option value="orders">🛒 Sort: Orders</option>
                   <option value="lastTx">⏱️ Sort: Recent</option>
                   <option value="name">🔤 Sort: A-Z</option>
                </select>
-               
-               <select id="groupBy" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-secondary px-3" style="width: auto; cursor: pointer;" onchange="setGroup(this.value)">
+
+          <select id="groupBy" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-secondary px-3" style="width: auto; cursor: pointer;" onchange="setGroup(this.value)">
                   <option value="None">🏢 Group: None</option>
                   <option value="type">📂 Group: Segment</option>
                </select>
-               
-               <select id="riskFilter" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-danger px-3" style="width: auto; cursor: pointer;" onchange="renderList()">
+
+          <select id="riskFilter" class="form-select form-select-sm border-0 bg-white shadow-sm rounded-pill fw-bold text-danger px-3" style="width: auto; cursor: pointer;" onchange="renderList()">
                   <option value="None">🟢 Status: All</option>
                   <option value="Stopped">⚠️ Stopped (>6mo)</option> 
                   <option value="Declining">📉 Declining</option>
                </select>
-            </div>
+        </div>
 
-            <div id="clientList" class="d-flex flex-column gap-2"></div>
-         </div>
+        <div id="clientList" class="d-flex flex-column gap-2"></div>
       </div>
-
     </div>
-</div>
+
+  </div>
+  </div>
   <div class="modal fade" id="bomModal" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-          <div class="modal-header border-0 pb-0">
-            <h5 class="modal-title fw-bold"><i class="fas fa-cogs text-danger me-2"></i>BOM Cost Breakdown</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="fas fa-cogs text-danger me-2"></i>BOM Cost Breakdown</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <p class="mb-1 text-muted small fw-bold">Product</p>
+              <h6 class="fw-bold text-dark" id="bom-modal-product"></h6>
+            </div>
+            <div class="col-md-3">
+              <p class="mb-1 text-muted small fw-bold">Date & Plan ID</p>
+              <h6 class="fw-bold text-primary" id="bom-modal-date"></h6>
+            </div>
+            <div class="col-md-3">
+              <p class="mb-1 text-muted small fw-bold">Quantity Produced</p>
+              <h6 class="fw-bold text-success" id="bom-modal-qty"></h6>
+            </div>
           </div>
-          <div class="modal-body p-4">
-            <div class="row mb-3">
-                <div class="col-md-6">
-                  <p class="mb-1 text-muted small fw-bold">Product</p>
-                  <h6 class="fw-bold text-dark" id="bom-modal-product"></h6>
-                </div>
-                <div class="col-md-3">
-                  <p class="mb-1 text-muted small fw-bold">Date & Plan ID</p>
-                  <h6 class="fw-bold text-primary" id="bom-modal-date"></h6>
-                </div>
-                <div class="col-md-3">
-                  <p class="mb-1 text-muted small fw-bold">Quantity Produced</p>
-                  <h6 class="fw-bold text-success" id="bom-modal-qty"></h6>
-                </div>
-            </div>
-            <div style="height: 250px; margin-bottom: 20px;"><canvas id="bomChart"></canvas></div>
-            <div class="table-responsive border rounded-3">
-                <table class="table table-hover table-borderless align-middle mb-0 bom-table">
-                  <thead class="table-light border-bottom">
-                      <tr><th>Raw Material</th><th class="text-end">Actual Cost</th><th class="text-end">Market Cost</th><th class="text-end">Variance</th></tr>
-                  </thead>
-                  <tbody id="bom-modal-table-body"></tbody>
-                </table>
-            </div>
+          <div style="height: 250px; margin-bottom: 20px;"><canvas id="bomChart"></canvas></div>
+          <div class="table-responsive border rounded-3">
+            <table class="table table-hover table-borderless align-middle mb-0 bom-table">
+              <thead class="table-light border-bottom">
+                <tr>
+                  <th>Raw Material</th>
+                  <th class="text-end">Actual Cost</th>
+                  <th class="text-end">Market Cost</th>
+                  <th class="text-end">Variance</th>
+                </tr>
+              </thead>
+              <tbody id="bom-modal-table-body"></tbody>
+            </table>
           </div>
         </div>
       </div>
     </div>
-    <div class="modal fade" id="drillDownModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-          <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-            <div class="modal-header border-0 pb-0">
-              <h5 class="modal-title fw-bold" id="drillDownTitle"><i class="fas fa-search-plus text-primary me-2"></i>Detailed Pacing</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-4">
-              <div style="height: 350px;">
-                  <canvas id="drillDownChart"></canvas>
-              </div>
-            </div>
+  </div>
+  <div class="modal fade" id="drillDownModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold" id="drillDownTitle">
+            <i class="fas fa-search-plus text-primary me-2"></i>Detailed Pacing</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div style="height: 350px;">
+            <canvas id="drillDownChart"></canvas>
           </div>
         </div>
       </div>
+    </div>
+  </div>
 
-      <div class="modal fade" id="kpiModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-          <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-            <div class="modal-header border-0 pb-0">
-              <h5 class="modal-title fw-bold" id="kpiModalTitle"><i class="fas fa-chart-pie text-primary me-2"></i>Detailed Breakdown</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  <div class="modal fade" id="kpiModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold" id="kpiModalTitle"><i class="fas fa-chart-pie text-primary me-2"></i>Detailed
+            Breakdown</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="d-flex justify-content-center mb-4">
+            <div class="segmented-control shadow-sm" id="kpiModalToggles">
             </div>
-            <div class="modal-body p-4">
-              <div class="d-flex justify-content-center mb-4">
-                  <div class="segmented-control shadow-sm" id="kpiModalToggles">
-                    </div>
-              </div>
-              
-              <div id="kpiModalPieContainer" style="height: 350px; display: none;">
-                  <canvas id="kpiPieChart"></canvas>
-              </div>
-              
-              <div id="kpiModalTableContainer" style="max-height: 400px; overflow-y: auto; display: none;" class="border rounded-3 shadow-sm">
-                  <table class="table table-hover table-borderless align-middle mb-0">
-                    <thead class="table-light border-bottom">
-                        <tr>
-                          <th class="fw-bold text-muted ps-3">Name</th>
-                          <th class="fw-bold text-muted text-end">Current</th>
-                          <th class="fw-bold text-muted text-end" id="kpiTableBaseHeader">Baseline</th>
-                          <th class="fw-bold text-muted text-end pe-3">Growth</th>
-                        </tr>
-                    </thead>
-                    <tbody id="kpiModalTableBody">
-                        </tbody>
-                  </table>
-              </div>
-            </div>
+          </div>
+
+          <div id="kpiModalPieContainer" style="height: 350px; display: none;">
+            <canvas id="kpiPieChart"></canvas>
+          </div>
+
+          <div id="kpiModalTableContainer" style="max-height: 400px; overflow-y: auto; display: none;"
+            class="border rounded-3 shadow-sm">
+            <table class="table table-hover table-borderless align-middle mb-0">
+              <thead class="table-light border-bottom">
+                <tr>
+                  <th class="fw-bold text-muted ps-3">Name</th>
+                  <th class="fw-bold text-muted text-end">Current</th>
+                  <th class="fw-bold text-muted text-end" id="kpiTableBaseHeader">Baseline</th>
+                  <th class="fw-bold text-muted text-end pe-3">Growth</th>
+                </tr>
+              </thead>
+              <tbody id="kpiModalTableBody">
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
-      <div class="modal fade" id="targetConfigModal" tabindex="-1">
+    </div>
+  </div>
+  <div class="modal fade" id="targetConfigModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-sm">
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
         <div class="modal-header border-0 pb-0">
@@ -1053,21 +1469,22 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-           <div class="mb-3">
-              <label class="form-label small fw-bold text-muted mb-1">Established Products (YoY %)</label>
-              <div class="input-group input-group-sm">
-                 <input type="number" id="conf-yoy" class="form-control fw-bold" value="25">
-                 <span class="input-group-text bg-light">%</span>
-              </div>
-           </div>
-           <div>
-              <label class="form-label small fw-bold text-muted mb-1">New Products (MoM %)</label>
-              <div class="input-group input-group-sm">
-                 <input type="number" id="conf-mom" class="form-control fw-bold" value="30">
-                 <span class="input-group-text bg-light">%</span>
-              </div>
-              <div class="small text-muted mt-1" style="font-size: 0.7rem;">First active month defaults to 100% of actuals.</div>
-           </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted mb-1">Established Products (YoY %)</label>
+            <div class="input-group input-group-sm">
+              <input type="number" id="conf-yoy" class="form-control fw-bold" value="25">
+              <span class="input-group-text bg-light">%</span>
+            </div>
+          </div>
+          <div>
+            <label class="form-label small fw-bold text-muted mb-1">New Products (MoM %)</label>
+            <div class="input-group input-group-sm">
+              <input type="number" id="conf-mom" class="form-control fw-bold" value="30">
+              <span class="input-group-text bg-light">%</span>
+            </div>
+            <div class="small text-muted mt-1" style="font-size: 0.7rem;">First active month defaults to 100% of
+              actuals.</div>
+          </div>
         </div>
         <div class="modal-footer border-0 pt-0 justify-content-center">
           <button class="btn btn-warning rounded-pill px-4 shadow-sm fw-bold w-100" onclick="saveTargetConfig()">Save & Recalculate</button>
@@ -1075,7 +1492,7 @@
       </div>
     </div>
   </div>
-  <div class="modal fade" id="syncModal" tabindex="-1">
+    <div class="modal fade" id="syncModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
         <div class="modal-header border-0 pb-0">
@@ -1083,23 +1500,26 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-           <div class="alert alert-info border-0 bg-primary bg-opacity-10 text-primary mb-4 rounded-3">
-             <i class="fas fa-info-circle me-2"></i>
-             This wizard will package all historical data (2021-2025) into a high-speed JSON cache to ensure your dashboard loads instantly.
-           </div>
-           
-           <ol class="text-muted small mb-4">
-             <li class="mb-2">Click "Start Sync" below.</li>
-             <li class="mb-2">The system will compress past years into a cache file in your Google Drive.</li>
-             <li>Current year data (2026) will remain live and auto-updating.</li>
-           </ol>
-           
-           <div class="text-center" id="sync-status" style="display:none;">
-             <div class="progress mb-3 shadow-sm" style="height: 8px; border-radius: 10px; background-color: #e2e8f0;">
-                <div id="sync-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%; transition: width 0.2s linear;"></div>
-             </div>
-             <div class="fw-bold text-dark small" id="sync-msg">Processing historical records... This may take up to 270 seconds.</div>
-           </div>
+          <div class="alert alert-info border-0 bg-primary bg-opacity-10 text-primary mb-4 rounded-3">
+            <i class="fas fa-info-circle me-2"></i>
+            This wizard will package all historical data (2021-2025) into a high-speed JSON cache to ensure your
+            dashboard loads instantly.
+          </div>
+
+          <ol class="text-muted small mb-4">
+            <li class="mb-2">Click "Start Sync" below.</li>
+            <li class="mb-2">The system will compress past years into a cache file in your Google Drive.</li>
+            <li>Current year data (2026) will remain live and auto-updating.</li>
+          </ol>
+
+          <div class="text-center" id="sync-status" style="display:none;">
+            <div class="progress mb-3 shadow-sm" style="height: 8px; border-radius: 10px; background-color: #e2e8f0;">
+              <div id="sync-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                role="progressbar" style="width: 0%; transition: width 0.2s linear;"></div>
+            </div>
+            <div class="fw-bold text-dark small" id="sync-msg">Processing historical records... This may take up to 270
+              seconds.</div>
+          </div>
         </div>
         <div class="modal-footer border-0 pt-0 justify-content-center">
           <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal" id="btn-sync-cancel">Cancel</button>
@@ -1116,27 +1536,40 @@
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
         <div class="modal-header border-0 pb-0">
           <div>
-             <h5 class="modal-title fw-bold" id="modalTitle"></h5>
-             <span id="modalSubtitle" class="badge mt-1"></span>
+            <h5 class="modal-title fw-bold" id="modalTitle"></h5>
+            <span id="modalSubtitle" class="badge mt-1"></span>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-           <canvas id="modalChart" style="max-height: 180px; margin-bottom: 20px;"></canvas>
-           
-           <h6 class="section-title mt-0 mb-2">Yearly Performance</h6>
-           <table class="table table-sm text-center small align-middle mb-4">
-             <thead class="table-light"><tr><th>Year</th><th>Qty</th><th>Orders</th><th>Avg</th></tr></thead>
-             <tbody id="modalBody"></tbody>
-           </table>
+          <canvas id="modalChart" style="max-height: 180px; margin-bottom: 20px;"></canvas>
 
-           <h6 class="section-title mb-2">Branch Breakdown</h6>
-           <div style="max-height: 150px; overflow-y: auto;">
-             <table class="table table-sm text-center small align-middle table-hover">
-               <thead class="table-light sticky-top"><tr><th class="text-start">Branch</th><th>Total Qty</th><th>Last Tx</th></tr></thead>
-               <tbody id="modalBranchBody"></tbody>
-             </table>
-           </div>
+          <h6 class="section-title mt-0 mb-2">Yearly Performance</h6>
+          <table class="table table-sm text-center small align-middle mb-4">
+            <thead class="table-light">
+              <tr>
+                <th>Year</th>
+                <th>Qty</th>
+                <th>Orders</th>
+                <th>Avg</th>
+              </tr>
+            </thead>
+            <tbody id="modalBody"></tbody>
+          </table>
+
+          <h6 class="section-title mb-2">Branch Breakdown</h6>
+          <div style="max-height: 150px; overflow-y: auto;">
+            <table class="table table-sm text-center small align-middle table-hover">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th class="text-start">Branch</th>
+                  <th>Total Qty</th>
+                  <th>Last Tx</th>
+                </tr>
+              </thead>
+              <tbody id="modalBranchBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1147,29 +1580,31 @@
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
         <div class="modal-header border-0 pb-0">
           <div>
-             <h5 class="modal-title fw-bold" id="matHistTitle"><i class="fas fa-search-dollar text-primary me-2"></i>Material History</h5>
-             <span class="badge bg-light text-dark border mt-1" id="matHistUnit"></span>
+            <h5 class="modal-title fw-bold" id="matHistTitle">
+              <i class="fas fa-search-dollar text-primary me-2"></i>Material History</h5>
+            <span class="badge bg-light text-dark border mt-1" id="matHistUnit"></span>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body p-4">
-          
+
           <div style="height: 250px; margin-bottom: 20px;">
-             <canvas id="matHistChart"></canvas>
+            <canvas id="matHistChart"></canvas>
           </div>
-          
-          <div class="table-responsive border rounded-3" style="max-height: 250px; overflow-y: auto; scrollbar-width: thin;">
-             <table class="table table-hover table-sm table-borderless align-middle mb-0">
-                <thead class="table-light border-bottom sticky-top">
-                   <tr>
-                      <th class="ps-3 text-muted fw-bold" style="font-size: 0.75rem;">DATE</th>
-                      <th class="text-end text-primary fw-bold" style="font-size: 0.75rem;">ACTUAL RATE</th>
-                      <th class="text-end text-danger fw-bold" style="font-size: 0.75rem;">MARKET RATE</th>
-                      <th class="text-end pe-3 text-muted fw-bold" style="font-size: 0.75rem;">% CHANGE</th>
-                   </tr>
-                </thead>
-                <tbody id="matHistTableBody"></tbody>
-             </table>
+
+          <div class="table-responsive border rounded-3"
+            style="max-height: 250px; overflow-y: auto; scrollbar-width: thin;">
+            <table class="table table-hover table-sm table-borderless align-middle mb-0">
+              <thead class="table-light border-bottom sticky-top">
+                <tr>
+                  <th class="ps-3 text-muted fw-bold" style="font-size: 0.75rem;">DATE</th>
+                  <th class="text-end text-primary fw-bold" style="font-size: 0.75rem;">ACTUAL RATE</th>
+                  <th class="text-end text-danger fw-bold" style="font-size: 0.75rem;">MARKET RATE</th>
+                  <th class="text-end pe-3 text-muted fw-bold" style="font-size: 0.75rem;">% CHANGE</th>
+                </tr>
+              </thead>
+              <tbody id="matHistTableBody"></tbody>
+            </table>
           </div>
 
         </div>
@@ -1185,85 +1620,91 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body p-4">
-           
-           <div class="alert alert-info border-info bg-info bg-opacity-10 small mb-4" style="border-radius: 8px;">
-              <div class="d-flex align-items-start">
-                 <i class="fas fa-info-circle text-info mt-1 me-2" style="font-size: 1.1rem;"></i>
-                 <div>
-                    <strong>Important VAT Rule (Option A):</strong><br>
-                    If the material you are updating is used in a product that is <strong>VAT Exempt (0%)</strong>, ensure the price you enter below <em>includes</em> the unrecoverable VAT.
-                 </div>
-              </div>
-           </div>
-            
-            <div class="card border border-light shadow-sm mb-4">
-              <div class="card-body bg-light rounded-3 p-3">
-                  <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted mb-1">Effective Date (Future or Past)</label>
-                    <input type="date" id="mu-date" class="form-control form-control-sm fw-bold">
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted mb-1">Target Material</label>
-                    <select id="mu-material" class="form-select form-select-sm fw-bold" onchange="onMuMaterialChange(this.value)"></select>
-                  </div>
-                  
-                  <div class="d-flex justify-content-between align-items-center mb-3 px-2 py-2 bg-white border rounded">
-                    <div class="text-center w-50 border-end">
-                        <div class="small text-muted fw-bold" style="font-size:0.65rem;">LATEST ACTUAL</div>
-                        <div class="text-primary fw-bold" id="mu-act-hint">-</div>
-                    </div>
-                    <div class="text-center w-50">
-                        <div class="small text-muted fw-bold" style="font-size:0.65rem;">LATEST MARKET</div>
-                        <div class="text-danger fw-bold" id="mu-mkt-hint">-</div>
-                    </div>
-                  </div>
 
-                  <div class="mb-1">
-                    <label class="form-label small fw-bold text-muted mb-1">New Market Indication Price</label>
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-white text-danger fw-bold"><i class="fas fa-coins"></i></span>
-                        <input type="number" step="0.01" id="mu-price" class="form-control fw-bold text-danger" placeholder="0.00">
-                    </div>
-                  </div>
+          <div class="alert alert-info border-info bg-info bg-opacity-10 small mb-4" style="border-radius: 8px;">
+            <div class="d-flex align-items-start">
+              <i class="fas fa-info-circle text-info mt-1 me-2" style="font-size: 1.1rem;"></i>
+              <div>
+                <strong>Important VAT Rule (Option A):</strong><br>
+                    If the material you are updating is used in a product that is <strong>VAT Exempt (0%)</strong>, ensure
+                the price you enter below <em>includes</em> the unrecoverable VAT.
               </div>
             </div>
+          </div>
 
-            <button id="mu-submit-btn" class="btn btn-danger w-100 fw-bold shadow-sm mb-4 rounded-pill" onclick="submitMarketUpdate()">
+          <div class="card border border-light shadow-sm mb-4">
+            <div class="card-body bg-light rounded-3 p-3">
+              <div class="mb-3">
+                <label class="form-label small fw-bold text-muted mb-1">Effective Date (Future or Past)</label>
+                <input type="date" id="mu-date" class="form-control form-control-sm fw-bold">
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-bold text-muted mb-1">Target Material</label>
+                <select id="mu-material" class="form-select form-select-sm fw-bold" onchange="onMuMaterialChange(this.value)"></select>
+              </div>
+
+              <div class="d-flex justify-content-between align-items-center mb-3 px-2 py-2 bg-white border rounded">
+                <div class="text-center w-50 border-end">
+                  <div class="small text-muted fw-bold" style="font-size:0.65rem;">LATEST ACTUAL</div>
+                  <div class="text-primary fw-bold" id="mu-act-hint">-</div>
+                </div>
+                <div class="text-center w-50">
+                  <div class="small text-muted fw-bold" style="font-size:0.65rem;">LATEST MARKET</div>
+                  <div class="text-danger fw-bold" id="mu-mkt-hint">-</div>
+                </div>
+              </div>
+
+              <div class="mb-1">
+                <label class="form-label small fw-bold text-muted mb-1">New Market Indication Price</label>
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-white text-danger fw-bold"><i class="fas fa-coins"></i></span>
+                  <input type="number" step="0.01" id="mu-price" class="form-control fw-bold text-danger" placeholder="0.00">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button id="mu-submit-btn" class="btn btn-danger w-100 fw-bold shadow-sm mb-4 rounded-pill" onclick="submitMarketUpdate()">
               <i class="fas fa-save me-2"></i>Commit Update
             </button>
 
-            <h6 class="fw-bold mb-2 text-dark" style="font-size: 0.85rem;"><i class="fas fa-history me-2 text-secondary"></i>Recent Manual Updates</h6>
-            <div class="table-responsive border rounded-3 bg-white" style="max-height: 150px; overflow-y: auto; scrollbar-width: thin;">
-              <table class="table table-hover table-sm table-borderless align-middle mb-0">
-                  <thead class="table-light border-bottom sticky-top">
-                    <tr>
-                        <th class="ps-2 text-muted fw-bold" style="font-size: 0.7rem;">DATE</th>
-                        <th class="text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL</th>
-                        <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.7rem;">RATE</th>
-                    </tr>
-                  </thead>
-                  <tbody id="mu-history-body"></tbody>
-              </table>
-            </div>
-
+          <h6 class="fw-bold mb-2 text-dark" style="font-size: 0.85rem;">
+            <i class="fas fa-history me-2 text-secondary"></i>Recent Manual Updates</h6>
+          <div class="table-responsive border rounded-3 bg-white"
+            style="max-height: 150px; overflow-y: auto; scrollbar-width: thin;">
+            <table class="table table-hover table-sm table-borderless align-middle mb-0">
+              <thead class="table-light border-bottom sticky-top">
+                <tr>
+                  <th class="ps-2 text-muted fw-bold" style="font-size: 0.7rem;">DATE</th>
+                  <th class="text-muted fw-bold" style="font-size: 0.7rem;">MATERIAL</th>
+                  <th class="text-end pe-2 text-muted fw-bold" style="font-size: 0.7rem;">RATE</th>
+                </tr>
+              </thead>
+              <tbody id="mu-history-body"></tbody>
+            </table>
           </div>
+
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="modal fade" id="actionAlertsModal" tabindex="-1">
+  <div class="modal fade" id="actionAlertsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
         <div class="modal-header border-0 pb-0">
-          <h5 class="modal-title fw-bold"><i class="fas fa-exclamation-circle text-warning me-2"></i>Action Required</h5>
+          <h5 class="modal-title fw-bold"><i class="fas fa-exclamation-circle text-warning me-2"></i>Action Required
+          </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body p-4">
-           <div class="alert alert-warning border-warning bg-warning bg-opacity-10 small fw-bold mb-4">
-              <i class="fas fa-info-circle me-2"></i>The following materials have experienced cost volatility greater than 2%. Click any material to view its timeline.
-           </div>
-           <div id="action-alerts-body" style="max-height: 400px; overflow-y: auto; scrollbar-width: thin; padding-right: 5px;">
-              </div>
+          <div class="alert alert-warning border-warning bg-warning bg-opacity-10 small fw-bold mb-4">
+            <i class="fas fa-info-circle me-2"></i>The following materials have experienced cost volatility greater than
+            2%. Click any material to view its timeline.
+          </div>
+          <div id="action-alerts-body"
+            style="max-height: 400px; overflow-y: auto; scrollbar-width: thin; padding-right: 5px;">
+          </div>
         </div>
       </div>
     </div>
@@ -1272,23 +1713,24 @@
   <div class="modal fade" id="cadenceModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-        
+
         <div class="modal-header border-0 pb-3 bg-white sticky-top z-index-10" style="border-radius: 16px 16px 0 0;">
           <div class="w-100">
             <div class="d-flex justify-content-between align-items-start mb-3">
-               <div>
-                 <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
-                    <i class="fas fa-clock-rotate-left text-danger me-2"></i>Late Clients Watchlist
-                    <span id="cadence-detailed-counter" class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-3" style="font-size: 0.75rem;">
+              <div>
+                <h5 class="modal-title fw-bold text-dark d-flex align-items-center">
+                  <i class="fas fa-clock-rotate-left text-danger me-2"></i>Late Clients Watchlist
+                  <span id="cadence-detailed-counter" class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-3" style="font-size: 0.75rem;">
                        <i class="fas fa-spinner fa-spin"></i>
                     </span>
-                 </h5>
-                 <p class="text-muted small mb-0 mt-1">Click the address book for quick contacts, or click the row for order history.</p>
-               </div>
-               
-               <div class="d-flex align-items-center gap-3">
-                  
-                  <button id="btn-sync-cadence" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3" onclick="forceSyncCadence()" title="Force real-time update from Sheets">
+                </h5>
+                <p class="text-muted small mb-0 mt-1">Click the address book for quick contacts, or click the row for
+                  order history.</p>
+              </div>
+
+              <div class="d-flex align-items-center gap-3">
+
+                <button id="btn-sync-cadence" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3" onclick="forceSyncCadence()" title="Force real-time update from Sheets">
                      <i class="fas fa-sync-alt text-primary me-2" id="icon-sync-cadence"></i>
                      <div class="text-start" style="line-height: 1.1;">
                         <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Data</div>
@@ -1296,72 +1738,77 @@
                      </div>
                   </button>
 
-                  <div class="dropdown">
-                     <button class="btn btn-sm btn-outline-primary fw-bold rounded-pill dropdown-toggle shadow-sm" type="button" id="exportCadenceBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-primary fw-bold rounded-pill dropdown-toggle shadow-sm" type="button" id="exportCadenceBtn" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="fas fa-file-export me-1"></i>Export
                      </button>
-                     <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="exportCadenceBtn" style="border-radius: 12px; min-width: 200px;">
-                        <li><a class="dropdown-item fw-medium py-2 text-dark" href="#" onclick="triggerCadenceExport('pdf'); return false;"><i class="fas fa-file-pdf text-danger me-2 fs-5 align-middle"></i>Export to PDF</a></li>
-                        <li><a class="dropdown-item fw-medium py-2 text-dark" href="#" onclick="triggerCadenceExport('xlsx'); return false;"><i class="fas fa-file-excel text-success me-2 fs-5 align-middle"></i>Export to Excel</a></li>
-                     </ul>
-                  </div>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-               </div>
+                  <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="exportCadenceBtn"
+                    style="border-radius: 12px; min-width: 200px;">
+                    <li><a class="dropdown-item fw-medium py-2 text-dark" href="#"
+                        onclick="triggerCadenceExport('pdf'); return false;"><i class="fas fa-file-pdf text-danger me-2 fs-5 align-middle"></i>Export
+                        to PDF</a></li>
+                    <li><a class="dropdown-item fw-medium py-2 text-dark" href="#"
+                        onclick="triggerCadenceExport('xlsx'); return false;"><i class="fas fa-file-excel text-success me-2 fs-5 align-middle"></i>Export
+                        to Excel</a></li>
+                  </ul>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
             </div>
-            
+
             <div class="bg-light p-3 rounded-3 border shadow-sm">
-               <div class="fw-bold text-dark mb-2" style="font-size: 0.75rem;">FILTER BY SEGMENT</div>
-               <div class="d-flex flex-wrap gap-2 mb-3" id="cadence-segment-filters">
-                  </div>
-               
-               <div class="row g-2">
-                  <div class="col-md-3">
-                     <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-period" onchange="handleCadencePeriodChange()">
+              <div class="fw-bold text-dark mb-2" style="font-size: 0.75rem;">FILTER BY SEGMENT</div>
+              <div class="d-flex flex-wrap gap-2 mb-3" id="cadence-segment-filters">
+              </div>
+
+              <div class="row g-2">
+                <div class="col-md-3">
+                  <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-period" onchange="handleCadencePeriodChange()">
                         <option value="12">Orders in Last 12 Mos</option>
                         <option value="6">Orders in Last 6 Mos</option>
                         <option value="all">All Years (Deep Fetch)</option>
                      </select>
-                  </div>
-                  <div class="col-md-3">
-                     <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-region" onchange="renderCadenceTable()">
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-region" onchange="renderCadenceTable()">
                         </select>
-                  </div>
-                  <div class="col-md-3">
-                     <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-prod" onchange="renderCadenceTable()">
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-prod" onchange="renderCadenceTable()">
                         <option value="All">All Products</option>
                         <option value="Vinegar">Vinegar</option>
                         <option value="Tahini">Tahini</option>
                         <option value="Rice">Rice</option>
                         <option value="Others">Others</option>
                      </select>
-                  </div>
-                  <div class="col-md-3">
-                     <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-sort" onchange="renderCadenceTable()">
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select form-select-sm fw-bold text-secondary" id="cad-filter-sort" onchange="renderCadenceTable()">
                         <option value="desc">Sort: Most Late First</option>
                         <option value="asc">Sort: Least Late First</option>
                      </select>
-                  </div>
-               </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         <div class="modal-body p-0 bg-light">
-           <div class="table-responsive">
-              <table class="table table-hover align-middle bg-white mb-0" style="border-collapse: collapse;">
-                 <thead class="table-light text-muted sticky-top" style="font-size: 0.75rem;">
-                    <tr>
-                       <th class="ps-4 border-0">CLIENT INFO</th>
-                       <th class="border-0">CATEGORY</th>
-                       <th class="border-0">LAST ORDER</th>
-                       <th class="border-0">EXPECTED CYCLE</th>
-                       <th class="border-0">LATE STATUS</th>
-                    </tr>
-                 </thead>
-                 <tbody id="cadence-table-body">
-                    </tbody>
-              </table>
-           </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle bg-white mb-0" style="border-collapse: collapse;">
+              <thead class="table-light text-muted sticky-top" style="font-size: 0.75rem;">
+                <tr>
+                  <th class="ps-4 border-0">CLIENT INFO</th>
+                  <th class="border-0">CATEGORY</th>
+                  <th class="border-0">LAST ORDER</th>
+                  <th class="border-0">EXPECTED CYCLE</th>
+                  <th class="border-0">LATE STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="cadence-table-body">
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1370,7 +1817,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-<script>
+  <script>
     // --- COLORS ---
     const COLORS = {
       'All Years': '#1e293b', '2026': '#dc3545', '2025': '#198754', '2024': '#0d6efd', '2023': '#6f42c1', '2022': '#fd7e14', '2021': '#6c757d',
@@ -1396,7 +1843,8 @@
     }
 
     let appState = {
-      mode: 'client', // 'client' or 'product'
+      mode: 'client', 
+      timeScope: 'YTD', // NEW: Client Dashboard Timeline Scope
       rawData: [],
       productData: [],
       selectedYear: 'All',
@@ -1629,22 +2077,24 @@
           if (mode === 'product') {
              if (!response.data) { alert("System Alert: Product Dataset error."); return; }
              
-             appState.productData = response.data; 
-             appState.pristineProductData = JSON.parse(JSON.stringify(response.data)); // Create pristine backup
+             appState.productData = response.data;
+             appState.pristineProductData = JSON.parse(JSON.stringify(response.data)); 
              
              let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+             let dataDate = response.latestData || 'Unknown';
              let syncText = document.getElementById('product-last-sync');
-             if(syncText) syncText.innerText = "Updated " + syncTime;
+             if(syncText) syncText.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
 
              finishLoad('product');
 
           } else if (mode === 'client') {
              if (!response.data) { alert("System Alert: Dataset error."); return; }
-             appState.rawData = response.data; 
+             appState.rawData = response.data;
              
              let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+             let dataDate = response.latestData || 'Unknown';
              let syncText = document.getElementById('main-last-sync');
-             if(syncText) syncText.innerText = "Updated " + syncTime;
+             if(syncText) syncText.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
 
              finishLoad('client');
              if (typeof runCadenceScanner === 'function') setTimeout(runCadenceScanner, 500);
@@ -1652,11 +2102,12 @@
           } else if (mode === 'costing') {
              if (response.error) { alert("Cost Engine Error: " + response.error); return; }
              if (!response.data) { alert("System Alert: Costing Dataset error."); return; }
-             appState.costingData = response.data; 
+             appState.costingData = response.data;
              
              let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+             let dataDate = response.latestData || 'Unknown';
              let syncText = document.getElementById('costing-last-sync');
-             if(syncText) syncText.innerText = "Updated " + syncTime;
+             if(syncText) syncText.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
 
              // Check if Product Data needs to be loaded for ASP math
              if (!appState.productData || appState.productData.length === 0) {
@@ -1812,6 +2263,27 @@
     }
 
     // --- LOGIC ---
+    function setTimeScope(scope) {
+       appState.timeScope = scope;
+       renderDashboard();
+    }
+
+    function getScopedData() {
+        if (!appState.rawData || !Array.isArray(appState.rawData)) return [];
+        if (appState.timeScope === 'FULL') return appState.rawData;
+
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1; // 1-12
+        const currentQuarter = Math.floor(now.getMonth() / 3) + 1; // 1-4
+
+        return appState.rawData.filter(row => {
+            if (appState.timeScope === 'YTD') return (Number(row.month) || 0) <= currentMonth;
+            if (appState.timeScope === 'QTD') return (Number(row.quarter) || 0) === currentQuarter;
+            if (appState.timeScope === 'MTD') return (Number(row.month) || 0) === currentMonth;
+            return true;
+        });
+    }
+
     function setYear(y) { appState.selectedYear = y; appState.selectedType = 'All'; renderDashboard(); }
     function setType(t) { 
        appState.selectedType = t; 
@@ -1836,10 +2308,9 @@
     }
 
     // --- SHARED DATA PROCESSOR (For UI & Export) ---
-    // --- SHARED DATA PROCESSOR (For UI & Export) ---
     function getProcessedData() {
         // Safety Check
-        const rawData = (appState.rawData && Array.isArray(appState.rawData)) ? appState.rawData : [];
+        const rawData = getScopedData();
 
         const riskMode = document.getElementById('riskFilter').value;
         const searchVal = document.getElementById('search').value.toLowerCase();
@@ -1967,11 +2438,15 @@
 
       const map = {};
       
-      // DYNAMIC YEAR CALCULATION
-      // If today is in 2026, we compare 2025 (Full) vs 2024 (Full)
-      const currentYear = new Date().getFullYear(); 
-      const lastFinishedYear = currentYear - 1;     // e.g., 2025
-      const previousFinishedYear = currentYear - 2; // e.g., 2024
+      const currentYear = new Date().getFullYear();
+      let lastFinishedYear = currentYear - 1;     
+      let previousFinishedYear = currentYear - 2; 
+
+      // DYNAMIC GROWTH COMPARISON: If scoped (YTD/QTD/MTD), compare Current Year vs Last Year
+      if (appState.timeScope !== 'FULL') {
+          lastFinishedYear = currentYear;
+          previousFinishedYear = currentYear - 1;
+      }
 
       data.forEach(d => {
         // Group by Main Client (d.client)
@@ -2021,13 +2496,17 @@
        const processedData = getProcessedData(); 
        
        // 2. Pre-fetch detailed year data for all clients in list
-       // We need a map to quickly look up the breakdown for 2021-2026
        const clientDetails = {};
+       const scopedData = getScopedData();
        const clientNames = new Set(processedData.filter(x => !x.isHeader).map(c => c.client));
        
-       appState.rawData.filter(r => clientNames.has(r.client)).forEach(r => {
+       scopedData.filter(r => clientNames.has(r.client)).forEach(r => {
           if(!clientDetails[r.client]) clientDetails[r.client] = {};
-          clientDetails[r.client][r.year] = { q: r.qty, o: r.orders, a: r.avg };
+          // Safely accumulate since multiple months now exist per year
+          if(!clientDetails[r.client][r.year]) clientDetails[r.client][r.year] = { q: 0, o: 0, a: 0 };
+          clientDetails[r.client][r.year].q += r.qty;
+          clientDetails[r.client][r.year].o += r.orders;
+          clientDetails[r.client][r.year].a = clientDetails[r.client][r.year].o > 0 ? Math.round(clientDetails[r.client][r.year].q / clientDetails[r.client][r.year].o) : 0;
        });
 
        // 3. Styles
@@ -2113,14 +2592,14 @@
        }
     }
 
-    // --- RENDER HELPERS ---
     function renderYearToggles() {
+      const scopedData = getScopedData();
       const years = [2021, 2022, 2023, 2024, 2025, 2026];
       const container = document.getElementById('yearToggles');
-      const totalAll = appState.rawData.reduce((s, r) => s + (r[appState.viewMode]||0), 0);
+      const totalAll = scopedData.reduce((s, r) => s + (r[appState.viewMode]||0), 0);
       let html = createToggle('All Years', totalAll, appState.selectedYear === 'All', 'setYear', "'All'", COLORS['All Years']);
       years.forEach(y => {
-        const total = appState.rawData.filter(r => r.year == y).reduce((s, r) => s + (r[appState.viewMode]||0), 0);
+        const total = scopedData.filter(r => r.year == y).reduce((s, r) => s + (r[appState.viewMode]||0), 0);
         html += createToggle(y, total, appState.selectedYear == y, 'setYear', y, COLORS[y]);
       });
       container.innerHTML = html;
@@ -2128,8 +2607,9 @@
 
     function renderTypeToggles() {
       const container = document.getElementById('typeToggles');
-      let activeData = appState.rawData;
-      if (appState.selectedYear !== 'All') activeData = appState.rawData.filter(d => d.year == appState.selectedYear);
+      const scopedData = getScopedData();
+      let activeData = scopedData;
+      if (appState.selectedYear !== 'All') activeData = scopedData.filter(d => d.year == appState.selectedYear);
       const typeMap = {};
       let grandTotal = 0;
       activeData.forEach(d => { const t = d.type || 'Other'; typeMap[t] = (typeMap[t]||0) + (d[appState.viewMode]||0); grandTotal += (d[appState.viewMode]||0); });
@@ -2170,15 +2650,16 @@
       let labels=[], data=[], bg=[];
       let type = 'bar';
       
+      const scopedData = getScopedData();
       if (appState.selectedYear === 'All') {
          type = 'line';
          [2021,2022,2023,2024,2025,2026].forEach(y => {
-            const v = appState.rawData.filter(d => d.year==y && (appState.selectedType==='All'||d.type===appState.selectedType)).reduce((s,r)=>s+(r[appState.viewMode]||0),0);
+            const v = scopedData.filter(d => d.year==y && (appState.selectedType==='All'||d.type===appState.selectedType)).reduce((s,r)=>s+(r[appState.viewMode]||0),0);
             labels.push(y); data.push(v); bg.push(COLORS[y]);
          });
       } else {
          type = 'doughnut';
-         const yrData = appState.rawData.filter(d => d.year==appState.selectedYear);
+         const yrData = scopedData.filter(d => d.year==appState.selectedYear);
          const map={}; yrData.forEach(d=>{const t=d.type||'Other'; map[t]=(map[t]||0)+(d[appState.viewMode]||0);});
          const s = Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,6);
          labels=s.map(x=>x[0]); data=s.map(x=>x[1]); bg=labels.map(l=>getColor(l));
@@ -2197,7 +2678,7 @@
        const b = document.getElementById('modalSubtitle'); b.innerText = type; b.style.backgroundColor = getColor(type);
 
        // 1. Get all raw rows for this Main Client (includes all branches)
-       const clientRows = appState.rawData.filter(d => d.client === name);
+       const clientRows = getScopedData().filter(d => d.client === name);
 
        // 2. Aggregate by YEAR for the Chart & Top Table
        const yearMap = {};
@@ -4485,59 +4966,85 @@
     // ==========================================
     // MANUAL SYNC: MAIN DASHBOARD
     // ==========================================
-    window.forceSyncMainDashboard = function() {
+    window.forceSyncMainDashboard = function(event) {
+        let isFullRebuild = false;
+        if (event && event.shiftKey) {
+            let msg = "⚠️ FULL HISTORICAL REBUILD ⚠️\n\nYou are about to rebuild the entire historical database from scratch to catch ancient edits.\n\nThis will take significantly longer than a fast sync.\n\nAre you sure you want to proceed?";
+            if (!confirm(msg)) return;
+            isFullRebuild = true;
+        }
+
         let icon = document.getElementById('icon-sync-main');
         let text = document.getElementById('main-last-sync');
         icon.classList.add('fa-spin');
-        text.innerText = "Syncing with Sheets...";
+        text.innerText = isFullRebuild ? "Rebuilding History..." : "Syncing Fast (12d)...";
         
         google.script.run.withSuccessHandler(res => {
             icon.classList.remove('fa-spin');
             let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
-            text.innerText = "Updated " + syncTime;
+            let dataDate = res.latestData || 'Unknown';
+            text.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
             
-            appState.rawDashboardData = res.data;
-            processDashboardData(); // Re-render charts
-        }).generateDashboardCache();
+            appState.rawData = res.data; 
+            renderDashboard(); 
+        }).generateDashboardCache(isFullRebuild);
     };
 
     // ==========================================
     // MANUAL SYNC: PRODUCTS DASHBOARD
     // ==========================================
-    window.forceSyncProductsDashboard = function() {
+    window.forceSyncProductsDashboard = function(event) {
+        let isFullRebuild = false;
+        if (event && event.shiftKey) {
+            let msg = "⚠️ FULL HISTORICAL REBUILD ⚠️\n\nYou are about to rebuild the entire historical product database. This will fetch and re-merge years of archives.\n\nAre you sure you want to proceed?";
+            if (!confirm(msg)) return;
+            isFullRebuild = true;
+        }
+
         let icon = document.getElementById('icon-sync-products');
         let text = document.getElementById('product-last-sync');
         if(icon) icon.classList.add('fa-spin');
-        if(text) text.innerText = "Syncing with Sheets...";
+        if(text) text.innerText = isFullRebuild ? "Rebuilding Archives..." : "Syncing Fast (12d)...";
         
         google.script.run.withSuccessHandler(res => {
             if(icon) icon.classList.remove('fa-spin');
             let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
-            if(text) text.innerText = "Updated " + syncTime;
+            let dataDate = res.latestData || 'Unknown';
+            if(text) text.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
             
-            appState.rawData = res.data;
-            renderProducts(); // Re-render charts and tables (Update this to match your actual render function)
-        }).generateProductsCache();
+            appState.productData = res.data; 
+            appState.pristineProductData = JSON.parse(JSON.stringify(res.data)); 
+            renderProductDashboard(); 
+        }).generateProductsCache(isFullRebuild);
     };
 
     // ==========================================
     // MANUAL SYNC: COSTING DASHBOARD
     // ==========================================
-    window.forceSyncCostingDashboard = function() {
+    window.forceSyncCostingDashboard = function(event) {
+        let isFullRebuild = false;
+        if (event && event.shiftKey) {
+            let msg = "⚠️ FULL HISTORICAL REBUILD ⚠️\n\nYou are about to completely rebuild the Cost Engine cache from the ledger.\n\nAre you sure you want to proceed?";
+            if (!confirm(msg)) return;
+            isFullRebuild = true;
+        }
+
         let icon = document.getElementById('icon-sync-costing');
         let text = document.getElementById('costing-last-sync');
         if(icon) icon.classList.add('fa-spin');
-        if(text) text.innerText = "Syncing Cost Engine...";
+        if(text) text.innerText = isFullRebuild ? "Rebuilding Ledger..." : "Syncing Fast (12d)...";
         
         google.script.run.withSuccessHandler(res => {
             if(icon) icon.classList.remove('fa-spin');
             let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
-            if(text) text.innerText = "Updated " + syncTime;
+            let dataDate = res.latestData || 'Unknown';
+            if(text) text.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
             
-            appState.rawData = res.data;
-            renderCosting(); // Re-render charts and tables (Update this to match your actual render function)
-        }).generateCostingCache();
+            appState.costingData = res.data; 
+            renderCostingDashboard(); 
+        }).generateCostingCache(isFullRebuild);
     };
   </script>
 </body>
+
 </html>
