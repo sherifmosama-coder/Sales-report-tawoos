@@ -924,21 +924,6 @@
           </div>
         </div>
 
-        <div class="col-md-6 col-lg-5 col-xl-4">
-          <div class="report-card" onclick="loadInsightsData()">
-            <div class="card-icon-box" style="background: #ecfeff; color: #0dcaf0;">
-              <i class="fas fa-chart-pie"></i>
-            </div>
-            <h3 class="h4 fw-bold mb-3">Custom Reports</h3>
-            <p class="text-muted mb-4">Dynamic BI engine to cross-reference data, analyze margins, and build custom visualizations.</p>
-
-            <div class="d-flex justify-content-between align-items-center" style="min-height: 32px;">
-              <div class="d-flex align-items-center fw-bold small" style="color: #0dcaf0;">BUILD REPORT
-                <i class="fas fa-arrow-right ms-2"></i></div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
       <div class="text-center">
@@ -974,7 +959,6 @@
     <button class="nav-btn" id="nav-btn-client" onclick="switchModule('client')"><i class="fas fa-users-viewfinder me-2"></i>Clients</button>
     <button class="nav-btn" id="nav-btn-product" onclick="switchModule('product')"><i class="fas fa-cubes me-2"></i>Products</button>
     <button class="nav-btn" id="nav-btn-costing" onclick="switchModule('costing')"><i class="fas fa-calculator me-2"></i>Costing</button>
-    <button class="nav-btn" id="nav-btn-insights" onclick="switchModule('insights')"><i class="fas fa-chart-pie me-2"></i>Reports</button>
   </div>
 
   <div class="container-fluid px-3 pt-3" id="main-dashboard" style="display:none;">
@@ -1255,83 +1239,6 @@
       </div>
     </div>
   </div>
-  </div>
-
-  <div id="insights-view-container" style="display: none; max-width: 1400px; margin: 0 auto; padding-left: 10px; padding-right: 10px;">
-     <div class="d-flex justify-content-between align-items-center mb-4 mt-3">
-        <h4 class="fw-bold text-dark m-0"><i class="fas fa-chart-pie text-info me-2"></i>Custom Report Builder</h4>
-        <button class="btn btn-outline-info fw-bold shadow-sm" onclick="exportCustomReport()"><i class="fas fa-file-export me-1"></i>Export Report</button>
-     </div>
-
-     <div class="card border-0 shadow-sm rounded-4 bg-white mb-4">
-        <div class="card-body p-4">
-           <div class="row g-4">
-              <div class="col-md-3">
-                 <label class="fw-bold text-muted small mb-2 text-uppercase"><i class="fas fa-ruler-combined me-1"></i>1. Measure</label>
-                 <select id="cr-measure" class="form-select shadow-sm" onchange="generateCustomReport()">
-                    <option value="qty">Quantity Sold</option>
-                    <option value="rev">Total Revenue</option>
-                    <option value="margin">Gross Profit & Margin</option>
-                 </select>
-              </div>
-              <div class="col-md-3">
-                 <label class="fw-bold text-muted small mb-2 text-uppercase"><i class="fas fa-layer-group me-1"></i>2. Break Down By</label>
-                 <select id="cr-breakdown" class="form-select shadow-sm border-info" onchange="generateCustomReport()">
-                    <option value="client">Client Name</option>
-                    <option value="client_segment">Client Segment</option>
-                    <option value="category">Product Category</option>
-                    <option value="product">Specific Product</option>
-                    <option value="month">Month</option>
-                 </select>
-              </div>
-              <div class="col-md-6">
-                 <label class="fw-bold text-muted small mb-2 text-uppercase"><i class="fas fa-filter me-1"></i>3. Specific Filters (Optional)</label>
-                 <div class="d-flex gap-2">
-                    <select id="cr-filter-client" class="form-select shadow-sm" onchange="generateCustomReport()"><option value="All">All Clients</option></select>
-                    <select id="cr-filter-category" class="form-select shadow-sm" onchange="generateCustomReport()"><option value="All">All Categories</option></select>
-                    <select id="cr-filter-time" class="form-select shadow-sm" onchange="generateCustomReport()">
-                       <option value="All">All Time</option>
-                       <option value="YTD">Year-to-Date</option>
-                       <option value="QTD">Quarter-to-Date</option>
-                    </select>
-                 </div>
-              </div>
-           </div>
-        </div>
-     </div>
-
-     <div class="row mb-4" id="cr-summary-cards"></div>
-
-     <div class="row">
-        <div class="col-lg-12 mb-4">
-           <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-              <div class="card-header bg-white border-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
-                 <h6 class="fw-bold text-muted small m-0 text-uppercase"><i class="fas fa-chart-area me-2"></i>Visualization</h6>
-                 <select id="cr-chart-type" class="form-select form-select-sm shadow-sm w-auto fw-bold text-info" onchange="generateCustomReport()">
-                    <option value="bar">📊 Bar Chart</option>
-                    <option value="line">📈 Line Chart</option>
-                    <option value="doughnut">🍩 Doughnut Chart</option>
-                    <option value="pie">🥧 Pie Chart</option>
-                 </select>
-              </div>
-              <div class="card-body p-4" style="min-height: 450px; position: relative;">
-                 <canvas id="crChart"></canvas>
-              </div>
-           </div>
-        </div>
-        <div class="col-lg-12 mb-5">
-           <div class="card border-0 shadow-sm rounded-4 bg-white">
-              <div class="card-body p-4 table-responsive">
-                 <table class="table table-hover align-middle" id="cr-table">
-                    <thead class="table-light text-muted small text-uppercase" id="cr-table-head"></thead>
-                    <tbody id="cr-table-body">
-                       <tr><td colspan="6" class="text-center text-muted py-4">Select your parameters above to generate a report.</td></tr>
-                    </tbody>
-                 </table>
-              </div>
-           </div>
-        </div>
-     </div>
   </div>
 
   <div id="client-view-container" style="display: none;">
@@ -2025,14 +1932,12 @@
        document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
        document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
        document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
-       if (document.getElementById('nav-btn-insights')) document.getElementById('nav-btn-insights').className = mode === 'insights' ? 'nav-btn active' : 'nav-btn';
 
        // 2. Force Hide ALL containers safely
        document.getElementById('client-view-container').style.display = 'none';
        document.getElementById('product-controls').style.display = 'none';
        document.getElementById('product-content-area').style.display = 'none';
        document.getElementById('costing-view-container').style.display = 'none';
-       if (document.getElementById('insights-view-container')) document.getElementById('insights-view-container').style.display = 'none';
 
        // 3. Route to the correct view
        if (mode === 'product') {
@@ -2041,10 +1946,6 @@
        } else if (mode === 'costing') {
           if (!appState.costingData || appState.costingData.length === 0) { loadSource('costing'); } 
           else { initCostingView(); }
-       } else if (mode === 'insights') {
-          if (!appState.rawData || !appState.productData || !appState.costingData || appState.rawData.length === 0) {
-             loadInsightsData(); 
-          } else { initInsightsView(); }
        } else {
           if (!appState.rawData || appState.rawData.length === 0) { loadSource('client'); } 
           else { initClientView(); }
@@ -2301,226 +2202,6 @@
        
        updateProductFiltersUI();
        renderProductDashboard();
-    }
-
-    // ==========================================
-    // THE INSIGHTS MASTER LOADER (COLD START)
-    // ==========================================
-    function loadInsightsData() {
-        document.getElementById('landing-screen').style.display = 'none';
-        document.getElementById('main-dashboard').style.display = 'none';
-        document.getElementById('floating-navigator').style.display = 'none';
-        appState.mode = 'insights';
-
-        const loader = document.getElementById('smart-loader');
-        document.getElementById('loader-icon').className = 'fas fa-chart-pie text-info';
-        document.getElementById('loader-icon-box').style.color = '#0dcaf0';
-        document.getElementById('loader-title').innerText = "Initializing BI Engine";
-        const insightEl = document.getElementById('loader-insight');
-        loader.style.display = 'flex';
-
-        // 1. Fetch Client Data
-        insightEl.innerText = "Loading Client Database...";
-        google.script.run.withSuccessHandler(clientRes => {
-            if(clientRes && clientRes.data) appState.rawData = clientRes.data;
-            
-            // 2. Fetch Product Data
-            insightEl.innerText = "Loading Product Archives...";
-            google.script.run.withSuccessHandler(prodRes => {
-                if(prodRes && prodRes.data) {
-                    appState.productData = prodRes.data;
-                    appState.pristineProductData = JSON.parse(JSON.stringify(prodRes.data));
-                }
-                
-                // 3. Fetch Costing Data
-                insightEl.innerText = "Synchronizing Cost Ledger...";
-                google.script.run.withSuccessHandler(costRes => {
-                    if(costRes && costRes.data) appState.costingData = costRes.data;
-                    
-                    document.getElementById('smart-loader').style.display = 'none';
-                    document.getElementById('floating-navigator').style.display = 'flex';
-                    document.getElementById('nav-btn-insights').className = 'nav-btn active';
-                    initInsightsView();
-                }).getCostingDataFromCache();
-            }).getProductDataFromCache();
-        }).getDashboardDataFromCache();
-    }
-
-    // ==========================================
-    // CUSTOM REPORT BUILDER ENGINE
-    // ==========================================
-    let crChartInstance = null;
-
-    function initInsightsView() {
-        document.getElementById('main-dashboard').style.display = 'block';
-        document.getElementById('client-view-container').style.display = 'none';
-        document.getElementById('product-controls').style.display = 'none';
-        document.getElementById('product-content-area').style.display = 'none';
-        document.getElementById('costing-view-container').style.display = 'none';
-        document.getElementById('insights-view-container').style.display = 'block';
-
-        populateInsightFilters();
-        generateCustomReport(); 
-    }
-
-    function populateInsightFilters() {
-        const cSelect = document.getElementById('cr-filter-client');
-        if (appState.rawData && cSelect.options.length <= 1) {
-            const clients = [...new Set(appState.rawData.map(r => r.client))].filter(Boolean).sort();
-            cSelect.innerHTML = '<option value="All">All Clients</option>' + clients.map(c => `<option value="${c}">${c}</option>`).join('');
-        }
-        const catSelect = document.getElementById('cr-filter-category');
-        if (appState.productData && catSelect.options.length <= 1) {
-            const cats = [...new Set(appState.productData.map(p => p.category))].filter(Boolean).sort();
-            catSelect.innerHTML = '<option value="All">All Categories</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
-        }
-    }
-
-    function generateCustomReport() {
-        const measure = document.getElementById('cr-measure').value;
-        const breakdown = document.getElementById('cr-breakdown').value;
-        const fClient = document.getElementById('cr-filter-client').value;
-        const fCategory = document.getElementById('cr-filter-category').value;
-        const fTime = document.getElementById('cr-filter-time').value;
-
-        const now = new Date();
-        const currYear = now.getFullYear();
-        const currMonth = now.getMonth() + 1;
-        const currQ = Math.floor(now.getMonth() / 3) + 1;
-
-        let costDict = {};
-        if (appState.costingData) {
-            appState.costingData.forEach(c => {
-                if (!costDict[c.product]) costDict[c.product] = c.unitActual || 0;
-            });
-        }
-
-        let resultsMap = {};
-        let grandTotalQty = 0, grandTotalRev = 0, grandTotalCost = 0;
-        let useClientEngine = (breakdown === 'client' || breakdown === 'client_segment' || fClient !== 'All');
-
-        if (useClientEngine) {
-            appState.rawData.forEach(r => {
-                if (fTime === 'YTD' && (r.year != currYear || r.month > currMonth)) return;
-                if (fTime === 'QTD' && (r.year != currYear || r.quarter != currQ)) return;
-                if (fClient !== 'All' && r.client !== fClient) return;
-
-                let key = breakdown === 'client' ? r.client : (breakdown === 'client_segment' ? r.type : (breakdown === 'month' ? `${r.year}-${String(r.month).padStart(2, '0')}` : 'Overall'));
-                if (!key) key = 'Unknown';
-
-                if (!resultsMap[key]) resultsMap[key] = { qty: 0, rev: 0, cost: 0 };
-                let q = Number(r.qty) || 0; let rev = Number(r.rev) || 0;
-                resultsMap[key].qty += q; resultsMap[key].rev += rev;
-                resultsMap[key].cost += (rev * 0.65); // Standard 65% COGS fallback for pure client-level view
-            });
-        } else {
-            appState.productData.forEach(p => {
-                if (fTime === 'YTD' && (p.year != currYear || p.month > currMonth)) return;
-                let pQ = Math.floor((p.month - 1) / 3) + 1;
-                if (fTime === 'QTD' && (p.year != currYear || pQ != currQ)) return;
-                if (fCategory !== 'All' && p.category !== fCategory) return;
-
-                let key = breakdown === 'category' ? p.category : (breakdown === 'product' ? p.item : (breakdown === 'month' ? `${p.year}-${String(p.month).padStart(2, '0')}` : 'Overall'));
-                if (!key) key = 'Unknown';
-
-                if (!resultsMap[key]) resultsMap[key] = { qty: 0, rev: 0, cost: 0 };
-                let q = Number(p.qty) || 0; let rev = Number(p.rev) || 0;
-                resultsMap[key].qty += q; resultsMap[key].rev += rev;
-                resultsMap[key].cost += (q * (costDict[p.item] || 0)); 
-            });
-        }
-
-        let dataArray = Object.keys(resultsMap).map(k => {
-            let gp = resultsMap[k].rev - resultsMap[k].cost;
-            let mgn = resultsMap[k].rev > 0 ? (gp / resultsMap[k].rev) * 100 : 0;
-            grandTotalQty += resultsMap[k].qty; grandTotalRev += resultsMap[k].rev; grandTotalCost += resultsMap[k].cost;
-            return { label: k, qty: resultsMap[k].qty, rev: resultsMap[k].rev, cost: resultsMap[k].cost, gp: gp, margin: mgn };
-        });
-
-        dataArray.sort((a, b) => measure === 'qty' ? b.qty - a.qty : (measure === 'rev' ? b.rev - a.rev : b.gp - a.gp));
-
-        let grandGP = grandTotalRev - grandTotalCost;
-        let grandMargin = grandTotalRev > 0 ? (grandGP / grandTotalRev) * 100 : 0;
-        
-        const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 });
-        document.getElementById('cr-summary-cards').innerHTML = `
-            <div class="col-md-3"><div class="card bg-primary text-white border-0 shadow-sm rounded-4"><div class="card-body p-3">
-               <div class="small opacity-75 fw-bold text-uppercase mb-1">Total Quantity</div><h4 class="mb-0 fw-bold">${grandTotalQty.toLocaleString()}</h4>
-            </div></div></div>
-            <div class="col-md-3"><div class="card bg-success text-white border-0 shadow-sm rounded-4"><div class="card-body p-3">
-               <div class="small opacity-75 fw-bold text-uppercase mb-1">Total Revenue</div><h4 class="mb-0 fw-bold">${formatter.format(grandTotalRev)}</h4>
-            </div></div></div>
-            <div class="col-md-3"><div class="card bg-info text-white border-0 shadow-sm rounded-4"><div class="card-body p-3">
-               <div class="small opacity-75 fw-bold text-uppercase mb-1">Gross Profit</div><h4 class="mb-0 fw-bold">${formatter.format(grandGP)}</h4>
-            </div></div></div>
-            <div class="col-md-3"><div class="card bg-dark text-white border-0 shadow-sm rounded-4"><div class="card-body p-3">
-               <div class="small opacity-75 fw-bold text-uppercase mb-1">Margin %</div><h4 class="mb-0 fw-bold">${grandMargin.toFixed(1)}%</h4>
-            </div></div></div>
-        `;
-
-        const chartType = document.getElementById('cr-chart-type').value || 'bar';
-        const labels = dataArray.map(d => d.label).slice(0, 20); 
-        const chartData = dataArray.map(d => measure === 'qty' ? d.qty : (measure === 'rev' ? d.rev : d.gp)).slice(0, 20);
-        
-        let labelName = measure === 'qty' ? 'Quantity Sold' : (measure === 'rev' ? 'Revenue (EGP)' : 'Gross Profit (EGP)');
-        let baseColor = measure === 'qty' ? '#3b82f6' : (measure === 'rev' ? '#10b981' : '#0dcaf0');
-        
-        let bgColors = baseColor;
-        if (chartType === 'doughnut' || chartType === 'pie') {
-            const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
-            bgColors = labels.map((_, i) => palette[i % palette.length]);
-        }
-
-        if (crChartInstance) crChartInstance.destroy();
-        const ctx = document.getElementById('crChart').getContext('2d');
-        
-        crChartInstance = new Chart(ctx, {
-            type: chartType,
-            data: {
-                labels: labels,
-                datasets: [{ 
-                    label: labelName, data: chartData, backgroundColor: bgColors, borderRadius: chartType === 'bar' ? 6 : 0,
-                    tension: 0.3, fill: chartType === 'line', borderColor: chartType === 'line' ? baseColor : '#ffffff', borderWidth: chartType === 'line' ? 3 : 1
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: (chartType === 'doughnut' || chartType === 'pie'), position: 'right' } },
-                scales: (chartType === 'doughnut' || chartType === 'pie') ? {} : { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }
-            }
-        });
-
-        window.latestCustomReportData = dataArray;
-        const tbody = document.getElementById('cr-table-body');
-        document.getElementById('cr-table-head').innerHTML = `<tr><th>${document.getElementById('cr-breakdown').options[document.getElementById('cr-breakdown').selectedIndex].text}</th><th class="text-end">Quantity</th><th class="text-end">Revenue</th><th class="text-end">COGS</th><th class="text-end">Gross Profit</th><th class="text-end">Margin %</th></tr>`;
-        
-        if (dataArray.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No data found for these filters.</td></tr>';
-        } else {
-            tbody.innerHTML = dataArray.map(d => `
-                <tr>
-                    <td class="fw-bold text-dark">${d.label}</td>
-                    <td class="text-end text-muted">${d.qty.toLocaleString()}</td>
-                    <td class="text-end text-success fw-bold">${formatter.format(d.rev)}</td>
-                    <td class="text-end text-danger">${formatter.format(d.cost)}</td>
-                    <td class="text-end text-info fw-bold">${formatter.format(d.gp)}</td>
-                    <td class="text-end"><span class="badge ${d.margin >= 30 ? 'bg-success' : (d.margin > 15 ? 'bg-warning text-dark' : 'bg-danger')}">${d.margin.toFixed(1)}%</span></td>
-                </tr>
-            `).join('');
-        }
-    }
-
-    function exportCustomReport() {
-        if (!window.latestCustomReportData || window.latestCustomReportData.length === 0) { alert("No data to export!"); return; }
-        let csvContent = "data:text/csv;charset=utf-8,";
-        let breakdownName = document.getElementById('cr-breakdown').options[document.getElementById('cr-breakdown').selectedIndex].text;
-        csvContent += `${breakdownName},Quantity,Revenue,COGS,Gross Profit,Margin %\n`;
-        window.latestCustomReportData.forEach(r => {
-            let safeLabel = `"${String(r.label).replace(/"/g, '""')}"`;
-            csvContent += `${safeLabel},${r.qty},${r.rev},${r.cost},${r.gp},${r.margin.toFixed(2)}%\n`;
-        });
-        var a = document.createElement("a"); a.href = encodeURI(csvContent); a.download = `Custom_Report.csv`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
     }
 
     function updateProductState(key, val) {
