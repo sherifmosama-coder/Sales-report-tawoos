@@ -1122,6 +1122,10 @@
           <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25 rounded-pill px-4 py-1 shadow-sm" style="letter-spacing: 0.5px;">Margin Analysis (Cost vs ASP)</span>
         </div>
         <div class="d-flex gap-2 justify-content-center mt-2 flex-wrap">
+          <button id="btn-exec-toggle" class="btn btn-sm btn-dark rounded-pill px-4 fw-bold shadow-sm border border-dark" onclick="toggleExecutiveView()" style="font-size: 0.75rem; letter-spacing: 0.5px; transition: all 0.3s;">
+             <i class="fas fa-mobile-alt me-2 text-warning"></i>Executive Summary
+          </button>
+
           <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold shadow-sm" onclick="openMarketUpdateModal()" style="font-size: 0.75rem;">
                       <i class="fas fa-pen-to-square me-1"></i>Manage Market Rates
                    </button>
@@ -1162,14 +1166,33 @@
           class="d-flex align-items-center justify-content-md-center justify-content-start gap-3 overflow-auto pb-4 border-bottom mb-4"
           id="costing-category-toggles" style="scrollbar-width:none; -ms-overflow-style:none;"></div>
 
-        <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 2:
-          Select Product</h6>
-        <div class="d-flex flex-wrap justify-content-center gap-2 pb-2 px-2" id="costing-product-toggles"
-          style="max-height: 300px; overflow-y: auto; scrollbar-width: thin;"></div>
+        <div id="detailed-step2">
+          <h6 class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.75rem; letter-spacing: 1px;">Step 2: Select Product</h6>
+          <div class="d-flex flex-wrap justify-content-center gap-2 pb-2 px-2" id="costing-product-toggles" style="max-height: 300px; overflow-y: auto; scrollbar-width: thin;"></div>
+        </div>
       </div>
     </div>
 
-    <div class="row g-4 mb-4">
+    <div id="executive-summary-view" class="d-none mb-4">
+      <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white border-top border-4 border-dark">
+        <div class="card-body p-3 d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
+          <div class="form-check form-switch d-flex align-items-center gap-2 m-0" style="font-size: 1.1rem;">
+            <input class="form-check-input m-0" type="checkbox" id="execCompareToggle" onchange="toggleExecCompare()" style="cursor:pointer; width: 2.5em; height: 1.2em;">
+            <label class="form-check-label fw-bold text-dark ms-2" for="execCompareToggle" style="cursor:pointer;">Compare Historical Data</label>
+          </div>
+          <div id="execDateSelector" class="d-none align-items-center gap-2 bg-light p-2 rounded-3 border w-100 w-md-auto justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+               <span class="text-muted small fw-bold">Baseline Date:</span>
+               <input type="date" class="form-control form-control-sm border-secondary fw-bold" id="execBaseDate" value="2026-03-01" onchange="renderExecutiveSummary()" style="width: 135px;">
+            </div>
+            <span class="text-info small ms-2 fw-bold"><i class="fas fa-info-circle"></i> Last stable: 1st Mar 2026</span>
+          </div>
+        </div>
+      </div>
+      <div id="executive-cards-container" class="d-flex flex-column gap-4"></div>
+    </div>
+
+    <div class="row g-4 mb-4" id="detailed-charts">
       <div class="col-lg-8">
         <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
           <div class="card-body p-4 position-relative">
@@ -1179,14 +1202,14 @@
               <h6 class="fw-bold m-0 mt-2"><i class="fas fa-chart-area me-2 text-primary"></i>Unit Margin Trend</h6>
 
               <div class="d-flex gap-2 flex-wrap">
-                <div class="segmented-control shadow-sm border bg-white" style="padding: 2px; border-radius: 8px;">
-                  <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" checked onchange="updateCostingState('view', 'actual')">
+                <div class="segmented-control shadow-sm border bg-light" style="padding: 2px; border-radius: 8px;">
+                  <input type="radio" class="btn-check" name="costing-view" id="cview-actual" value="actual" onchange="updateCostingState('view', 'actual')">
                   <label for="cview-actual" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-file-invoice-dollar me-1 text-primary"></i> Actual</label>
 
                   <input type="radio" class="btn-check" name="costing-view" id="cview-market" value="market" onchange="updateCostingState('view', 'market')">
                   <label for="cview-market" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-chart-line me-1 text-danger"></i> Market</label>
 
-                  <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" onchange="updateCostingState('view', 'compare')">
+                  <input type="radio" class="btn-check" name="costing-view" id="cview-compare" value="compare" checked onchange="updateCostingState('view', 'compare')">
                   <label for="cview-compare" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-balance-scale me-1 text-dark"></i> Compare</label>
                 </div>
 
@@ -1194,11 +1217,14 @@
                   <input type="radio" class="btn-check" name="c-timeline" id="ctl-daily" value="daily" onchange="updateCostingState('timeline', 'daily')">
                   <label for="ctl-daily" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-day me-1"></i> Daily</label>
 
-                  <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" onchange="updateCostingState('timeline', 'weekly')">
+                  <input type="radio" class="btn-check" name="c-timeline" id="ctl-weekly" value="weekly" checked onchange="updateCostingState('timeline', 'weekly')">
                   <label for="ctl-weekly" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-week me-1"></i> Weekly</label>
 
-                  <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" checked onchange="updateCostingState('timeline', 'monthly')">
+                  <input type="radio" class="btn-check" name="c-timeline" id="ctl-monthly" value="monthly" onchange="updateCostingState('timeline', 'monthly')">
                   <label for="ctl-monthly" class="mb-0 px-2 py-1" style="font-size:0.75rem;"><i class="fas fa-calendar-alt me-1"></i> Monthly</label>
+                </div>
+
+                <div class="segmented-control shadow-sm border bg-light d-flex align-items-center" style="padding: 2px; border-radius: 8px;" id="year-toggles-container">
                 </div>
               </div>
             </div>
@@ -1212,9 +1238,12 @@
 
       <div class="col-lg-4">
         <div class="card border-0 shadow-sm h-100 rounded-4 bg-white d-flex flex-column">
-          <div class="card-header bg-transparent border-0 pt-4 pb-2 text-center">
+          <div class="card-header bg-transparent border-0 pt-4 pb-2 text-center position-relative">
             <h6 class="fw-bold m-0"><i class="fas fa-search-dollar me-2 text-warning"></i>Cost Composition</h6>
             <div id="bom-panel-subtitle" class="badge bg-light text-dark border mt-2">Loading...</div>
+            <button id="btn-inspect-transactions" class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 mt-3 me-3 d-none shadow-sm" onclick="openTransactionInspector()" style="font-size: 0.7rem; border-radius: 8px;">
+                <i class="fas fa-search-plus me-1"></i>Inspect
+            </button>
           </div>
           <div class="card-body p-3 d-flex flex-column" style="flex-grow: 1;">
 
@@ -1814,6 +1843,74 @@
       </div>
     </div>
   </div>
+
+  <div class="modal fade" id="transactionInspectorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content border-0 rounded-4 shadow-lg">
+        <div class="modal-header bg-light border-bottom-0 py-3">
+          <h5 class="modal-title fw-bold text-dark" id="inspectorModalTitle">
+             <i class="fas fa-microscope text-primary me-2"></i>Lineage Inspector
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-0">
+           
+           <ul class="nav nav-tabs bg-light pt-2 px-3 border-bottom" id="inspectorTabs" role="tablist">
+             <li class="nav-item" role="presentation">
+               <button class="nav-link active fw-bold" id="sales-tab" data-bs-toggle="tab" data-bs-target="#sales-pane" type="button" role="tab">
+                  <i class="fas fa-file-invoice-dollar text-success me-1"></i> ASP & Sales Ledger
+               </button>
+             </li>
+             <li class="nav-item" role="presentation">
+               <button class="nav-link fw-bold" id="costs-tab" data-bs-toggle="tab" data-bs-target="#costs-pane" type="button" role="tab">
+                  <i class="fas fa-boxes text-danger me-1"></i> Cost Calculation (BOM)
+               </button>
+             </li>
+           </ul>
+
+           <div class="tab-content" id="inspectorTabContent">
+             
+             <div class="tab-pane fade show active p-4" id="sales-pane" role="tabpanel">
+                <div class="table-responsive border rounded-3" style="max-height: 400px; overflow-y: auto;">
+                   <table class="table table-hover table-sm align-middle mb-0">
+                      <thead class="table-light sticky-top shadow-sm">
+                         <tr>
+                            <th class="ps-3 text-muted" style="font-size: 0.75rem;">DATE</th>
+                            <th class="text-muted" style="font-size: 0.75rem;">CLIENT</th>
+                            <th class="text-center text-muted" style="font-size: 0.75rem;">QTY</th>
+                            <th class="text-end text-muted" style="font-size: 0.75rem;">GROSS REV</th>
+                            <th class="text-center text-muted" style="font-size: 0.75rem;">CONTRACT %</th>
+                            <th class="text-end text-muted" style="font-size: 0.75rem;">NET REV</th>
+                            <th class="text-end pe-3 text-muted" style="font-size: 0.75rem;">NET ASP</th>
+                         </tr>
+                      </thead>
+                      <tbody id="inspector-sales-body"></tbody>
+                   </table>
+                </div>
+             </div>
+
+             <div class="tab-pane fade p-4" id="costs-pane" role="tabpanel">
+                <div class="table-responsive border rounded-3" style="max-height: 400px; overflow-y: auto;">
+                   <table class="table table-hover table-sm align-middle mb-0">
+                      <thead class="table-light sticky-top shadow-sm">
+                         <tr>
+                            <th class="ps-3 text-muted" style="font-size: 0.75rem;">MATERIAL</th>
+                            <th class="text-center text-muted" style="font-size: 0.75rem;">QTY / UNIT</th>
+                            <th class="text-center text-muted" style="font-size: 0.75rem;">RATE DATE</th>
+                            <th class="text-end text-muted" style="font-size: 0.75rem;">UNIT RATE</th>
+                            <th class="text-end pe-3 text-muted" style="font-size: 0.75rem;">TOTAL COST</th>
+                         </tr>
+                      </thead>
+                      <tbody id="inspector-costs-body"></tbody>
+                   </table>
+                </div>
+             </div>
+
+           </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -1848,6 +1945,7 @@
       timeScope: 'YTD', // NEW: Client Dashboard Timeline Scope
       rawData: [],
       productData: [],
+      netSalesData: [], // NEW: Contract & Commercial Terms Data
       selectedYear: 'All',
       selectedType: 'All',
       viewMode: 'qty',
@@ -1867,7 +1965,9 @@
       
       // NEW: Costing Engine State
       costingData: [],
-      cFilters: { category: 'WHITE T', product: 'خل الطاووس ( 900 مللي )', view: 'actual', timeline: 'monthly' },
+      netSalesData: [], // NEW: Contract & Commercial Terms Data
+      cFilters: { category: 'WHITE T', product: 'خل الطاووس ( 900 مللي )', view: 'compare', timeline: 'weekly', year: new Date().getFullYear().toString() },
+      execState: { isSummary: false, isCompare: false, baseDate: '2026-03-01' },
       cDoughnutChart: null,
       cChartInstance: null,
       bomChartInstance: null
@@ -2109,27 +2209,32 @@
              let dataDate = response.latestData || 'Unknown';
              let syncText = document.getElementById('costing-last-sync');
              if(syncText) syncText.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
-
-             // Check if Product Data needs to be loaded for ASP math
-             if (!appState.productData || appState.productData.length === 0) {
-                 document.getElementById('loader-insight').innerText = "Cross-referencing sales ledger...";
-                 google.script.run.withSuccessHandler(prodRes => {
-                     if (prodRes && prodRes.data) {
-                         appState.productData = prodRes.data;
-                         appState.pristineProductData = JSON.parse(JSON.stringify(prodRes.data)); // Create pristine backup
-                         
-                         // Pre-fill the product sync UI just in case!
-                         let prodTime = new Date(prodRes.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
-                         let pText = document.getElementById('product-last-sync');
-                         if(pText) pText.innerText = "Updated " + prodTime;
-                     } else {
-                         appState.productData = [];
-                     }
+             
+             // NEW: Fetch Net Sales (Commercial Terms) before finalizing the Costing view
+             document.getElementById('loader-insight').innerText = "Applying commercial terms & contracts...";
+             google.script.run.withSuccessHandler(netRes => {
+                 if (netRes && netRes.data) appState.netSalesData = netRes.data;
+                 
+                 // Fallback: Check if Product Data needs to be loaded
+                 if (!appState.productData || appState.productData.length === 0) {
+                     document.getElementById('loader-insight').innerText = "Cross-referencing sales ledger...";
+                     google.script.run.withSuccessHandler(prodRes => {
+                         if (prodRes && prodRes.data) {
+                             appState.productData = prodRes.data;
+                             appState.pristineProductData = JSON.parse(JSON.stringify(prodRes.data)); 
+                             
+                             let prodTime = new Date(prodRes.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+                             let pText = document.getElementById('product-last-sync');
+                             if(pText) pText.innerText = "Updated " + prodTime;
+                         } else {
+                             appState.productData = [];
+                         }
+                         finishLoad('costing');
+                     }).getProductDataFromCache();
+                 } else {
                      finishLoad('costing');
-                 }).getProductDataFromCache();
-             } else {
-                 finishLoad('costing');
-             }
+                 }
+             }).getNetSalesDataFromCache();
           }
         })
         .withFailureHandler(error => {
@@ -3530,17 +3635,37 @@
        appState.costingData.forEach(d => { d.category = pMap[d.product] || 'Uncategorized'; });
 
        // 2. Build Category Chips
-       const categories = [...new Set(appState.costingData.map(d => d.category))].filter(Boolean).sort();
-       if (!appState.cFilters.category || appState.cFilters.category === 'All' || !categories.includes(appState.cFilters.category)) {
-          appState.cFilters.category = categories.includes('WHITE T') ? 'WHITE T' : (categories.length > 0 ? categories[0] : 'All');
+       let cats = [...new Set(appState.costingData.map(d => d.category))].filter(Boolean).sort();
+       const categories = ['All', ...cats]; // Inject 'All' to the front of the list
+
+       // Default to 'All' if no category is selected
+       if (!appState.cFilters.category || !categories.includes(appState.cFilters.category)) {
+          appState.cFilters.category = 'All';
        }
 
        let catHtml = categories.map(c => 
           `<div class="category-chip ${appState.cFilters.category === c ? 'active' : ''}" onclick="updateCostingState('category', '${c}')">
-             <i class="${appState.cFilters.category === c ? 'fas fa-check-circle' : 'fas fa-layer-group'} me-1"></i>${c}
+             <i class="${appState.cFilters.category === c ? 'fas fa-check-circle' : (c === 'All' ? 'fas fa-globe' : 'fas fa-layer-group')} me-1"></i>${c}
            </div>`
        ).join('');
        document.getElementById('costing-category-toggles').innerHTML = catHtml;
+
+       // --- NEW: BUILD DYNAMIC YEAR TOGGLES ---
+       let currentYr = new Date().getFullYear();
+       if (!appState.cFilters.year) appState.cFilters.year = currentYr.toString();
+       
+       let yrHtml = '<span class="text-muted fw-bold mx-2" style="font-size:0.65rem;">YEAR:</span>';
+       for(let y = 2021; y <= currentYr; y++) {
+           let chk = appState.cFilters.year === y.toString() ? 'checked' : '';
+           yrHtml += `<input type="radio" class="btn-check" name="c-year" id="cyr-${y}" value="${y}" ${chk} onchange="updateCostingState('year', '${y}')">
+                      <label for="cyr-${y}" class="mb-0 px-2 py-1 fw-bold" style="font-size:0.75rem; cursor:pointer;">${y}</label>`;
+       }
+       let chkAll = appState.cFilters.year === 'All' ? 'checked' : '';
+       yrHtml += `<input type="radio" class="btn-check" name="c-year" id="cyr-All" value="All" ${chkAll} onchange="updateCostingState('year', 'All')">
+                  <label for="cyr-All" class="mb-0 px-2 py-1 fw-bold text-primary" style="font-size:0.75rem; cursor:pointer;">All</label>`;
+       
+       let ytContainer = document.getElementById('year-toggles-container');
+       if(ytContainer) ytContainer.innerHTML = yrHtml;
 
        renderCostingDashboard();
     }
@@ -3597,7 +3722,13 @@
 
        // 1. IDENTIFY VOLATILE MATERIALS & BUILD SCORECARDS
        const alertMats = new Set((appState.globalAlerts || []).map(a => a.mat));
-       const catProducts = [...new Set(appState.costingData.filter(d => d.category === appState.cFilters.category).map(d => d.product))].sort();
+       
+       // --- NEW: HANDLE "ALL" CATEGORY FOR PRODUCTS ---
+       let catData = appState.cFilters.category === 'All' ? 
+                     appState.costingData : 
+                     appState.costingData.filter(d => d.category === appState.cFilters.category);
+                     
+       const catProducts = [...new Set(catData.map(d => d.product))].sort();
        
        if (!catProducts.includes(appState.cFilters.product)) {
            appState.cFilters.product = catProducts.includes('خل الطاووس ( 900 مللي )') ? 'خل الطاووس ( 900 مللي )' : (catProducts.length > 0 ? catProducts[0] : 'All');
@@ -3612,13 +3743,17 @@
            const displayCost = Math.abs(actCost - mktCost) > 0.01 ? mktCost : actCost;
            
            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-           const recentSales = appState.productData.filter(s => s.item === p && new Date(s.date).getTime() >= thirtyDaysAgo);
-           let rev = 0; let qty = 0;
-           recentSales.forEach(s => { rev += s.rev; qty += s.qty; });
-           const currentAsp = qty > 0 ? (rev / qty) : 0;
            
-           const gpVal = currentAsp - displayCost;
-           const gpPct = currentAsp > 0 ? ((gpVal / currentAsp) * 100).toFixed(1) : 0;
+           // NEW: Use Net Sales Cache for Commercial Precision
+           const recentSales = (appState.netSalesData || []).filter(s => s.product === p && s.dateMs >= thirtyDaysAgo);
+           let grossRev = 0; let netRev = 0; let qty = 0;
+           recentSales.forEach(s => { grossRev += s.grossRev; netRev += s.netRev; qty += s.qty; });
+           
+           const grossAsp = qty > 0 ? (grossRev / qty) : 0;
+           const netAsp = qty > 0 ? (netRev / qty) : 0;
+           
+           const gpVal = netAsp - displayCost; // True Profit Margin
+           const gpPct = netAsp > 0 ? ((gpVal / netAsp) * 100).toFixed(1) : 0;
 
            let needsAttention = false;
            if (latestEntry.bomMeta) {
@@ -3632,22 +3767,26 @@
            scorecardHtml += `
            <div class="product-card rounded-3 p-2 m-1 d-inline-block shadow-sm ${isActive} ${alertClass}" 
                 onclick="updateCostingState('product', '${p.replace(/'/g, "\\'")}')" 
-                style="width: 190px; vertical-align: top;">
+                style="width: 240px; vertical-align: top;">
               <div class="d-flex justify-content-between align-items-start mb-1">
-                 <span class="fw-bold text-dark text-truncate" style="font-size:0.75rem; max-width:140px;">${p}</span>
+                 <span class="fw-bold text-dark text-truncate" style="font-size:0.75rem; max-width:190px;">${p}</span>
                  ${needsAttention ? '<i class="fas fa-exclamation-circle text-danger" style="font-size:0.7rem;"></i>' : ''}
               </div>
               <div class="row g-0 mt-2 border-top pt-2">
-                 <div class="col-4 border-end">
+                 <div class="col-3 border-end pe-1">
                     <div class="text-muted" style="font-size:0.5rem; font-weight:800;">COST</div>
                     <div class="fw-bold text-primary" style="font-size:0.7rem;">${displayCost.toFixed(1)}</div>
                  </div>
-                 <div class="col-4 border-end ps-1">
-                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;">ASP</div>
-                    <div class="fw-bold text-dark" style="font-size:0.7rem;">${currentAsp > 0 ? currentAsp.toFixed(1) : '--'}</div>
+                 <div class="col-3 border-end ps-1 pe-1 text-center">
+                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Invoice Gross ASP">G.ASP</div>
+                    <div class="fw-bold text-secondary" style="font-size:0.7rem; text-decoration: line-through;">${grossAsp > 0 ? grossAsp.toFixed(1) : '--'}</div>
                  </div>
-                 <div class="col-4 ps-1">
-                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;">GP%</div>
+                 <div class="col-3 border-end ps-1 pe-1 text-center">
+                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="True Net ASP after Contracts">N.ASP</div>
+                    <div class="fw-bold text-dark" style="font-size:0.7rem;">${netAsp > 0 ? netAsp.toFixed(1) : '--'}</div>
+                 </div>
+                 <div class="col-3 ps-1 text-end">
+                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Net Gross Margin">N.GP%</div>
                     <div class="fw-bold ${gpColor}" style="font-size:0.7rem;">${gpPct}%</div>
                  </div>
               </div>
@@ -3661,7 +3800,8 @@
        const chronoCostData = [...rawCostData].sort((a, b) => new Date(a.date) - new Date(b.date));
        
        let changeEvents = [];
-       let lastActual = null; let lastMarket = null;
+       let lastActual = null;
+       let lastMarket = null;
        for (let i = 0; i < chronoCostData.length; i++) {
           let d = chronoCostData[i];
           if (i === 0 || d.unitActual !== lastActual || d.unitMarket !== lastMarket) {
@@ -3670,28 +3810,104 @@
           }
        }
 
-       // 3. Calculate ASP between shifts
-       let chartLabels = []; let chartAct = []; let chartMkt = []; let chartAsp = [];
-       changeEvents.forEach((ev, idx) => {
-          chartLabels.push(ev.date);
-          chartAct.push(ev.unitActual);
-          chartMkt.push(ev.unitMarket);
+       // =================================================================
+       // --- NEW: CALENDAR TIME-SERIES AGGREGATION ---
+       // Maps the X-Axis strictly to the selected Timeline (Daily/Weekly/Monthly)
+       // =================================================================
+       let timeline = appState.cFilters.timeline || 'monthly';
+       let filterYear = appState.cFilters.year || new Date().getFullYear().toString();
+       let productSales = (appState.netSalesData || []).filter(s => s.product === appState.cFilters.product);
 
-          let startDateMs = new Date(ev.date).getTime();
-          let endDateMs = (idx < changeEvents.length - 1) ? new Date(changeEvents[idx+1].date).getTime() : Date.now();
-          
-          let salesInPeriod = appState.productData.filter(s => 
-             s.item === appState.cFilters.product && 
-             new Date(s.date).getTime() >= startDateMs && 
-             new Date(s.date).getTime() <= endDateMs
-          );
-          
-          let rev = 0; let qty = 0;
-          salesInPeriod.forEach(s => { rev += s.rev; qty += s.qty; });
-          chartAsp.push(qty > 0 ? Number((rev / qty).toFixed(2)) : null);
+       let allDatesMs = [...changeEvents.map(ev => new Date(ev.date).getTime()), ...productSales.map(s => s.dateMs)];
+       if (allDatesMs.length === 0) return; 
+
+       let minMs = Math.min(...allDatesMs);
+       let maxMs = Math.max(Date.now(), ...allDatesMs);
+
+       // --- NEW: YEAR FILTER BOUNDARY CLIPPING ---
+       if (filterYear !== 'All') {
+           let yrInt = parseInt(filterYear);
+           let startOfYearMs = new Date(yrInt, 0, 1).getTime();
+           let endOfYearMs = new Date(yrInt, 11, 31, 23, 59, 59, 999).getTime();
+           
+           minMs = startOfYearMs;
+           // If current year, stop at today to prevent trailing blank months. Otherwise, show full year.
+           maxMs = (yrInt === new Date().getFullYear()) ? Date.now() : endOfYearMs;
+       }
+
+       let bins = [];
+       let curr = new Date(minMs);
+       curr.setHours(0,0,0,0);
+
+       // 1. Generate Calendar Bins based on UI Toggle
+       if (timeline === 'monthly') {
+           curr.setDate(1); // Start of month
+           while(curr.getTime() <= maxMs) {
+               let startMs = curr.getTime();
+               let next = new Date(curr);
+               next.setMonth(next.getMonth() + 1);
+               bins.push({ label: curr.toLocaleDateString('en-GB', {month: 'short', year: 'numeric'}), startMs: startMs, endMs: next.getTime() });
+               curr = next;
+           }
+       } else if (timeline === 'weekly') {
+           curr.setDate(curr.getDate() - curr.getDay()); // Start of week (Sunday)
+           while(curr.getTime() <= maxMs) {
+               let startMs = curr.getTime();
+               let next = new Date(curr);
+               next.setDate(next.getDate() + 7);
+               bins.push({ label: 'Wk ' + curr.toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}), startMs: startMs, endMs: next.getTime() });
+               curr = next;
+           }
+       } else { // daily
+           while(curr.getTime() <= maxMs) {
+               let startMs = curr.getTime();
+               let next = new Date(curr);
+               next.setDate(next.getDate() + 1);
+               bins.push({ label: curr.toLocaleDateString('en-GB', {day: '2-digit', month: 'short'}), startMs: startMs, endMs: next.getTime() });
+               curr = next;
+           }
+       }
+
+       let chartLabels = [];
+       let chartAct = []; let chartMkt = []; let chartGrossAsp = []; let chartNetAsp = [];
+       let clickableEvents = [];
+
+       bins.forEach((bin, idx) => {
+           // 2. Calculate ASP exactly within this calendar bin
+           let salesInBin = productSales.filter(s => s.dateMs >= bin.startMs && s.dateMs < bin.endMs);
+           let gRev = 0; let nRev = 0; let qty = 0;
+           salesInBin.forEach(s => { gRev += s.grossRev; nRev += s.netRev; qty += s.qty; });
+
+           let calcGross = qty > 0 ? Number((gRev / qty).toFixed(2)) : null;
+           let calcNet = qty > 0 ? Number((nRev / qty).toFixed(2)) : null;
+
+           // Carry forward ASP if no sales occurred to prevent the line from breaking
+           if (qty === 0 && idx > 0) {
+               chartGrossAsp.push(chartGrossAsp[idx - 1]);
+               chartNetAsp.push(chartNetAsp[idx - 1]);
+           } else {
+               chartGrossAsp.push(calcGross);
+               chartNetAsp.push(calcNet);
+           }
+
+           // 3. Find the active Cost FOR this period (latest cost event on or before the bin ends)
+           let activeEv = changeEvents[0];
+           for (let i = 0; i < changeEvents.length; i++) {
+               if (new Date(changeEvents[i].date).getTime() < bin.endMs) activeEv = changeEvents[i];
+               else break;
+           }
+
+           chartLabels.push(bin.label);
+           chartAct.push(activeEv ? activeEv.unitActual : null);
+           chartMkt.push(activeEv ? activeEv.unitMarket : null);
+
+           // Store the exact bin state for the Lineage Inspector
+           clickableEvents.push({ ...activeEv, inspectStartMs: bin.startMs, inspectEndMs: bin.endMs, inspectLabel: bin.label });
        });
 
-       // 4. Render Chart with Dynamic Tooltip GP%
+       // =================================================================
+       // --- RENDER CHART ---
+       // =================================================================
        const ctx = document.getElementById('costingTrendChart').getContext('2d');
        if(appState.cChartInstance) appState.cChartInstance.destroy();
        
@@ -3702,7 +3918,8 @@
        if (appState.cFilters.view === 'market' || appState.cFilters.view === 'compare') {
           datasets.push({ label: 'Market Unit Cost', data: chartMkt, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: appState.cFilters.view === 'market', tension: 0, borderWidth: 3, borderDash: appState.cFilters.view === 'compare' ? [5, 5] : [], pointHitRadius: 15 });
        }
-       datasets.push({ label: 'Avg Selling Price', data: chartAsp, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0)', borderWidth: 3, borderDash: [4, 4], pointRadius: 5, pointHitRadius: 15, spanGaps: true });
+       datasets.push({ label: 'Gross ASP', data: chartGrossAsp, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 2, borderDash: [2, 2], pointRadius: 3, pointHitRadius: 10, spanGaps: true });
+       datasets.push({ label: 'Net ASP (True)', data: chartNetAsp, borderColor: '#10b981', backgroundColor: 'transparent', borderWidth: 3, borderDash: [4, 4], pointRadius: 5, pointHitRadius: 15, spanGaps: true });
 
        appState.cChartInstance = new Chart(ctx, {
           type: 'line',
@@ -3716,14 +3933,13 @@
                       label: function(context) {
                          let label = context.dataset.label || '';
                          let val = context.parsed.y;
-                         let asp = chartAsp[context.dataIndex];
+                         let netAsp = chartNetAsp[context.dataIndex];
                          if (label) label += ': ';
                          label += val.toFixed(2) + ' EGP';
                          
-                         // Injection: Show GP% on Cost lines if ASP exists for that specific point
-                         if (context.dataset.label.includes('Cost') && asp && asp > 0) {
-                            let gp = (((asp - val) / asp) * 100).toFixed(1);
-                            label += ` (GP: ${gp}%)`;
+                         if (context.dataset.label.includes('Cost') && netAsp && netAsp > 0) {
+                            let gp = (((netAsp - val) / netAsp) * 100).toFixed(1);
+                            label += ` (Net GP: ${gp}%)`;
                          }
                          return label;
                       }
@@ -3732,19 +3948,236 @@
              },
              interaction: { mode: 'index', intersect: false },
              onClick: (e, activeEls) => {
-                if (activeEls.length > 0) renderSidePanel(changeEvents[activeEls[0].index]);
-             }
-          }
-       });
+                if (activeEls.length > 0) {
+                   let idx = activeEls[0].index;
+                   let ev = clickableEvents[idx];
+                   
+                   appState.activeInspectPeriod = {
+                      startMs: ev.inspectStartMs,
+                      endMs: ev.inspectEndMs,
+                      dateLabel: ev.inspectLabel,
+                      bomEvent: ev
+                   };
+                   
+                   let inspectBtn = document.getElementById('btn-inspect-transactions');
+                   if(inspectBtn) inspectBtn.classList.remove('d-none');
+                   
+                   // Support both naming conventions for the side panel function
+                   if(typeof renderSidePanel === 'function') {
+                   renderSidePanel(ev);
+               } else if(typeof renderCostingBom === 'function') {
+                   document.getElementById('bom-panel-subtitle').innerHTML = `<i class="fas fa-calendar-day me-1"></i>${ev.inspectLabel}`;
+                   renderCostingBom(ev);
+               }
+            }
+         }
+      }
+   });
 
-       if (changeEvents.length > 0) {
-          renderSidePanel(changeEvents[changeEvents.length - 1]);
-       } else {
-          document.getElementById('bom-panel-subtitle').innerText = "No Data";
-          document.getElementById('bom-panel-table-body').innerHTML = '<tr><td colspan="4" class="text-center text-muted p-4">No data available.</td></tr>';
-          if(appState.cDoughnutChart) { appState.cDoughnutChart.destroy(); appState.cDoughnutChart = null; }
-       }
+   // Hook: Auto-update the Executive View if it is currently active
+   if (appState.execState && appState.execState.isSummary) {
+       renderExecutiveSummary();
+   }
+}
+
+// ==========================================
+// EXECUTIVE SUMMARY ENGINE
+// ==========================================
+function toggleExecutiveView() {
+    appState.execState.isSummary = !appState.execState.isSummary;
+    let isExec = appState.execState.isSummary;
+    
+    document.getElementById('detailed-step2').classList.toggle('d-none', isExec);
+    document.getElementById('detailed-charts').classList.toggle('d-none', isExec);
+    document.getElementById('executive-summary-view').classList.toggle('d-none', !isExec);
+    
+    // --- NEW: DYNAMIC BUTTON UI ---
+    let btn = document.getElementById('btn-exec-toggle');
+    if (btn) {
+        if (isExec) {
+            btn.className = "btn btn-sm btn-outline-dark rounded-pill px-4 fw-bold shadow-sm border border-dark";
+            btn.innerHTML = `<i class="fas fa-chart-area me-2 text-primary"></i>Detailed View`;
+        } else {
+            btn.className = "btn btn-sm btn-dark rounded-pill px-4 fw-bold shadow-sm border border-dark";
+            btn.innerHTML = `<i class="fas fa-mobile-alt me-2 text-warning"></i>Executive Summary`;
+        }
     }
+    
+    if (isExec) renderExecutiveSummary();
+}
+
+function toggleExecCompare() {
+    appState.execState.isCompare = document.getElementById('execCompareToggle').checked;
+    let dateSelector = document.getElementById('execDateSelector');
+    
+    if (appState.execState.isCompare) {
+        dateSelector.classList.remove('d-none');
+        dateSelector.classList.add('d-flex');
+    } else {
+        dateSelector.classList.add('d-none');
+        dateSelector.classList.remove('d-flex');
+    }
+    renderExecutiveSummary();
+}
+
+function renderExecutiveSummary() {
+    const container = document.getElementById('executive-cards-container');
+    if (!container) return;
+
+    let selectedCat = appState.cFilters.category;
+    let products = [...new Set(appState.costingData.map(d => d.product))];
+    
+    if (selectedCat !== 'All') {
+        products = products.filter(p => {
+            let pd = appState.costingData.find(d => d.product === p);
+            return pd && pd.category === selectedCat;
+        });
+    }
+
+    let html = '';
+    const fmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const nowMs = Date.now();
+    const baseMs = new Date(document.getElementById('execBaseDate').value).getTime();
+
+    products.forEach(p => {
+        // Point-in-time calculation engine
+        const getStatsAt = (targetMs) => {
+            // 1. Cost (Latest before or on targetMs)
+            let pData = appState.costingData.filter(d => d.product === p && new Date(d.date).getTime() <= targetMs);
+            pData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            let cost = pData.length > 0 ? (appState.cFilters.view === 'market' ? pData[0].unitMarket : pData[0].unitActual) : 0;
+
+            // 2. ASP (Trailing 30 days from targetMs for active point-in-time price)
+            let trailingMs = targetMs - (30 * 24 * 60 * 60 * 1000);
+            let sales = (appState.netSalesData || []).filter(s => s.product === p && s.dateMs <= targetMs && s.dateMs >= trailingMs);
+            let gRev = 0, nRev = 0, qty = 0;
+            sales.forEach(s => { gRev += s.grossRev; nRev += s.netRev; qty += s.qty; });
+
+            let gAsp = qty > 0 ? gRev / qty : 0;
+            let nAsp = qty > 0 ? nRev / qty : 0;
+            let profAmt = nAsp > 0 ? nAsp - cost : 0;
+            let profPct = nAsp > 0 ? (profAmt / nAsp) * 100 : 0;
+
+            return { cost, gAsp, nAsp, profAmt, profPct };
+        };
+
+        let currStats = getStatsAt(nowMs);
+        let currDateStr = new Date().toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+
+        let baseStats = appState.execState.isCompare ? getStatsAt(baseMs) : null;
+        let baseDateStr = appState.execState.isCompare ? new Date(baseMs).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}) : '';
+
+        // --- NEW: COMPARISON SUMMARY TEXT ---
+        let compareSummaryHtml = '';
+        if (appState.execState.isCompare && baseStats) {
+            const calcPct = (curr, base) => base === 0 ? (curr > 0 ? 100 : 0) : ((curr - base) / Math.abs(base)) * 100;
+            const formatVar = (pct, inverse) => {
+                if (Math.abs(pct) < 0.1) return { t: "remained stable", c: "text-muted" };
+                let isUp = pct > 0;
+                let c = isUp ? (inverse ? "text-danger" : "text-success") : (inverse ? "text-success" : "text-danger");
+                return { t: (isUp ? "increased by " : "decreased by ") + Math.abs(pct).toFixed(1) + "%", c: c };
+            };
+
+            let cVar = formatVar(calcPct(currStats.cost, baseStats.cost), true);  // Inverse (Cost up = bad)
+            let aVar = formatVar(calcPct(currStats.nAsp, baseStats.nAsp), false); // Normal (ASP up = good)
+            let pVar = formatVar(calcPct(currStats.profAmt, baseStats.profAmt), false); // Normal (Profit up = good)
+
+            compareSummaryHtml = `
+                <div class="mt-3 bg-light border border-secondary border-opacity-25 rounded px-3 py-2" style="font-size: 0.8rem;">
+                   <i class="fas fa-chart-line me-2 text-muted"></i><span class="fw-bold text-dark me-1">Variance:</span> 
+                   Cost <span class="${cVar.c} fw-bold">${cVar.t}</span>, 
+                   Net ASP <span class="${aVar.c} fw-bold">${aVar.t}</span>, 
+                   while Profit <span class="${pVar.c} fw-bold">${pVar.t}</span>.
+                </div>
+            `;
+        }
+
+        // Row 1: Current (Now Clickable)
+        let rowHtml = `
+            <tr onclick="openSummaryInspector('${p.replace(/'/g, "\\'")}', ${nowMs}, '${currDateStr}')" style="cursor: pointer;" title="Click to inspect lineage">
+                <td class="fw-bold text-dark text-nowrap ps-4">${currDateStr} <span class="badge bg-primary ms-1" style="font-size:0.5rem;">CURRENT</span></td>
+                <td class="text-danger fw-bold text-nowrap">${fmt.format(currStats.cost)} EGP</td>
+                <td class="text-muted text-nowrap" style="text-decoration: line-through;">${currStats.gAsp > 0 ? fmt.format(currStats.gAsp) : '--'}</td>
+                <td class="text-dark fw-bold text-nowrap">${currStats.nAsp > 0 ? fmt.format(currStats.nAsp) + ' EGP' : '--'}</td>
+                <td class="${currStats.profPct >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap">${currStats.nAsp > 0 ? currStats.profPct.toFixed(1) + '%' : '--'}</td>
+                <td class="${currStats.profAmt >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap">${currStats.nAsp > 0 ? fmt.format(currStats.profAmt) + ' EGP' : '--'}</td>
+            </tr>
+        `;
+
+        // Row 2: Baseline (Now Clickable)
+        if (appState.execState.isCompare) {
+            rowHtml += `
+            <tr class="bg-light" onclick="openSummaryInspector('${p.replace(/'/g, "\\'")}', ${baseMs}, '${baseDateStr}')" style="cursor: pointer;" title="Click to inspect lineage">
+                <td class="fw-bold text-muted text-nowrap ps-4">${baseDateStr} <span class="badge bg-secondary ms-1" style="font-size:0.5rem;">BASELINE</span></td>
+                <td class="text-danger opacity-75 text-nowrap">${fmt.format(baseStats.cost)} EGP</td>
+                <td class="text-muted opacity-75 text-nowrap" style="text-decoration: line-through;">${baseStats.gAsp > 0 ? fmt.format(baseStats.gAsp) : '--'}</td>
+                <td class="text-dark opacity-75 text-nowrap">${baseStats.nAsp > 0 ? fmt.format(baseStats.nAsp) + ' EGP' : '--'}</td>
+                <td class="${baseStats.profPct >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap">${baseStats.nAsp > 0 ? baseStats.profPct.toFixed(1) + '%' : '--'}</td>
+                <td class="${baseStats.profAmt >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap">${baseStats.nAsp > 0 ? fmt.format(baseStats.profAmt) + ' EGP' : '--'}</td>
+            </tr>
+            `;
+        }
+
+        // Assemble Full Card (Added robust border formatting)
+        html += `
+        <div class="card border border-2 border-secondary border-opacity-25 shadow-sm rounded-4 w-100 mb-3">
+            <div class="card-header bg-transparent border-bottom py-3 px-4">
+                <h5 class="m-0 fw-bold text-dark"><i class="fas fa-box-open me-2 text-primary"></i>${p}</h5>
+                ${compareSummaryHtml}
+            </div>
+            <div class="table-responsive mb-0" style="scrollbar-width: thin;">
+                <table class="table table-borderless table-hover align-middle mb-0" style="font-size: 0.95rem; min-width: 800px;">
+                    <thead class="table-light border-bottom">
+                        <tr>
+                            <th class="text-dark fw-bold pb-3 pt-3 ps-4" style="font-size: 0.85rem;">Date</th>
+                            <th class="text-dark fw-bold pb-3 pt-3" style="font-size: 0.85rem;">Cost</th>
+                            <th class="text-dark fw-bold pb-3 pt-3" style="font-size: 0.85rem;">Gross Selling Price</th>
+                            <th class="text-dark fw-bold pb-3 pt-3" style="font-size: 0.85rem;">Net Selling Price</th>
+                            <th class="text-dark fw-bold pb-3 pt-3" style="font-size: 0.85rem;">Profit (%)</th>
+                            <th class="text-dark fw-bold pb-3 pt-3" style="font-size: 0.85rem;">Profit (Amount)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowHtml}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// ==========================================
+// --- NEW: SUMMARY INSPECTOR HOOK ---
+// Bridges the Executive Cards to the Drill-Down Modal
+// ==========================================
+function openSummaryInspector(product, targetMs, dateLabel) {
+    // Set the global product filter so the modal identifies the correct product
+    appState.cFilters.product = product;
+
+    // Find the active Cost/BOM event for this point in time
+    let pHistory = appState.costingData.filter(d => d.product === product && new Date(d.date).getTime() <= targetMs);
+    pHistory.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    let activeBomEvent = pHistory.length > 0 ? pHistory[0] : null;
+
+    if (!activeBomEvent) {
+        alert("No cost data available for this date to inspect.");
+        return;
+    }
+
+    // Set the active inspection period (Trailing 30 days to match the Executive ASP logic)
+    appState.activeInspectPeriod = {
+        startMs: targetMs - (30 * 24 * 60 * 60 * 1000), 
+        endMs: targetMs,
+        dateLabel: "Trailing 30 Days as of " + dateLabel,
+        bomEvent: activeBomEvent
+    };
+
+    // Trigger the existing modal logic
+    openTransactionInspector();
+}
 
     function renderSidePanel(eventData) {
        document.getElementById('bom-panel-subtitle').innerText = `Date: ${eventData.date}`;
@@ -5036,15 +5469,105 @@
         if(text) text.innerText = isFullRebuild ? "Rebuilding Ledger..." : "Syncing Fast (12d)...";
         
         google.script.run.withSuccessHandler(res => {
-            if(icon) icon.classList.remove('fa-spin');
             let syncTime = new Date(res.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
             let dataDate = res.latestData || 'Unknown';
-            if(text) text.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
-            
             appState.costingData = res.data; 
-            renderCostingDashboard(); 
+            
+            // CHAIN: After Costing is synced, sync the Net Sales / Commercial Terms
+            if(text) text.innerText = "Updating Commercial Terms...";
+            google.script.run.withSuccessHandler(netRes => {
+                if(icon) icon.classList.remove('fa-spin');
+                if(text) text.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
+                
+                if (netRes && netRes.data) appState.netSalesData = netRes.data;
+                renderCostingDashboard(); 
+            }).generateNetSalesCache(isFullRebuild);
+
         }).generateCostingCache(isFullRebuild);
     };
+
+    // ==========================================
+    // COSTING DRILL-DOWN INSPECTOR
+    // ==========================================
+    function openTransactionInspector() {
+        if (!appState.activeInspectPeriod) return;
+        
+        let p = appState.activeInspectPeriod;
+        let product = appState.cFilters.product;
+        
+        document.getElementById('inspectorModalTitle').innerHTML = 
+            `<i class="fas fa-microscope text-primary me-2"></i>Lineage: ${product} 
+             <span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">${p.dateLabel} Period</span>`;
+             
+        const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits: 1 });
+        
+        // --- 1. BUILD SALES LEDGER TAB ---
+        let salesInPeriod = (appState.netSalesData || []).filter(s => 
+             s.product === product && s.dateMs >= p.startMs && s.dateMs <= p.endMs
+        );
+        
+        let sHtml = '';
+        if (salesInPeriod.length === 0) {
+            sHtml = `<tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-folder-open mb-2 fs-3 opacity-50"></i><br>No sales recorded for this product during this exact period.</td></tr>`;
+        } else {
+            salesInPeriod.forEach(s => {
+                let marginBadge = s.backMarginApplied > 0 ? `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">${(s.backMarginApplied*100).toFixed(1)}%</span>` : `<span class="text-muted">-</span>`;
+                sHtml += `
+                    <tr>
+                        <td class="ps-3 fw-bold" style="font-size: 0.8rem;">${s.date}</td>
+                        <td style="font-size: 0.8rem;">${s.client}</td>
+                        <td class="text-center fw-bold" style="font-size: 0.8rem;">${s.qty.toLocaleString()}</td>
+                        <td class="text-end text-muted" style="font-size: 0.8rem;">${fmt.format(s.grossRev)}</td>
+                        <td class="text-center">${marginBadge}</td>
+                        <td class="text-end fw-bold text-success" style="font-size: 0.8rem;">${fmt.format(s.netRev)}</td>
+                        <td class="text-end pe-3 fw-bold text-dark" style="font-size: 0.8rem;">${s.netAsp > 0 ? fmt.format(s.netAsp) : '--'}</td>
+                    </tr>`;
+            });
+        }
+        document.getElementById('inspector-sales-body').innerHTML = sHtml;
+        
+        // --- 2. BUILD COSTS (BOM) TAB ---
+        let bom = appState.cFilters.view === 'market' ? p.bomEvent.bomMarket : p.bomEvent.bomActual;
+        let cHtml = '';
+        
+        let bomEntries = Object.entries(bom).filter(([mat, cost]) => cost > 0).sort((a, b) => b[1] - a[1]);
+        
+        bomEntries.forEach(([mat, cost]) => {
+            let meta = p.bomEvent.bomMeta ? p.bomEvent.bomMeta[mat] : null;
+            let rate = meta ? (appState.cFilters.view === 'market' ? meta.mktRate : meta.actRate) : 0;
+            let unit = meta ? meta.unit : '';
+            
+            // Resolve Date and Source Badge
+            let dateStr = '--';
+            let sourceBadge = '';
+            if (meta) {
+               if (appState.cFilters.view === 'market' && meta.hasMktOverride && meta.mktDateMs) {
+                   dateStr = new Date(meta.mktDateMs).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'2-digit'});
+                   sourceBadge = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning ms-1" style="font-size:0.55rem;" title="Manual Market Override">MKT</span>';
+               } else if (meta.actDateMs) {
+                   dateStr = new Date(meta.actDateMs).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'2-digit'});
+                   sourceBadge = '<span class="badge bg-primary bg-opacity-10 text-primary border border-primary ms-1" style="font-size:0.55rem;" title="Actual Purchase Invoice">INV</span>';
+               }
+            }
+            
+            // Reverse-engineer the Qty used (Cost / Rate)
+            let qtyUsed = (rate > 0) ? (cost / rate) : 0;
+            let formattedQty = qtyUsed > 0 ? qtyUsed.toFixed(4).replace(/\.?0+$/, '') : '--';
+            
+            cHtml += `
+                <tr>
+                    <td class="ps-3 fw-bold" style="font-size: 0.8rem;">${mat}</td>
+                    <td class="text-center text-muted" style="font-size: 0.8rem;">${formattedQty} <span style="font-size: 0.65rem;">${unit}</span></td>
+                    <td class="text-center text-dark" style="font-size: 0.75rem;">${dateStr} <br>${sourceBadge}</td>
+                    <td class="text-end" style="font-size: 0.8rem;">${fmt.format(rate)}</td>
+                    <td class="text-end pe-3 fw-bold text-danger" style="font-size: 0.8rem;">${fmt.format(cost)}</td>
+                </tr>`;
+        });
+        document.getElementById('inspector-costs-body').innerHTML = cHtml;
+        
+        // Show Modal
+        new bootstrap.Modal(document.getElementById('transactionInspectorModal')).show();
+    }
   </script>
 </body>
 
