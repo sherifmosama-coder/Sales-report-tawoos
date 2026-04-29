@@ -249,6 +249,7 @@ function setupCacheTriggers() {
   ScriptApp.newTrigger("generateCadenceCache").timeBased().everyHours(3).create();
   ScriptApp.newTrigger("generateProductsCache").timeBased().everyHours(3).create();
   ScriptApp.newTrigger("generateCostingCache").timeBased().everyHours(3).create();
+  ScriptApp.newTrigger("generateNetSalesCache").timeBased().everyHours(3).create();
 }
 
 // ==========================================
