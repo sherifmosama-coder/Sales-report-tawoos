@@ -289,7 +289,9 @@ function getMaterialRates(targetDateMs, specMap, genMap) {
     actVatRate: bestAct ? bestAct.vatPrice : 0,
     mktRate: bestMkt ? bestMkt.price : 0,
     hasMktOverride: !!bestMkt,
-    unit: bestAct ? bestAct.unit : ''
+    unit: bestAct ? bestAct.unit : '',
+    actDateMs: bestAct ? bestAct.dateMs : null,
+    mktDateMs: bestMkt ? bestMkt.dateMs : null
   };
 }
 
@@ -420,7 +422,7 @@ function syncCostLedger() {
               // Option A: If Manual Market Override exists, use it exactly as typed. Otherwise, fall back to the relevant Actual Rate.
               let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
 
-              bomMeta[raw] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit };
+              bomMeta[raw] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit, actDateMs: r.actDateMs, mktDateMs: r.mktDateMs, hasMktOverride: r.hasMktOverride };
               totalAct += (actRateToUse * qty); totalMkt += (mktRateToUse * qty);
               bomAct[raw] = Number((actRateToUse * qty).toFixed(2)); bomMkt[raw] = Number((mktRateToUse * qty).toFixed(2));
             });
@@ -432,7 +434,7 @@ function syncCostLedger() {
             let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
             let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
 
-            bomMeta[genMat] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit };
+            bomMeta[genMat] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit, actDateMs: r.actDateMs, mktDateMs: r.mktDateMs, hasMktOverride: r.hasMktOverride };
             totalAct += (actRateToUse * reqQty); totalMkt += (mktRateToUse * reqQty);
             bomAct[genMat] = Number((actRateToUse * reqQty).toFixed(2)); bomMkt[genMat] = Number((mktRateToUse * reqQty).toFixed(2));
           }
@@ -491,4 +493,203 @@ function getDashboardCostData() {
   formattedData.sort((a, b) => new Date(b.date) - new Date(a.date));
   
   return formattedData;
+}
+
+// ============================================================================
+// COMMERCIAL TERMS & NET ASP ENGINE (For Production Costing)
+// ============================================================================
+
+// ============================================================================
+// COMMERCIAL TERMS & NET ASP ENGINE (For Production Costing)
+// ============================================================================
+
+function getNetSalesDataFromCache() {
+  try {
+    let cache = readCacheFile("Tawoos_Cache_NetSales.json");
+    // If cache is completely empty or missing, force a rebuild
+    if (!cache || !cache.data || cache.data.length === 0) return generateNetSalesCache(true);
+    return cache;
+  } catch (e) {
+    return generateNetSalesCache(true);
+  }
+}
+
+function generateNetSalesCache(forceFullRebuild = true) {
+  forceFullRebuild = true; // Hardcoded to rebuild completely until stable
+
+  const CUTOFF_MS = new Date().getTime() - (12 * 24 * 60 * 60 * 1000); 
+  
+  const ssData = SpreadsheetApp.getActiveSpreadsheet(); 
+  const ssExternal = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo"); 
+
+  // --- AGGRESSIVE DATA SCRUBBERS ---
+  const parseNum = (val) => {
+      if (!val) return 0;
+      let clean = String(val).replace(/,/g, '').trim(); 
+      let num = parseFloat(clean);
+      return isNaN(num) ? 0 : num;
+  };
+
+  const parseDateMs = (val) => {
+      if (!val) return NaN;
+      if (val instanceof Date) return val.getTime();
+      let ms = new Date(val).getTime();
+      if (!isNaN(ms)) return ms;
+      let parts = String(val).split(/[\/\-]/);
+      if (parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime(); 
+      return NaN;
+  };
+
+  // 1. EXTRACT CONTRACTS
+  let termsSheet = ssExternal.getSheetByName("Commercial Terms");
+  let contracts = [];
+  if (termsSheet) {
+      let tData = termsSheet.getDataRange().getValues();
+      for(let i = 1; i < tData.length; i++) {
+          let client = String(tData[i][0]).trim();
+          let prod = String(tData[i][1]).trim();
+          let margin = parseNum(tData[i][2]);
+          
+          let vFrom = tData[i][3] ? parseDateMs(tData[i][3]) : 0;
+          let vTo = tData[i][4] ? parseDateMs(tData[i][4]) : Infinity;
+
+          if(client && margin > 0) {
+              let marginDec = margin > 1 ? margin / 100 : margin;
+              contracts.push({ client: client, product: prod, margin: marginDec, validFrom: vFrom, validTo: vTo });
+          }
+      }
+  }
+
+  // 2. MAP FULL PRODUCT NAMES TO CONCISE NAMES
+  let prodSheet = ssExternal.getSheetByName("Products");
+  let fullToConcise = {};
+  if(prodSheet) {
+      let pData = prodSheet.getDataRange().getValues();
+      for(let i = 1; i < pData.length; i++) {
+          let concise = String(pData[i][1]).trim();
+          let full = String(pData[i][5]).trim();
+          if(concise && full) fullToConcise[full] = concise;
+      }
+  }
+
+  // 3. PARSE "ALL DATA" (THE MASTER LEDGER)
+  let allDataSheet = ssData.getSheetByName("All Data");
+  if(!allDataSheet) return { error: "All Data sheet not found" };
+
+  let existingCache = forceFullRebuild ? null : readCacheFile("Tawoos_Cache_NetSales.json");
+  let output = (existingCache && existingCache.data) ? existingCache.data.filter(item => item.dateMs < CUTOFF_MS) : [];
+
+  let allData = allDataSheet.getDataRange().getValues();
+  
+  const ROW_PROD_NAMES = 7;     
+  const ROW_DATA_START = 9;     
+  const COL_MAIN_CLIENT = 3;    
+  const COL_DATE = 6;           
+  const COL_PROD_START = 17;    
+
+  if (allData.length <= ROW_PROD_NAMES) return { error: "All Data sheet missing rows" };
+  let headers = allData[ROW_PROD_NAMES]; 
+  
+  let targetCols = [];
+  for(let c = COL_PROD_START; c < headers.length; c += 2) { 
+      let fullProd = String(headers[c]).trim();
+      if(fullProd && fullToConcise[fullProd]) {
+          // CRITICAL FIX: We are storing BOTH the concise and the full name here
+          targetCols.push({ qtyCol: c, revCol: c + 1, concise: fullToConcise[fullProd], full: fullProd });
+      }
+  }
+
+  for(let i = ROW_DATA_START; i < allData.length; i++) {
+      let client = String(allData[i][COL_MAIN_CLIENT]).trim(); 
+      let rawDate = allData[i][COL_DATE];               
+      
+      if(!rawDate || !client) continue;
+
+      let dateMs = parseDateMs(rawDate);
+      if (isNaN(dateMs)) continue;
+      
+      if (existingCache && existingCache.data && dateMs < CUTOFF_MS) continue;
+
+      let dateStr = (rawDate instanceof Date) ?
+            rawDate.getFullYear() + "-" + String(rawDate.getMonth() + 1).padStart(2, '0') + "-" + String(rawDate.getDate()).padStart(2, '0') :
+            String(rawDate).substring(0, 10);
+
+      targetCols.forEach(tc => {
+          let qty = parseNum(allData[i][tc.qtyCol]);
+          let grossRev = parseNum(allData[i][tc.revCol]);
+
+          // CRITICAL BUG FIX: Completely ignore zero-price transactions (e.g. free samples/promos)
+          // so they do not artificially inflate the divisor and lower the true ASP.
+          if(qty > 0 && grossRev > 0) {
+              let applicableMargin = 0;
+              
+              // We use the Concise name to check your Commercial Terms sheet
+              let specific = contracts.find(c => c.client === client && c.product === tc.concise && dateMs >= c.validFrom && dateMs <= c.validTo);
+              if(specific) {
+                  applicableMargin = specific.margin;
+              } else {
+                  let blanket = contracts.find(c => c.client === client && c.product === "All Products" && dateMs >= c.validFrom && dateMs <= c.validTo);
+                  if(blanket) applicableMargin = blanket.margin;
+              }
+
+              let netRev = grossRev * (1 - applicableMargin);
+              let netAsp = grossRev > 0 ? (netRev / qty) : 0;
+              let grossAsp = grossRev > 0 ? (grossRev / qty) : 0;
+
+              output.push({
+                  dateMs: dateMs,
+                  date: dateStr,
+                  client: client,
+                  product: tc.full, // CRITICAL FIX: We output the FULL name so it matches the Costing Dashboard!
+                  productConcise: tc.concise,
+                  qty: qty,
+                  grossRev: grossRev,
+                  netRev: netRev,
+                  grossAsp: grossAsp,
+                  netAsp: netAsp,
+                  backMarginApplied: applicableMargin
+              });
+          }
+      });
+  }
+
+  output.sort((a, b) => b.dateMs - a.dateMs);
+
+  writeCacheFile("Tawoos_Cache_NetSales.json", output);
+  return { lastUpdated: new Date().getTime(), latestData: output[0] ? output[0].date : "N/A", data: output };
+}
+
+function DIAGNOSE_NET_SALES() {
+  const ssData = SpreadsheetApp.getActiveSpreadsheet(); 
+  const ssExternal = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo"); 
+  
+  Logger.log("--- STARTING DIAGNOSTIC ---");
+
+  // 1. Check the Products translation sheet
+  let prodSheet = ssExternal.getSheetByName("Products");
+  let pData = prodSheet.getDataRange().getValues();
+  let sampleFull = String(pData[1][5]).trim(); // Row 2, Column F
+  Logger.log("1. Sample Full Product Name from 'Products' (Col F): [" + sampleFull + "]");
+  
+  // 2. Check the Master Ledger Headers
+  let allDataSheet = ssData.getSheetByName("All Data");
+  let allData = allDataSheet.getDataRange().getValues();
+  
+  let headers = allData[7]; // Index 7 = Row 8
+  Logger.log("2. Checking Row 8 in 'All Data' for Headers...");
+  Logger.log("   -> Header in Column R (Index 17): [" + String(headers[17]).trim() + "]");
+  Logger.log("   -> Header in Column T (Index 19): [" + String(headers[19]).trim() + "]");
+  
+  if (sampleFull !== String(headers[17]).trim()) {
+      Logger.log("   *** WARNING: The Product Name in Col F of 'Products' DOES NOT EXACTLY MATCH the Header in 'All Data' ***");
+  }
+
+  // 3. Check the Master Ledger Data
+  Logger.log("3. Checking Row 10 in 'All Data' for First Transaction...");
+  Logger.log("   -> Client (Col D): [" + String(allData[9][3]).trim() + "]");
+  Logger.log("   -> Date (Col G): [" + String(allData[9][6]) + "]");
+  Logger.log("   -> Quantity (Col R): [" + String(allData[9][17]) + "]");
+  Logger.log("   -> Revenue (Col S): [" + String(allData[9][18]) + "]");
+  
+  Logger.log("--- DIAGNOSTIC COMPLETE ---");
 }
