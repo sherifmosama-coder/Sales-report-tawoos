@@ -406,7 +406,8 @@ function syncCostLedger() {
         let isVatExempt = (productVatMap[conciseName] === 0);
 
         let totalAct = 0; let totalMkt = 0;
-        let bomAct = {}; let bomMkt = {}; let bomMeta = {};
+        let bomAct = {}; let bomMkt = {}; 
+        let bomMeta = { _isVatExempt: isVatExempt }; // NEW: Flag the product's VAT status in the payload
 
         Object.keys(recipe.materials).forEach(genMat => {
           let reqQty = recipe.materials[genMat];
@@ -418,11 +419,10 @@ function syncCostLedger() {
               
               // Smart Switch: Selects Base Price or VAT Price based on Product's VAT status
               let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
-              
-              // Option A: If Manual Market Override exists, use it exactly as typed. Otherwise, fall back to the relevant Actual Rate.
               let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
 
-              bomMeta[raw] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit, actDateMs: r.actDateMs, mktDateMs: r.mktDateMs, hasMktOverride: r.hasMktOverride };
+              // NEW: Store BOTH Base and VAT rates for the Global Ledger to use
+              bomMeta[raw] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit, actDateMs: r.actDateMs, mktDateMs: r.mktDateMs, hasMktOverride: r.hasMktOverride, actBaseRate: r.actBaseRate, actVatRate: r.actVatRate };
               totalAct += (actRateToUse * qty); totalMkt += (mktRateToUse * qty);
               bomAct[raw] = Number((actRateToUse * qty).toFixed(2)); bomMkt[raw] = Number((mktRateToUse * qty).toFixed(2));
             });
@@ -434,7 +434,8 @@ function syncCostLedger() {
             let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
             let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
 
-            bomMeta[genMat] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit, actDateMs: r.actDateMs, mktDateMs: r.mktDateMs, hasMktOverride: r.hasMktOverride };
+            // NEW: Store BOTH Base and VAT rates for the Global Ledger to use
+            bomMeta[genMat] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit, actDateMs: r.actDateMs, mktDateMs: r.mktDateMs, hasMktOverride: r.hasMktOverride, actBaseRate: r.actBaseRate, actVatRate: r.actVatRate };
             totalAct += (actRateToUse * reqQty); totalMkt += (mktRateToUse * reqQty);
             bomAct[genMat] = Number((actRateToUse * reqQty).toFixed(2)); bomMkt[genMat] = Number((mktRateToUse * reqQty).toFixed(2));
           }
