@@ -3761,10 +3761,15 @@
                 let eventMs = new Date(d.date).getTime();
                 if (eventMs <= evalMs && d.bomMeta) {
                     Object.keys(d.bomMeta).forEach(m => {
+                        if (m === '_isVatExempt') return;
                         let meta = d.bomMeta[m];
-                        if (!globalLedger[m]) globalLedger[m] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0 };
-                        if (meta.actRate > 0 && meta.actDateMs && meta.actDateMs <= evalMs) {
-                            if (meta.actDateMs > globalLedger[m].actDateMs) { globalLedger[m].actDateMs = meta.actDateMs; globalLedger[m].actRate = meta.actRate; }
+                        if (!globalLedger[m]) globalLedger[m] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0, actBaseRate: 0, actVatRate: 0 };
+                        if (meta.actDateMs && meta.actDateMs <= evalMs) {
+                            // Ensure we capture the dual rates if available
+                            if (meta.actDateMs > globalLedger[m].actDateMs || (meta.actDateMs === globalLedger[m].actDateMs && meta.actBaseRate > 0)) { 
+                                globalLedger[m].actDateMs = meta.actDateMs; globalLedger[m].actRate = meta.actRate; 
+                                if (meta.actBaseRate > 0) { globalLedger[m].actBaseRate = meta.actBaseRate; globalLedger[m].actVatRate = meta.actVatRate; }
+                            }
                         }
                         if (meta.mktRate > 0 && meta.mktDateMs && meta.mktDateMs <= evalMs) {
                             if (meta.mktDateMs > globalLedger[m].mktDateMs) { globalLedger[m].mktDateMs = meta.mktDateMs; globalLedger[m].mktRate = meta.mktRate; }
@@ -3776,12 +3781,19 @@
            let displayCost = 0;
            if (latestEntry.bomMeta) {
                Object.keys(latestEntry.bomMeta).forEach(mat => {
+                   if (mat === '_isVatExempt') return;
                    let localMeta = latestEntry.bomMeta[mat];
                    let gMeta = globalLedger[mat] || localMeta;
                    
                    let actMs = gMeta.actDateMs || 0;
                    let mktMs = gMeta.mktDateMs || 0;
-                   let rate = (mktMs > actMs) ? gMeta.mktRate : gMeta.actRate;
+                   
+                   // DYNAMIC VAT ROUTING: Resolve the correct base vs VAT rate
+                   let isVatExempt = latestEntry.bomMeta._isVatExempt;
+                   let resolvedActRate = gMeta.actRate; // Fallback to old cache
+                   if (gMeta.actBaseRate > 0) { resolvedActRate = isVatExempt ? gMeta.actVatRate : gMeta.actBaseRate; }
+                   
+                   let rate = (mktMs > actMs) ? gMeta.mktRate : resolvedActRate;
                    
                    let actCost = latestEntry.bomActual ? (latestEntry.bomActual[mat] || 0) : 0;
                    let mktCost = latestEntry.bomMarket ? (latestEntry.bomMarket[mat] || 0) : 0;
@@ -4155,10 +4167,14 @@ function renderExecutiveSummary() {
             let eventMs = new Date(d.date).getTime();
             if (eventMs <= targetMs && d.bomMeta) {
                 Object.keys(d.bomMeta).forEach(mat => {
+                    if (mat === '_isVatExempt') return;
                     let meta = d.bomMeta[mat];
-                    if (!ledger[mat]) ledger[mat] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0 };
-                    if (meta.actRate > 0 && meta.actDateMs && meta.actDateMs <= targetMs) {
-                        if (meta.actDateMs > ledger[mat].actDateMs) { ledger[mat].actDateMs = meta.actDateMs; ledger[mat].actRate = meta.actRate; }
+                    if (!ledger[mat]) ledger[mat] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0, actBaseRate: 0, actVatRate: 0 };
+                    if (meta.actDateMs && meta.actDateMs <= targetMs) {
+                        if (meta.actDateMs > ledger[mat].actDateMs || (meta.actDateMs === ledger[mat].actDateMs && meta.actBaseRate > 0)) { 
+                            ledger[mat].actDateMs = meta.actDateMs; ledger[mat].actRate = meta.actRate; 
+                            if (meta.actBaseRate > 0) { ledger[mat].actBaseRate = meta.actBaseRate; ledger[mat].actVatRate = meta.actVatRate; }
+                        }
                     }
                     if (meta.mktRate > 0 && meta.mktDateMs && meta.mktDateMs <= targetMs) {
                         if (meta.mktDateMs > ledger[mat].mktDateMs) { ledger[mat].mktDateMs = meta.mktDateMs; ledger[mat].mktRate = meta.mktRate; }
@@ -4193,12 +4209,19 @@ function renderExecutiveSummary() {
 
                 if (activeEntry && activeEntry.bomMeta) {
                     Object.keys(activeEntry.bomMeta).forEach(mat => {
+                        if (mat === '_isVatExempt') return;
                         let localMeta = activeEntry.bomMeta[mat];
                         let gMeta = globalLedger[mat] || localMeta;
                         
                         let actMs = gMeta.actDateMs || 0;
                         let mktMs = gMeta.mktDateMs || 0;
-                        let rate = (mktMs > actMs) ? gMeta.mktRate : gMeta.actRate;
+                        
+                        // DYNAMIC VAT ROUTING
+                        let isVatExempt = activeEntry.bomMeta._isVatExempt;
+                        let resolvedActRate = gMeta.actRate;
+                        if (gMeta.actBaseRate > 0) { resolvedActRate = isVatExempt ? gMeta.actVatRate : gMeta.actBaseRate; }
+                        
+                        let rate = (mktMs > actMs) ? gMeta.mktRate : resolvedActRate;
                         
                         // Extract original recipe qty using the local snapshot rates
                         let actCost = activeEntry.bomActual ? (activeEntry.bomActual[mat] || 0) : 0;
@@ -4251,14 +4274,14 @@ function renderExecutiveSummary() {
             if (appState.execState.isCompare && baseStats) {
                 const calcPct = (curr, base) => base === 0 ? (curr > 0 ? 100 : 0) : ((curr - base) / Math.abs(base)) * 100;
                 
-                // Helper to build smart financial badges
+                // Helper to build smart financial badges (Subtle Theme)
                 const getBadge = (pct, isCost) => {
-                    if (Math.abs(pct) < 0.1) return { bg: 'bg-secondary', icon: 'fa-minus', text: 'Stable' };
+                    if (Math.abs(pct) < 0.1) return { theme: 'secondary', icon: 'fa-minus', text: 'Stable' };
                     let isUp = pct > 0;
-                    // Financial logic: Cost going up is Bad (Danger), Profit/ASP going up is Good (Success)
-                    let bg = isUp ? (isCost ? 'bg-danger' : 'bg-success') : (isCost ? 'bg-success' : 'bg-danger');
+                    // Financial logic: Cost going up is Bad (danger), Profit/ASP going up is Good (success)
+                    let theme = isUp ? (isCost ? 'danger' : 'success') : (isCost ? 'success' : 'danger');
                     let icon = isUp ? 'fa-arrow-up' : 'fa-arrow-down';
-                    return { bg, icon, text: Math.abs(pct).toFixed(1) + '%' };
+                    return { theme, icon, text: Math.abs(pct).toFixed(1) + '%' };
                 };
 
                 let cB = getBadge(calcPct(currStats.cost, baseStats.cost), true);
@@ -4267,13 +4290,13 @@ function renderExecutiveSummary() {
 
                 compareSummaryHtml = `
                     <div class="mt-3 d-flex justify-content-between align-items-center w-100 gap-2">
-                        <span class="badge rounded-pill ${cB.bg} py-2 px-3 shadow-sm border border-light flex-fill text-center" style="font-size: 0.85rem;">
+                        <span class="badge rounded-pill bg-${cB.theme} bg-opacity-10 text-${cB.theme} border border-${cB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;">
                             <i class="fas ${cB.icon} me-2"></i>Cost: ${cB.text}
                         </span>
-                        <span class="badge rounded-pill ${aB.bg} py-2 px-3 shadow-sm border border-light flex-fill text-center" style="font-size: 0.85rem;">
+                        <span class="badge rounded-pill bg-${aB.theme} bg-opacity-10 text-${aB.theme} border border-${aB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;">
                             <i class="fas ${aB.icon} me-2"></i>Net ASP: ${aB.text}
                         </span>
-                        <span class="badge rounded-pill ${pB.bg} py-2 px-3 shadow-sm border border-light flex-fill text-center" style="font-size: 0.85rem;">
+                        <span class="badge rounded-pill bg-${pB.theme} bg-opacity-10 text-${pB.theme} border border-${pB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;">
                             <i class="fas ${pB.icon} me-2"></i>Profit: ${pB.text}
                         </span>
                     </div>
@@ -5781,12 +5804,14 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
             let eventMs = new Date(d.date).getTime();
             if (eventMs <= bomEvalMs && d.bomMeta) {
                 Object.keys(d.bomMeta).forEach(mat => {
+                    if (mat === '_isVatExempt') return;
                     let meta = d.bomMeta[mat];
-                    if (!globalLedger[mat]) globalLedger[mat] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0 };
+                    if (!globalLedger[mat]) globalLedger[mat] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0, actBaseRate: 0, actVatRate: 0 };
                     
-                    if (meta.actRate > 0 && meta.actDateMs && meta.actDateMs <= bomEvalMs) {
-                        if (meta.actDateMs > globalLedger[mat].actDateMs) {
+                    if (meta.actDateMs && meta.actDateMs <= bomEvalMs) {
+                        if (meta.actDateMs > globalLedger[mat].actDateMs || (meta.actDateMs === globalLedger[mat].actDateMs && meta.actBaseRate > 0)) {
                             globalLedger[mat].actDateMs = meta.actDateMs; globalLedger[mat].actRate = meta.actRate;
+                            if (meta.actBaseRate > 0) { globalLedger[mat].actBaseRate = meta.actBaseRate; globalLedger[mat].actVatRate = meta.actVatRate; }
                         }
                     }
                     if (meta.mktRate > 0 && meta.mktDateMs && meta.mktDateMs <= bomEvalMs) {
@@ -5801,15 +5826,21 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
         // 3. Evaluate BOM using Recipe from snapshot, but Prices from Global Ledger
         if (p.bomEvent && p.bomEvent.bomMeta) {
             Object.keys(p.bomEvent.bomMeta).forEach(mat => {
+                if (mat === '_isVatExempt') return;
                 let localMeta = p.bomEvent.bomMeta[mat];
                 let gMeta = globalLedger[mat] || localMeta; // Fallback to snapshot if not in ledger
                 
                 let actMs = gMeta.actDateMs || 0;
                 let mktMs = gMeta.mktDateMs || 0;
                 
+                // DYNAMIC VAT ROUTING
+                let isVatExempt = p.bomEvent.bomMeta._isVatExempt;
+                let resolvedActRate = gMeta.actRate;
+                if (gMeta.actBaseRate > 0) { resolvedActRate = isVatExempt ? gMeta.actVatRate : gMeta.actBaseRate; }
+                
                 let useMarket = mktMs > actMs;
                 let activeDateMs = useMarket ? mktMs : actMs;
-                let rate = useMarket ? gMeta.mktRate : gMeta.actRate;
+                let rate = useMarket ? gMeta.mktRate : resolvedActRate;
                 
                 // Reverse-engineer the recipe Qty from the event's stored snapshot costs
                 let actCost = p.bomEvent.bomActual ? (p.bomEvent.bomActual[mat] || 0) : 0;
