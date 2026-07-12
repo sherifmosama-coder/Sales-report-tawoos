@@ -1183,12 +1183,16 @@
           </div>
           
           <div class="d-flex flex-wrap align-items-center gap-3 w-100 w-md-auto justify-content-md-end">
-              <div id="execDateSelector" class="d-flex align-items-center gap-3 bg-light p-3 rounded-4 border shadow-sm w-100 w-md-auto justify-content-between">
-                <div class="d-flex align-items-center gap-3 w-100 w-md-auto">
-                   <span class="text-muted fw-bold text-nowrap" style="font-size: 1.1rem;">Baseline:</span>
-                   <input type="date" class="form-control form-control-lg border-secondary fw-bold flex-grow-1" id="execBaseDate" value="2026-03-01" onchange="renderExecutiveSummary()" style="min-width: 180px; font-size: 1.2rem; height: 50px;">
+              <div id="execDateSelector" class="d-flex flex-column align-items-start gap-2 bg-light p-3 rounded-4 border shadow-sm w-100 w-md-auto">
+                <div class="d-flex justify-content-between align-items-center w-100">
+                   <span class="text-muted fw-bold text-nowrap" style="font-size: 1.1rem;"><i class="fas fa-history me-2"></i>Historical Baselines:</span>
+                   <button class="btn btn-sm btn-outline-primary rounded-pill fw-bold ms-3" onclick="addExecBaselineDate()">+ Add Date</button>
                 </div>
-                <span class="text-info ms-2 fw-bold d-none d-xl-inline text-nowrap" style="font-size: 1rem;"><i class="fas fa-info-circle"></i> Last stable: 1st Mar 2026</span>
+                <div id="execDatesList" class="d-flex flex-column gap-2 w-100 mt-1">
+                    <div class="d-flex align-items-center gap-2 w-100">
+                        <input type="date" class="form-control form-control-lg border-secondary fw-bold flex-grow-1 exec-base-date-input" value="2026-03-01" onchange="renderExecutiveSummary()" style="min-width: 180px; font-size: 1.2rem; height: 40px;">
+                    </div>
+                </div>
               </div>
               
               <button class="btn btn-danger rounded-4 px-4 py-2 shadow-sm border border-danger fw-bold w-100 w-md-auto" onclick="exportSummaryToPDF()" style="font-size: 1.15rem; height: 50px;" title="Download as PDF Document">
@@ -4119,18 +4123,31 @@ function toggleExecutiveView() {
 }
 
 function toggleExecCompare() {
-    appState.execState.isCompare = document.getElementById('execCompareToggle').checked;
-    let dateSelector = document.getElementById('execDateSelector');
-    
-    if (appState.execState.isCompare) {
-        dateSelector.classList.remove('d-none');
-        dateSelector.classList.add('d-flex');
-    } else {
-        dateSelector.classList.add('d-none');
-        dateSelector.classList.remove('d-flex');
+        appState.execState.isCompare = document.getElementById('execCompareToggle').checked;
+        let ds = document.getElementById('execDateSelector');
+        if (ds) {
+            if (appState.execState.isCompare) {
+                ds.classList.remove('d-none');
+                ds.classList.add('d-flex');
+            } else {
+                ds.classList.remove('d-flex');
+                ds.classList.add('d-none');
+            }
+        }
+        renderExecutiveSummary();
     }
-    renderExecutiveSummary();
-}
+
+    // --- NEW: DYNAMIC MULTI-DATE HANDLER ---
+    function addExecBaselineDate(val = '') {
+        const container = document.getElementById('execDatesList');
+        const row = document.createElement('div');
+        row.className = 'd-flex align-items-center gap-2 w-100';
+        row.innerHTML = `
+            <input type="date" class="form-control form-control-lg border-secondary fw-bold flex-grow-1 exec-base-date-input" value="${val}" onchange="renderExecutiveSummary()" style="min-width: 180px; font-size: 1.2rem; height: 40px;">
+            <button class="btn btn-outline-danger" onclick="this.parentElement.remove(); renderExecutiveSummary();" style="height: 40px;"><i class="fas fa-times"></i></button>
+        `;
+        container.appendChild(row);
+    }
 
 function renderExecutiveSummary() {
     const container = document.getElementById('executive-cards-container');
@@ -4158,7 +4175,18 @@ function renderExecutiveSummary() {
     let html = '';
     const fmt = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const nowMs = Date.now();
-    const baseMs = new Date(document.getElementById('execBaseDate').value).getTime();
+    
+    // --- NEW: MULTI-DATE PARSING & SORTING ---
+    let baseTimestamps = [];
+    if (appState.execState.isCompare) {
+        document.querySelectorAll('.exec-base-date-input').forEach(input => {
+            if (input.value) {
+                let ms = new Date(input.value).getTime();
+                if (!isNaN(ms) && ms <= nowMs && !baseTimestamps.includes(ms)) baseTimestamps.push(ms);
+            }
+        });
+        baseTimestamps.sort((a, b) => a - b); // Sort chronologically (Oldest first)
+    }
 
     // --- NEW: DYNAMIC GLOBAL MATERIAL LEDGER ---
     const getGlobalMaterialsAt = (targetMs) => {
@@ -4185,7 +4213,14 @@ function renderExecutiveSummary() {
         return ledger;
     };
     const globalCurrMaterials = getGlobalMaterialsAt(nowMs);
-    const globalBaseMaterials = appState.execState.isCompare ? getGlobalMaterialsAt(baseMs) : {};
+    
+    // Create a specific global ledger for EVERY selected historical date
+    let globalBaseMaterialsMap = {};
+    if (appState.execState.isCompare) {
+        baseTimestamps.forEach(ms => {
+            globalBaseMaterialsMap[ms] = getGlobalMaterialsAt(ms);
+        });
+    }
 
     // Iterate through each Category Group
     Object.keys(groups).sort().forEach(cat => {
@@ -4205,7 +4240,7 @@ function renderExecutiveSummary() {
 
                 // --- NEW: HYBRID CHRONOLOGICAL COST LOGIC (GLOBAL KNOWLEDGE) ---
                 let cost = 0;
-                let globalLedger = (targetMs === baseMs) ? globalBaseMaterials : globalCurrMaterials;
+                let globalLedger = (targetMs === nowMs) ? globalCurrMaterials : globalBaseMaterialsMap[targetMs];
 
                 if (activeEntry && activeEntry.bomMeta) {
                     Object.keys(activeEntry.bomMeta).forEach(mat => {
@@ -4265,78 +4300,87 @@ function renderExecutiveSummary() {
             };
 
             let currStats = getStatsAt(nowMs);
-            let currDateStr = new Date().toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+            let currDateStr = new Date(nowMs).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
 
-            let baseStats = appState.execState.isCompare ? getStatsAt(baseMs) : null;
-            let baseDateStr = appState.execState.isCompare ? new Date(baseMs).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}) : '';
+            // Resolve all historical baseline states
+            let allBaseStats = [];
+            if (appState.execState.isCompare) {
+                baseTimestamps.forEach(ms => allBaseStats.push(getStatsAt(ms)));
+            }
+            
+            // Oldest baseline represents the extreme bounds of the "Total Variance"
+            let oldestBaseStats = allBaseStats.length > 0 ? allBaseStats[0] : null; 
 
             let compareSummaryHtml = '';
-            if (appState.execState.isCompare && baseStats) {
+            if (appState.execState.isCompare && oldestBaseStats) {
                 const calcPct = (curr, base) => base === 0 ? (curr > 0 ? 100 : 0) : ((curr - base) / Math.abs(base)) * 100;
                 
-                // Helper to build smart financial badges (Subtle Theme)
                 const getBadge = (pct, isCost) => {
                     if (Math.abs(pct) < 0.1) return { theme: 'secondary', icon: 'fa-minus', text: 'Stable' };
                     let isUp = pct > 0;
-                    // Financial logic: Cost going up is Bad (danger), Profit/ASP going up is Good (success)
                     let theme = isUp ? (isCost ? 'danger' : 'success') : (isCost ? 'success' : 'danger');
                     let icon = isUp ? 'fa-arrow-up' : 'fa-arrow-down';
                     return { theme, icon, text: Math.abs(pct).toFixed(1) + '%' };
                 };
 
-                let cB = getBadge(calcPct(currStats.cost, baseStats.cost), true);
-                let aB = getBadge(calcPct(currStats.nAsp, baseStats.nAsp), false);
-                let pB = getBadge(calcPct(currStats.profAmt, baseStats.profAmt), false);
+                let cB = getBadge(calcPct(currStats.cost, oldestBaseStats.cost), true);
+                let aB = getBadge(calcPct(currStats.nAsp, oldestBaseStats.nAsp), false);
+                let pB = getBadge(calcPct(currStats.profAmt, oldestBaseStats.profAmt), false);
 
                 compareSummaryHtml = `
                     <div class="mt-3 d-flex justify-content-between align-items-center w-100 gap-2">
-                        <span class="badge rounded-pill bg-${cB.theme} bg-opacity-10 text-${cB.theme} border border-${cB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;">
+                        <span class="badge rounded-pill bg-${cB.theme} bg-opacity-10 text-${cB.theme} border border-${cB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
                             <i class="fas ${cB.icon} me-2"></i>Cost: ${cB.text}
                         </span>
-                        <span class="badge rounded-pill bg-${aB.theme} bg-opacity-10 text-${aB.theme} border border-${aB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;">
+                        <span class="badge rounded-pill bg-${aB.theme} bg-opacity-10 text-${aB.theme} border border-${aB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
                             <i class="fas ${aB.icon} me-2"></i>Net ASP: ${aB.text}
                         </span>
-                        <span class="badge rounded-pill bg-${pB.theme} bg-opacity-10 text-${pB.theme} border border-${pB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;">
+                        <span class="badge rounded-pill bg-${pB.theme} bg-opacity-10 text-${pB.theme} border border-${pB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
                             <i class="fas ${pB.icon} me-2"></i>Profit: ${pB.text}
                         </span>
                     </div>
                 `;
             }
 
-            // Notice: We pass the exact Spot Date into openSummaryInspector so the Sales ledger aligns perfectly with the day the ASP was derived.
-            // Add robust py-3 padding to turn rows into fat, highly clickable mobile zones.
+            // VISUALLY DISTINCT CURRENT ROW
             let rowHtml = `
-                <tr onclick="openSummaryInspector('${p.replace(/'/g, "\\'")}', ${nowMs}, '${currDateStr}', ${currStats.spotMs}, '${currStats.spotLabel}')" style="cursor: pointer;" title="Click to inspect lineage">
-                    <td class="fw-bold text-dark text-nowrap ps-4 py-3">${currDateStr} <span class="badge bg-primary ms-1" style="font-size:0.5rem;">CURRENT</span></td>
-                    <td class="text-danger fw-bold text-nowrap py-3">
+                <tr onclick="openSummaryInspector('${p.replace(/'/g, "\\'")}', ${nowMs}, '${currDateStr}', ${currStats.spotMs}, '${currStats.spotLabel}')" class="bg-primary bg-opacity-10 border-bottom border-primary border-2" style="cursor: pointer;" title="Click to inspect lineage">
+                    <td class="fw-bold text-dark text-nowrap ps-4 py-3" style="font-size: 1.05rem;"><i class="fas fa-clock text-primary me-2"></i>${currDateStr}</td>
+                    <td class="text-danger fw-bold text-nowrap py-3" style="font-size: 1.05rem;">
                         ${fmt.format(currStats.cost)} EGP 
-                        <span class="d-print-none ms-3 bg-light border border-secondary rounded px-3 py-2 shadow-sm" style="cursor: pointer; display: inline-block;" title="Inspect Detailed BOM" onclick="openBomTab(event, '${p.replace(/'/g, "\\'")}', ${nowMs}, '${currDateStr}', ${currStats.spotMs}, '${currStats.spotLabel}')">
-                            <i class="fas fa-search-plus text-primary fs-6"></i>
+                        <span class="d-print-none ms-3 bg-white border border-primary text-primary rounded px-3 py-2 shadow-sm" style="cursor: pointer; display: inline-block;" title="Inspect Detailed BOM" onclick="openBomTab(event, '${p.replace(/'/g, "\\'")}', ${nowMs}, '${currDateStr}', ${currStats.spotMs}, '${currStats.spotLabel}')">
+                            <i class="fas fa-search-plus fs-6"></i>
                         </span>
                     </td>
                     <td class="text-muted text-nowrap py-3" style="text-decoration: line-through;" title="Derived from spot sales on ${currStats.spotLabel}">${currStats.gAsp > 0 ? fmt.format(currStats.gAsp) : '--'}</td>
                     <td class="text-dark fw-bold text-nowrap py-3" title="Derived from spot sales on ${currStats.spotLabel}">${currStats.nAsp > 0 ? fmt.format(currStats.nAsp) + ' EGP' : '--'}</td>
-                    <td class="${currStats.profPct >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap py-3" style="font-size: 1.05rem;">${currStats.nAsp > 0 ? currStats.profPct.toFixed(1) + '%' : '--'}</td>
-                    <td class="${currStats.profAmt >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap py-3" style="font-size: 1.05rem;">${currStats.nAsp > 0 ? fmt.format(currStats.profAmt) + ' EGP' : '--'}</td>
+                    <td class="${currStats.profPct >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap py-3" style="font-size: 1.1rem;">${currStats.nAsp > 0 ? currStats.profPct.toFixed(1) + '%' : '--'}</td>
+                    <td class="${currStats.profAmt >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap py-3" style="font-size: 1.1rem;">${currStats.nAsp > 0 ? fmt.format(currStats.profAmt) + ' EGP' : '--'}</td>
                 </tr>
             `;
 
-            if (appState.execState.isCompare) {
-                rowHtml += `
-                <tr class="bg-light" onclick="openSummaryInspector('${p.replace(/'/g, "\\'")}', ${baseMs}, '${baseDateStr}', ${baseStats.spotMs}, '${baseStats.spotLabel}')" style="cursor: pointer;" title="Click to inspect lineage">
-                    <td class="fw-bold text-muted text-nowrap ps-4 py-3">${baseDateStr} <span class="badge bg-secondary ms-1" style="font-size:0.5rem;">BASELINE</span></td>
-                    <td class="text-danger opacity-75 text-nowrap py-3">
-                        ${fmt.format(baseStats.cost)} EGP 
-                        <span class="d-print-none ms-3 bg-white border border-secondary rounded px-3 py-2 shadow-sm" style="cursor: pointer; display: inline-block;" title="Inspect Detailed BOM" onclick="openBomTab(event, '${p.replace(/'/g, "\\'")}', ${baseMs}, '${baseDateStr}', ${baseStats.spotMs}, '${baseStats.spotLabel}')">
-                            <i class="fas fa-search-plus text-primary fs-6"></i>
-                        </span>
-                    </td>
-                    <td class="text-muted opacity-75 text-nowrap py-3" style="text-decoration: line-through;" title="Derived from spot sales on ${baseStats.spotLabel}">${baseStats.gAsp > 0 ? fmt.format(baseStats.gAsp) : '--'}</td>
-                    <td class="text-dark opacity-75 text-nowrap py-3" title="Derived from spot sales on ${baseStats.spotLabel}">${baseStats.nAsp > 0 ? fmt.format(baseStats.nAsp) + ' EGP' : '--'}</td>
-                    <td class="${baseStats.profPct >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap py-3" style="font-size: 1.05rem;">${baseStats.nAsp > 0 ? baseStats.profPct.toFixed(1) + '%' : '--'}</td>
-                    <td class="${baseStats.profAmt >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap py-3" style="font-size: 1.05rem;">${baseStats.nAsp > 0 ? fmt.format(baseStats.profAmt) + ' EGP' : '--'}</td>
-                </tr>
-                `;
+            // MUTED HISTORICAL ROWS (Iterate backwards so newest history is directly below the current date)
+            if (appState.execState.isCompare && allBaseStats.length > 0) {
+                for (let i = allBaseStats.length - 1; i >= 0; i--) {
+                    let bStats = allBaseStats[i];
+                    let bDateStr = new Date(baseTimestamps[i]).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
+                    
+                    rowHtml += `
+                    <tr class="bg-white border-bottom" onclick="openSummaryInspector('${p.replace(/'/g, "\\'")}', ${baseTimestamps[i]}, '${bDateStr}', ${bStats.spotMs}, '${bStats.spotLabel}')" style="cursor: pointer;" title="Click to inspect lineage">
+                        <td class="fw-bold text-muted text-nowrap ps-4 py-3"><span class="badge bg-secondary ms-1 me-2" style="font-size:0.5rem;">V${i+1}</span> ${bDateStr}</td>
+                        <td class="text-danger opacity-75 text-nowrap py-3">
+                            ${fmt.format(bStats.cost)} EGP 
+                            <span class="d-print-none ms-3 bg-light border border-secondary rounded px-3 py-2 shadow-sm" style="cursor: pointer; display: inline-block;" title="Inspect Detailed BOM" onclick="openBomTab(event, '${p.replace(/'/g, "\\'")}', ${baseTimestamps[i]}, '${bDateStr}', ${bStats.spotMs}, '${bStats.spotLabel}')">
+                                <i class="fas fa-search-plus text-secondary fs-6"></i>
+                            </span>
+                        </td>
+                        <td class="text-muted opacity-75 text-nowrap py-3" style="text-decoration: line-through;" title="Derived from spot sales on ${bStats.spotLabel}">${bStats.gAsp > 0 ? fmt.format(bStats.gAsp) : '--'}</td>
+                        <td class="text-dark opacity-75 text-nowrap py-3" title="Derived from spot sales on ${bStats.spotLabel}">${bStats.nAsp > 0 ? fmt.format(bStats.nAsp) + ' EGP' : '--'}</td>
+                        <td class="${bStats.profPct >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap py-3" style="font-size: 1.05rem;">${bStats.nAsp > 0 ? bStats.profPct.toFixed(1) + '%' : '--'}</td>
+                        <td class="${bStats.profAmt >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap py-3" style="font-size: 1.05rem;">${bStats.nAsp > 0 ? fmt.format(bStats.profAmt) + ' EGP' : '--'}</td>
+                    </tr>
+                    `;
+                }
             }
 
             // --- CRITICAL UPDATE: ADDED RED DISCOUNTS NOTE TO NET SELLING PRICE HEADER ---
@@ -5910,12 +5954,29 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
 function exportSummaryToPDF() {
     let cat = appState.cFilters.category;
     let isComp = appState.execState.isCompare;
-    let baseDateStr = document.getElementById('execBaseDate').value;
     let todayStr = new Date().toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
     
+    // --- FIXED: Gather all dynamic baseline dates for the PDF Title ---
+    let subtitle = `As of ${todayStr}`;
+    if (isComp) {
+        let datesMs = [];
+        document.querySelectorAll('.exec-base-date-input').forEach(input => {
+            if (input.value) {
+                let ms = new Date(input.value).getTime();
+                if (!isNaN(ms)) datesMs.push(ms);
+            }
+        });
+        if (datesMs.length > 0) {
+            datesMs.sort((a, b) => a - b); // Oldest first
+            let oldestStr = new Date(datesMs[0]).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+            subtitle = `Current vs Baseline (${oldestStr})`;
+        } else {
+            subtitle = `Current vs Baseline`;
+        }
+    }
+
     // Dynamic naming based on active views
     let title = `Executive Costing Summary - ${cat === 'All' ? 'All Categories' : cat}`;
-    let subtitle = isComp ? `Current vs Baseline (${baseDateStr})` : `As of ${todayStr}`;
     let fileName = `Cost_Summary_${cat.replace(/\s+/g, '_')}_${new Date().getTime()}`;
 
     // Get the HTML of the cards
