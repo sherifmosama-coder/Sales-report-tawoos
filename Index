@@ -921,13 +921,29 @@
               </div>
             </div>
 
+              </div>
+            </div>
+
+            <!-- NEW: ROOT CAUSE PORTAL CARD -->
+            <div class="col-md-6 col-lg-5 col-xl-4">
+              <div class="report-card" onclick="loadSource('rootcause')">
+                <div class="card-icon-box" style="background: #f3e8ff; color: #8b5cf6;">
+                  <i class="fas fa-project-diagram"></i>
+                </div>
+                <h3 class="h4 fw-bold mb-3">Root Cause Analysis</h3>
+                <p class="text-muted mb-4">
+                  Multi-dimensional variance tracking. Pinpoint exact drivers behind volume and revenue shifts across clients and products.
+                </p>
+                <div class="d-flex align-items-center fw-bold small" style="color: #8b5cf6;">
+                  OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
+                </div>
+              </div>
+            </div>
+
           </div>
-        </div>
 
-      </div>
-
-      <div class="text-center">
-        <div class="system-note">
+          <div class="text-center">
+            <div class="system-note">
           <i class="fas fa-server me-2"></i>
           <span>
             <strong>System Notice:</strong> Data is automatically synchronized with the central transaction ledger. 
@@ -959,6 +975,7 @@
     <button class="nav-btn" id="nav-btn-client" onclick="switchModule('client')"><i class="fas fa-users-viewfinder me-2"></i>Clients</button>
     <button class="nav-btn" id="nav-btn-product" onclick="switchModule('product')"><i class="fas fa-cubes me-2"></i>Products</button>
     <button class="nav-btn" id="nav-btn-costing" onclick="switchModule('costing')"><i class="fas fa-calculator me-2"></i>Costing</button>
+    <button class="nav-btn" id="nav-btn-rootcause" onclick="switchModule('rootcause')"><i class="fas fa-project-diagram me-2"></i>Root Cause</button>
   </div>
 
   <div class="container-fluid px-3 pt-3" id="main-dashboard" style="display:none;">
@@ -1408,6 +1425,128 @@
     </div>
 
   </div>
+
+  <!-- ========================================================= -->
+  <!-- ROOT CAUSE SALES PORTAL -->
+  <!-- ========================================================= -->
+  <div id="root-cause-view-container" style="display: none;">
+      
+      <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+          <div>
+              <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-project-diagram me-2" style="color: #8b5cf6;"></i>Sales Root Cause Analysis</h4>
+              <div class="mt-1">
+                  <span class="badge bg-opacity-10 border rounded-pill px-4 py-1" style="background-color: #f3e8ff; color: #8b5cf6; border-color: rgba(139, 92, 246, 0.25) !important; letter-spacing: 0.5px;">Multi-dimensional Variance Engine</span>
+              </div>
+          </div>
+          <button class="btn btn-outline-danger shadow-sm fw-bold rounded-pill px-4 py-2" onclick="exportRootCauseToPDF()">
+              <i class="fas fa-file-pdf me-2"></i>Export PDF
+          </button>
+      </div>
+
+      <!-- CONTROL PANEL (ROOT CAUSE BI) -->
+      <div class="card border-0 shadow-sm rounded-4 w-100 mb-4 bg-white" id="rc-control-panel">
+          <div class="card-body p-3">
+              <!-- Row 1: Main Toggles -->
+              <div class="d-flex flex-wrap align-items-center gap-4 mb-3 pb-3 border-bottom">
+                  
+                  <!-- Financial Period -->
+                  <div class="d-flex align-items-center gap-2">
+                      <span class="text-muted fw-bold text-nowrap" style="font-size: 0.8rem;"><i class="fas fa-calendar-alt me-1"></i>Period:</span>
+                      <div class="segmented-control shadow-sm border bg-light" style="padding: 2px; border-radius: 8px;">
+                          <input type="radio" class="btn-check" name="rcPeriod" id="rcMTD" autocomplete="off" onchange="stageRcConfig('period', 'rcMTD')">
+                          <label class="mb-0 px-3 py-1 fw-bold" style="font-size:0.75rem;" for="rcMTD">MTD</label>
+                          <input type="radio" class="btn-check" name="rcPeriod" id="rcQTD" autocomplete="off" onchange="stageRcConfig('period', 'rcQTD')">
+                          <label class="mb-0 px-3 py-1 fw-bold" style="font-size:0.75rem;" for="rcQTD">QTD</label>
+                          <input type="radio" class="btn-check" name="rcPeriod" id="rcYTD" autocomplete="off" checked onchange="stageRcConfig('period', 'rcYTD')">
+                          <label class="mb-0 px-3 py-1 fw-bold" style="font-size:0.75rem;" for="rcYTD">YTD</label>
+                      </div>
+                  </div>
+
+                  <!-- Historical Year (Single Select) -->
+                  <div class="d-flex align-items-center gap-2">
+                      <span class="text-muted fw-bold text-nowrap" style="font-size: 0.8rem;"><i class="fas fa-history me-1"></i>Vs Year:</span>
+                      <select id="rcBaseYear" class="form-select form-select-sm fw-bold border-secondary shadow-sm" style="width: auto; cursor:pointer;" onchange="stageRcConfig('baseYear', this.value)">
+                          <option value="">Loading...</option>
+                      </select>
+                  </div>
+
+                  <!-- Measure Toggle (Qty / Rev) -->
+                  <div class="d-flex align-items-center gap-2 bg-light px-3 py-1 rounded-pill border shadow-sm ms-md-auto">
+                      <span class="fw-bold text-muted small">QTY</span>
+                      <div class="form-check form-switch m-0 pt-1">
+                          <input class="form-check-input" type="checkbox" id="rcMeasureToggle" onchange="stageRcConfig('measure', this.checked ? 'v' : 'q')" style="cursor: pointer;">
+                      </div>
+                      <span class="fw-bold text-success small">REV</span>
+                  </div>
+
+                  <!-- Sync Button -->
+                  <div class="d-flex align-items-center gap-2">
+                     <button id="btn-sync-rootcause" class="btn btn-sm btn-light border rounded-pill d-flex align-items-center shadow-sm px-3" onclick="forceSyncRootCause(event)" title="Click: Fast Sync (Last 12 Days)&#10;SHIFT+Click: Full Historical Rebuild">
+                        <i class="fas fa-sync-alt text-primary me-2" id="icon-sync-rootcause" style="color: #8b5cf6 !important;"></i>
+                        <div class="text-start" style="line-height: 1.1;">
+                           <div class="fw-bold text-dark" style="font-size: 0.7rem;">Sync Data</div>
+                           <div class="text-muted" id="rootcause-last-sync" style="font-size: 0.6rem;">Checking...</div>
+                        </div>
+                     </button>
+                  </div>
+              </div>
+
+              <!-- Row 2: Pivot & Multi-Select Filters -->
+              <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                  <div class="d-flex align-items-center gap-3 flex-wrap">
+                      <!-- Pivot Sequence -->
+                      <div class="d-flex align-items-center gap-2">
+                          <span class="text-muted fw-bold text-nowrap" style="font-size: 0.8rem;"><i class="fas fa-sitemap me-1"></i>Breakdown:</span>
+                          <div class="segmented-control shadow-sm border bg-light" style="padding: 2px; border-radius: 8px;">
+                              <input type="radio" class="btn-check" name="rcSequence" id="rcSeqClient" autocomplete="off" checked onchange="stageRcConfig('sequence', 'client')">
+                              <label class="mb-0 px-2 py-1 fw-bold" style="font-size:0.75rem;" for="rcSeqClient">Clients First</label>
+                              <input type="radio" class="btn-check" name="rcSequence" id="rcSeqProd" autocomplete="off" onchange="stageRcConfig('sequence', 'product')">
+                              <label class="mb-0 px-2 py-1 fw-bold" style="font-size:0.75rem;" for="rcSeqProd">Products First</label>
+                          </div>
+                      </div>
+
+                      <!-- Brand Line (3-Way) -->
+                      <div class="d-flex align-items-center gap-2 border-start ps-3">
+                          <div class="segmented-control shadow-sm border bg-light" style="padding: 2px; border-radius: 8px;">
+                              <input type="radio" class="btn-check" name="rcLine" id="rcLineOwn" autocomplete="off" onchange="stageRcConfig('line', ['OWN PRODUCT'])">
+                              <label class="mb-0 px-2 py-1 fw-bold" style="font-size:0.7rem;" for="rcLineOwn">Tawoos</label>
+                              <input type="radio" class="btn-check" name="rcLine" id="rcLinePvt" autocomplete="off" onchange="stageRcConfig('line', ['Private Label'])">
+                              <label class="mb-0 px-2 py-1 fw-bold" style="font-size:0.7rem;" for="rcLinePvt">Private</label>
+                              <input type="radio" class="btn-check" name="rcLine" id="rcLineBoth" autocomplete="off" checked onchange="stageRcConfig('line', [])">
+                              <label class="mb-0 px-2 py-1 fw-bold" style="font-size:0.7rem;" for="rcLineBoth">Both</label>
+                          </div>
+                      </div>
+                  </div>
+
+                  <!-- Checkbox Filters -->
+                  <div class="d-flex align-items-center gap-2" id="rc-filter-container">
+                      <div class="dropdown"><button class="btn btn-sm btn-light border shadow-sm dropdown-toggle fw-bold text-secondary" data-bs-toggle="dropdown" data-bs-auto-close="outside">Segments</button><ul class="dropdown-menu shadow p-2" style="max-height: 250px; overflow-y: auto;" id="rc-filter-segment"></ul></div>
+                      <div class="dropdown"><button class="btn btn-sm btn-light border shadow-sm dropdown-toggle fw-bold text-secondary" data-bs-toggle="dropdown" data-bs-auto-close="outside">Clients</button><ul class="dropdown-menu shadow p-2" style="max-height: 250px; overflow-y: auto; min-width: 200px;" id="rc-filter-mainClient"></ul></div>
+                      <div class="dropdown"><button class="btn btn-sm btn-light border shadow-sm dropdown-toggle fw-bold text-secondary" data-bs-toggle="dropdown" data-bs-auto-close="outside">Categories</button><ul class="dropdown-menu shadow p-2" style="max-height: 250px; overflow-y: auto;" id="rc-filter-category"></ul></div>
+                      <div class="dropdown"><button class="btn btn-sm btn-light border shadow-sm dropdown-toggle fw-bold text-secondary" data-bs-toggle="dropdown" data-bs-auto-close="outside">Products</button><ul class="dropdown-menu shadow p-2" style="max-height: 250px; overflow-y: auto; min-width: 250px;" id="rc-filter-product"></ul></div>
+                  </div>
+              </div>
+
+              <!-- Row 3: Action Bar (Centered) -->
+              <div class="d-flex justify-content-center align-items-center mt-3 pt-3 border-top gap-3">
+                  <button class="btn btn-outline-secondary fw-bold rounded-pill px-4 shadow-sm" onclick="resetRcFilters()"><i class="fas fa-undo me-2"></i>Reset</button>
+                  <button class="btn btn-primary fw-bold rounded-pill px-5 shadow-sm" style="background-color: #003366; border-color: #003366;" onclick="applyRcFilters()"><i class="fas fa-check-circle me-2"></i>Apply Filters</button>
+              </div>
+
+              <!-- Row 4: Title & Chips (New Location) -->
+              <div class="mt-4 pt-3 border-top bg-light rounded-3 p-3 shadow-inner">
+                  <div id="rc-title-display" class="fw-bolder text-dark mb-2" style="font-size: 1.05rem; letter-spacing: 0.5px;"></div>
+                  <div id="rc-chips-display" class="d-flex flex-wrap gap-2 mt-1"></div>
+              </div>
+          </div>
+      </div>
+
+      <div id="root-cause-data-container" class="d-flex flex-column gap-4">
+          <div class="text-center text-muted py-5">
+              <div class="spinner-border text-primary mb-3" role="status" style="color: #8b5cf6 !important;"></div>
+              <h5 class="fw-bold text-dark">Initializing Root Cause Engine...</h5>
+          </div>
+      </div>
   </div>
   <div class="modal fade" id="bomModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -1957,7 +2096,17 @@
       timeScope: 'YTD', // NEW: Client Dashboard Timeline Scope
       rawData: [],
       productData: [],
+      rootCauseData: {}, // NEW: Root Cause Engine Cache
       netSalesData: [], // NEW: Contract & Commercial Terms Data
+      
+      // NEW: Root Cause BI Configurations
+      rcConfig: {
+          period: 'rcYTD', baseYear: new Date().getFullYear() - 1, measure: 'q', 
+          sequence: ['segment', 'mainClient', 'branch', 'category', 'product'], 
+          filters: { line: [], segment: [], mainClient: [], category: [], product: [] }
+      },
+      rcStaging: null, // Temporary draft memory for the Apply button
+
       selectedYear: 'All',
       selectedType: 'All',
       viewMode: 'qty',
@@ -2044,12 +2193,14 @@
        document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
        document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
        document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
+       document.getElementById('nav-btn-rootcause').className = mode === 'rootcause' ? 'nav-btn active' : 'nav-btn';
 
        // 2. Force Hide ALL containers safely
        document.getElementById('client-view-container').style.display = 'none';
        document.getElementById('product-controls').style.display = 'none';
        document.getElementById('product-content-area').style.display = 'none';
        document.getElementById('costing-view-container').style.display = 'none';
+       document.getElementById('root-cause-view-container').style.display = 'none';
 
        // 3. Route to the correct view
        if (mode === 'product') {
@@ -2058,6 +2209,9 @@
        } else if (mode === 'costing') {
           if (!appState.costingData || appState.costingData.length === 0) { loadSource('costing'); } 
           else { initCostingView(); }
+       } else if (mode === 'rootcause') {
+          if (!appState.rootCauseData || Object.keys(appState.rootCauseData).length === 0) { loadSource('rootcause'); } 
+          else { initRootCauseView(); }
        } else {
           if (!appState.rawData || appState.rawData.length === 0) { loadSource('client'); } 
           else { initClientView(); }
@@ -2074,6 +2228,7 @@
       if (mode === 'client' && appState.rawData && appState.rawData.length > 0) hasData = true;
       if (mode === 'product' && appState.productData && appState.productData.length > 0) hasData = true;
       if (mode === 'costing' && appState.costingData && appState.costingData.length > 0 && appState.productData && appState.productData.length > 0) hasData = true;
+      if (mode === 'rootcause' && appState.rootCauseData && Object.keys(appState.rootCauseData).length > 0) hasData = true;
 
       if (hasData) {
           document.getElementById('landing-screen').style.display = 'none';
@@ -2084,6 +2239,7 @@
           document.getElementById('nav-btn-client').className = mode === 'client' ? 'nav-btn active' : 'nav-btn';
           document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
           document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
+          document.getElementById('nav-btn-rootcause').className = mode === 'rootcause' ? 'nav-btn active' : 'nav-btn';
           
           if (mode === 'product') {
              if (!document.getElementById('report-date').value) document.getElementById('report-date').valueAsDate = new Date();
@@ -2095,6 +2251,8 @@
              initProductView();
           } else if (mode === 'costing') {
              initCostingView();
+          } else if (mode === 'rootcause') {
+             initRootCauseView();
           } else {
              initClientView();
           }
@@ -2129,6 +2287,11 @@
          document.getElementById('loader-icon-box').style.color = '#f59e0b';
          title.innerText = "Live Cost Engine & Margins";
          insights = ["Syncing Bill of Materials...", "Updating latest raw material costs...", "Calculating direct labor overheads...", "Evaluating target margins..."];
+      } else if (mode === 'rootcause') {
+         icon.className = 'fas fa-project-diagram text-primary';
+         document.getElementById('loader-icon-box').style.color = '#8b5cf6';
+         title.innerText = "Variance & Root Cause Engine";
+         insights = ["Fetching multi-dimensional cache...", "Aligning fiscal periods...", "Calculating volume vs revenue drivers...", "Building drill-down tree..."];
       }
 
       loader.style.display = 'flex';
@@ -2159,6 +2322,7 @@
       let backendFn = 'getDashboardDataFromCache'; 
       if (mode === 'product') backendFn = 'getProductDataFromCache';
       if (mode === 'costing') backendFn = 'getCostingDataFromCache';
+      if (mode === 'rootcause') backendFn = 'getRootCauseDataFromCache';
 
       google.script.run
         .withSuccessHandler(response => {
@@ -2173,12 +2337,15 @@
                 document.getElementById('nav-btn-client').className = modeToInit === 'client' ? 'nav-btn active' : 'nav-btn';
                 document.getElementById('nav-btn-product').className = modeToInit === 'product' ? 'nav-btn active' : 'nav-btn';
                 document.getElementById('nav-btn-costing').className = modeToInit === 'costing' ? 'nav-btn active' : 'nav-btn';
+                document.getElementById('nav-btn-rootcause').className = modeToInit === 'rootcause' ? 'nav-btn active' : 'nav-btn';
                 
                 if (modeToInit === 'product') {
                    document.getElementById('report-date').valueAsDate = new Date();
                    initProductView();
                 } else if (modeToInit === 'costing') {
                    initCostingView();
+                } else if (modeToInit === 'rootcause') {
+                   initRootCauseView();
                 } else {
                    initClientView();
                 }
@@ -2211,6 +2378,17 @@
 
              finishLoad('client');
              if (typeof runCadenceScanner === 'function') setTimeout(runCadenceScanner, 500);
+
+          } else if (mode === 'rootcause') {
+             if (!response.data) { alert("System Alert: Root Cause Dataset error."); return; }
+             appState.rootCauseData = response.data;
+             
+             let syncTime = new Date(response.lastUpdated).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'});
+             let dataDate = response.latestData || 'Unknown';
+             let syncText = document.getElementById('rootcause-last-sync');
+             if(syncText) syncText.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
+
+             finishLoad('rootcause');
              
           } else if (mode === 'costing') {
              if (response.error) { alert("Cost Engine Error: " + response.error); return; }
@@ -6063,7 +6241,621 @@ function exportSummaryToPDF() {
         if(document.body.contains(iframe)) document.body.removeChild(iframe);
     }, 15000);
 }
+
+// ==========================================
+    // ROOT CAUSE SALES PORTAL ENGINE
+    // ==========================================
+    function initRootCauseView() {
+        document.getElementById('main-dashboard').style.display = 'block';
+        document.getElementById('client-view-container').style.display = 'none';
+        document.getElementById('product-controls').style.display = 'none';
+        document.getElementById('product-content-area').style.display = 'none';
+        document.getElementById('costing-view-container').style.display = 'none';
+        document.getElementById('root-cause-view-container').style.display = 'block';
+        
+        initRootCauseFilters(); 
+        renderRootCause();
+    }
+
+    function buildDynamicPivotTree(data, config) {
+        const now = new Date();
+        const currYear = now.getFullYear();
+        const currMonth = now.getMonth();
+        const currDate = now.getDate();
+
+        let startMonth = 0;
+        if (config.period === 'rcMTD') startMonth = currMonth;
+        if (config.period === 'rcQTD') startMonth = Math.floor(currMonth / 3) * 3;
+
+        const currStartMs = new Date(currYear, startMonth, 1).getTime();
+        const currEndMs = new Date(currYear, currMonth, currDate, 23, 59, 59).getTime();
+
+        const baseYear = parseInt(config.baseYear);
+        const prevStartMs = new Date(baseYear, startMonth, 1).getTime();
+        const prevEndMs = new Date(baseYear, currMonth, currDate, 23, 59, 59).getTime();
+
+        let tree = { name: 'Root', currV: 0, prevV: 0, currQ: 0, prevQ: 0, children: {} };
+
+        const isAllowedStrict = (val, allowedArr) => allowedArr && allowedArr.includes(val);
+        const isAllowedLine = (val, allowedArr) => !allowedArr || allowedArr.length === 0 || allowedArr.includes(val);
+
+        Object.keys(data).forEach(dateStr => {
+            const dMs = new Date(dateStr).getTime();
+            let isCurr = dMs >= currStartMs && dMs <= currEndMs;
+            let isPrev = dMs >= prevStartMs && dMs <= prevEndMs;
+
+            if (!isCurr && !isPrev) return;
+
+            const segments = data[dateStr];
+            Object.keys(segments).forEach(seg => {
+                if (!isAllowedStrict(seg, config.filters.segment)) return;
+                
+                Object.keys(segments[seg]).forEach(mainCli => {
+                    if (!isAllowedStrict(mainCli, config.filters.mainClient)) return;
+                    
+                    Object.keys(segments[seg][mainCli]).forEach(cli => {
+                        Object.keys(segments[seg][mainCli][cli]).forEach(cat => {
+                            if (!isAllowedStrict(cat, config.filters.category)) return;
+                            
+                            Object.keys(segments[seg][mainCli][cli][cat]).forEach(type => {
+                                if (!isAllowedLine(type, config.filters.line)) return;
+                                
+                                Object.keys(segments[seg][mainCli][cli][cat][type]).forEach(prod => {
+                                    if (!isAllowedStrict(prod, config.filters.product)) return;
+                                    
+                                    const qty = segments[seg][mainCli][cli][cat][type][prod].q || 0;
+                                    const val = segments[seg][mainCli][cli][cat][type][prod].v || 0;
+
+                                    const record = { segment: seg, mainClient: mainCli, branch: cli, category: cat, product: prod };
+
+                                    if (isCurr) { tree.currV += val; tree.currQ += qty; } 
+                                    else { tree.prevV += val; tree.prevQ += qty; }
+
+                                    let currentNode = tree;
+                                    config.sequence.forEach(key => {
+                                        const nodeName = record[key];
+                                        if (!currentNode.children[nodeName]) {
+                                            currentNode.children[nodeName] = { name: nodeName, level: key, currV: 0, prevV: 0, currQ: 0, prevQ: 0, children: {} };
+                                        }
+                                        currentNode = currentNode.children[nodeName];
+                                        if (isCurr) { currentNode.currV += val; currentNode.currQ += qty; } 
+                                        else { currentNode.prevV += val; currentNode.prevQ += qty; }
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
+        return tree;
+    }
+
+    // Add global tracking
+    appState.masterRCLists = { segment: [], mainClient: [], category: [], product: [] };
+    appState.currentAvailable = { segment: [], mainClient: [], category: [], product: [] };
+    const globalPeriodNames = {'rcMTD': 'Month-to-Date', 'rcQTD': 'Quarter-to-Date', 'rcYTD': 'Year-to-Date'};
+
+    function initRootCauseFilters() {
+        appState.rcStaging = JSON.parse(JSON.stringify(appState.rcConfig));
+        
+        const data = appState.rootCauseData;
+        let years = new Set();
+        let mSeg = new Set(), mMain = new Set(), mCat = new Set(), mProd = new Set();
+
+        Object.keys(data).forEach(dateStr => {
+            years.add(new Date(dateStr).getFullYear());
+            const segments = data[dateStr];
+            Object.keys(segments).forEach(seg => {
+                mSeg.add(seg);
+                Object.keys(segments[seg]).forEach(mainCli => {
+                    mMain.add(mainCli);
+                    Object.keys(segments[seg][mainCli]).forEach(cli => {
+                        Object.keys(segments[seg][mainCli][cli]).forEach(cat => {
+                            mCat.add(cat);
+                            Object.keys(segments[seg][mainCli][cli][cat]).forEach(type => {
+                                Object.keys(segments[seg][mainCli][cli][cat][type]).forEach(prod => {
+                                    mProd.add(prod);
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
+        appState.masterRCLists = {
+            segment: Array.from(mSeg).sort(),
+            mainClient: Array.from(mMain).sort(),
+            category: Array.from(mCat).sort(),
+            product: Array.from(mProd).sort()
+        };
+
+        ['segment', 'mainClient', 'category', 'product'].forEach(key => {
+            if (!appState.rcStaging.filters[key] || appState.rcStaging.filters[key].length === 0) {
+                appState.rcStaging.filters[key] = [...appState.masterRCLists[key]];
+                appState.rcConfig.filters[key] = [...appState.masterRCLists[key]]; 
+            }
+        });
+
+        const yearSelect = document.getElementById('rcBaseYear');
+        let sortedYears = Array.from(years).sort((a, b) => b - a);
+        let currentYear = new Date().getFullYear();
+        let baseYear = appState.rcStaging.baseYear || (currentYear - 1);
+        yearSelect.innerHTML = sortedYears.filter(y => y < currentYear).map(y => 
+            `<option value="${y}" ${y == baseYear ? 'selected' : ''}>${y}</option>`
+        ).join('');
+        appState.rcStaging.baseYear = yearSelect.value || baseYear;
+
+        document.getElementById('rcMeasureToggle').checked = (appState.rcStaging.measure === 'v');
+        document.getElementById('rcSeqClient').checked = (appState.rcStaging.sequence[0] === 'segment');
+        document.getElementById('rcSeqProd').checked = (appState.rcStaging.sequence[0] === 'category');
+
+        rebuildCascadingDropdowns();
+    }
+
+    window.modifyAll = function(filterKey, selectAll) {
+        if (selectAll) {
+            appState.rcStaging.filters[filterKey] = [...appState.currentAvailable[filterKey]];
+        } else {
+            appState.rcStaging.filters[filterKey] = [];
+        }
+        rebuildCascadingDropdowns();
+    };
+
+    function rebuildCascadingDropdowns() {
+        const data = appState.rootCauseData;
+        const staged = appState.rcStaging.filters;
+
+        let available = { segment: new Set(), mainClient: new Set(), category: new Set(), product: new Set() };
+        const isAllowedStrict = (val, allowedArr) => allowedArr && allowedArr.includes(val);
+
+        Object.keys(data).forEach(dateStr => {
+            const segments = data[dateStr];
+            Object.keys(segments).forEach(seg => {
+                let segMatch = isAllowedStrict(seg, staged.segment);
+                Object.keys(segments[seg]).forEach(mainCli => {
+                    let cliMatch = isAllowedStrict(mainCli, staged.mainClient);
+                    Object.keys(segments[seg][mainCli]).forEach(cli => {
+                        Object.keys(segments[seg][mainCli][cli]).forEach(cat => {
+                            let catMatch = isAllowedStrict(cat, staged.category);
+                            Object.keys(segments[seg][mainCli][cli][cat]).forEach(type => {
+                                let lineMatch = (!staged.line || staged.line.length === 0 || staged.line.includes(type));
+                                
+                                if (lineMatch) {
+                                    available.segment.add(seg);
+                                    if (segMatch) {
+                                        available.mainClient.add(mainCli);
+                                        if (cliMatch) {
+                                            available.category.add(cat);
+                                            if (catMatch) {
+                                                Object.keys(segments[seg][mainCli][cli][cat][type]).forEach(prod => {
+                                                    available.product.add(prod);
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
+        appState.currentAvailable = {
+            segment: Array.from(available.segment).sort(),
+            mainClient: Array.from(available.mainClient).sort(),
+            category: Array.from(available.category).sort(),
+            product: Array.from(available.product).sort()
+        };
+
+        const buildCheckboxes = (targetId, filterKey) => {
+            const container = document.getElementById(targetId);
+            let sortedVals = appState.currentAvailable[filterKey];
+            let activeSelections = appState.rcStaging.filters[filterKey] || [];
+            
+            container.innerHTML = `
+                <div class="px-2 pb-2 border-bottom mb-2">
+                   <button class="btn btn-sm btn-link p-0 me-2 text-decoration-none fw-bold text-success" onclick="modifyAll('${filterKey}', true)"><i class="fas fa-check-double me-1"></i>Select All</button>
+                   <button class="btn btn-sm btn-link p-0 text-decoration-none text-danger" onclick="modifyAll('${filterKey}', false)"><i class="fas fa-eraser me-1"></i>Deselect All</button>
+                </div>
+            ` + sortedVals.map(val => {
+                let checked = activeSelections.includes(val) ? 'checked' : '';
+                return `<li><label class="dropdown-item d-flex align-items-center" style="font-size: 0.8rem; cursor:pointer;" onclick="event.stopPropagation();">
+                        <input class="form-check-input me-2 mt-0 border-secondary shadow-sm" type="checkbox" value="${val}" ${checked} onchange="stageRcFilter('${filterKey}', this.value, this.checked)">${val}</label></li>`;
+            }).join('');
+        };
+
+        buildCheckboxes('rc-filter-segment', 'segment');
+        buildCheckboxes('rc-filter-mainClient', 'mainClient');
+        buildCheckboxes('rc-filter-category', 'category');
+        buildCheckboxes('rc-filter-product', 'product');
+
+        renderActiveTitleAndChips();
+    }
+
+    window.stageRcFilter = function(filterKey, value, isChecked) {
+        let arr = appState.rcStaging.filters[filterKey] || [];
+        if (isChecked && !arr.includes(value)) {
+            arr.push(value);
+        } else if (!isChecked && arr.includes(value)) {
+            arr = arr.filter(item => item !== value);
+        }
+        appState.rcStaging.filters[filterKey] = arr;
+        rebuildCascadingDropdowns();
+    };
+
+    window.stageRcConfig = function(key, value) {
+        if (key === 'sequence') {
+            if (value === 'client') appState.rcStaging.sequence = ['segment', 'mainClient', 'branch', 'category', 'product'];
+            else appState.rcStaging.sequence = ['category', 'product', 'segment', 'mainClient', 'branch'];
+        } else if (key === 'line') {
+            appState.rcStaging.filters.line = value;
+            rebuildCascadingDropdowns(); 
+        } else {
+            appState.rcStaging[key] = value;
+        }
+        renderActiveTitleAndChips();
+    };
+
+    function renderActiveTitleAndChips() {
+        const config = appState.rcStaging;
+        const masters = appState.masterRCLists || {};
+        
+        // Dynamic Title Generation
+        const now = new Date();
+        const year = now.getFullYear();
+        let start, end = now;
+        if (config.period === 'rcMTD') start = new Date(year, now.getMonth(), 1);
+        else if (config.period === 'rcQTD') start = new Date(year, Math.floor(now.getMonth()/3)*3, 1);
+        else start = new Date(year, 0, 1);
+        
+        const dFmt = (d) => d.toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+        const measureStr = config.measure === 'v' ? 'Revenue' : 'Volume';
+        
+        let brandStr = "All Brands";
+        if (config.filters.line && config.filters.line.length === 1) {
+             brandStr = config.filters.line[0] === 'OWN PRODUCT' ? 'Tawoos Brand' : 'Private Label';
+        }
+        
+        const titleStr = `Analyzing <span class="text-primary">${measureStr}</span> variances for <span class="text-primary">${globalPeriodNames[config.period]} (${dFmt(start)} - ${dFmt(end)})</span> comparing <span class="text-primary">${year} vs ${config.baseYear}</span>. Filtered for <span class="text-primary">${brandStr}</span>. Breakdown sequence: <span class="text-primary">${config.sequence.map(s => s.replace('mainClient', 'Client').toUpperCase()).join(' ➔ ')}</span>.`;
+        document.getElementById('rc-title-display').innerHTML = `<i class="fas fa-search-chart text-secondary me-2"></i>${titleStr}`;
+
+        // Independent Tracks Chip Logic
+        const chipsContainer = document.getElementById('rc-chips-display');
+        let chipsHtml = '';
+        
+        const renderTrack = (keys, color) => {
+            keys.forEach(key => {
+                const selected = config.filters[key] || [];
+                const displayKey = key === 'mainClient' ? 'Client' : key.charAt(0).toUpperCase() + key.slice(1);
+                const masterCount = (masters[key] || []).length;
+                const availableCount = (appState.currentAvailable[key] || []).length;
+
+                if (selected.length === 0) {
+                     chipsHtml += `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-3 py-2 rounded-pill shadow-sm"><i class="fas fa-ban me-1"></i>${displayKey}: None</span>`;
+                } else if (selected.length === masterCount || selected.length === availableCount) {
+                     chipsHtml += `<span class="badge bg-${color} bg-opacity-10 text-${color} border border-${color} px-3 py-2 rounded-pill shadow-sm"><i class="fas fa-check-double me-1"></i>${displayKey}: All Selected</span>`;
+                } else {
+                     selected.forEach(s => {
+                         chipsHtml += `<span class="badge bg-${color} bg-opacity-10 text-${color} border border-${color} px-3 py-2 rounded-pill shadow-sm">${displayKey}: ${s} 
+                            <i class="fas fa-times ms-2 cursor-pointer" onclick="stageRcFilter('${key}', '${s.replace(/'/g, "\\'")}', false)"></i></span>`;
+                     });
+                }
+            });
+        };
+
+        renderTrack(['segment', 'mainClient'], 'primary');
+        renderTrack(['category', 'product'], 'success');
+        
+        chipsContainer.innerHTML = chipsHtml;
+    }
+
+    window.applyRcFilters = function() {
+        appState.rcConfig = JSON.parse(JSON.stringify(appState.rcStaging));
+        
+        document.getElementById('root-cause-data-container').innerHTML = `
+            <div class="text-center text-muted py-5">
+                <div class="spinner-border text-primary mb-3" role="status" style="color: #8b5cf6 !important;"></div>
+                <h5 class="fw-bold text-dark">Applying Filters & Recalculating...</h5>
+            </div>`;
+            
+        setTimeout(renderRootCause, 50); 
+    };
+
+    window.resetRcFilters = function() {
+        appState.rcStaging = {
+            period: 'rcYTD', baseYear: new Date().getFullYear() - 1, measure: 'q', 
+            sequence: ['segment', 'mainClient', 'branch', 'category', 'product'], 
+            filters: { 
+                line: [], 
+                segment: [...appState.masterRCLists.segment], 
+                mainClient: [...appState.masterRCLists.mainClient], 
+                category: [...appState.masterRCLists.category], 
+                product: [...appState.masterRCLists.product] 
+            }
+        };
+        
+        document.getElementById('rcYTD').checked = true;
+        document.getElementById('rcBaseYear').value = appState.rcStaging.baseYear;
+        document.getElementById('rcMeasureToggle').checked = false;
+        document.getElementById('rcSeqClient').checked = true;
+        document.getElementById('rcLineBoth').checked = true;
+        
+        rebuildCascadingDropdowns();
+        applyRcFilters();
+    };
+
+    function renderRootCause() {
+        const config = appState.rcConfig;
+        const tree = buildDynamicPivotTree(appState.rootCauseData, config);
+        
+        let html = '';
+        
+        // --- NEW NUMBER FORMATTERS (K / M Limits & Arrows) ---
+        const formatNum = (val) => {
+            if (!val || val === 0) return '0';
+            let absVal = Math.abs(val);
+            let sign = val < 0 ? '-' : '';
+            if (absVal >= 1000000) return sign + (absVal / 1000000).toFixed(1) + 'M';
+            if (absVal >= 1000) return sign + (absVal / 1000).toFixed(1) + 'K';
+            return sign + absVal.toFixed(1).replace(/\.0$/, '');
+        };
+
+        const formatVar = (val) => {
+            if (!val || val === 0) return '0';
+            let icon = val > 0 ? '↑' : '↓';
+            let absVal = Math.abs(val);
+            let formatted = '';
+            if (absVal >= 1000000) formatted = (absVal / 1000000).toFixed(1) + 'M';
+            else if (absVal >= 1000) formatted = (absVal / 1000).toFixed(1) + 'K';
+            else formatted = absVal.toFixed(1).replace(/\.0$/, '');
+            return `${icon} ${formatted}`;
+        };
+
+        const fmtPct = (val) => {
+            if (!val || val === 0) return '0.0%';
+            let icon = val > 0 ? '↑' : '↓';
+            return `${icon} ${Math.abs(val).toFixed(1)}%`;
+        };
+        
+        let grandVar = (config.measure === 'v' ? tree.currV : tree.currQ) - (config.measure === 'v' ? tree.prevV : tree.prevQ);
+        let grandPrev = config.measure === 'v' ? tree.prevV : tree.prevQ;
+        let grandCurr = config.measure === 'v' ? tree.currV : tree.currQ;
+        let grandPct = grandPrev > 0 ? (grandVar / grandPrev) * 100 : 0;
+        
+        const measureLabel = config.measure === 'v' ? 'EGP' : 'Units';
+
+        // --- NEW GRAND TOTAL ROW (Normal background, large bold fonts, shadow effects) ---
+        html += `
+        <tr style="background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%); border-top: 3px solid #94a3b8; border-bottom: 3px solid #94a3b8; font-size: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <td class="ps-4 py-4 fw-bolder text-dark text-uppercase"><i class="fas fa-chart-line me-2 text-primary fs-4 align-middle"></i>Grand Total</td>
+            <td class="text-end py-4 fw-bolder text-secondary">${formatNum(grandPrev)} <span class="fw-normal" style="font-size: 0.75rem;">${measureLabel}</span></td>
+            <td class="text-end py-4 fw-bolder text-dark">${formatNum(grandCurr)} <span class="fw-normal" style="font-size: 0.75rem;">${measureLabel}</span></td>
+            <td class="text-end py-4 pe-3 fw-bolder ${grandVar >= 0 ? 'text-success' : 'text-danger'}">${formatVar(grandVar)}</td>
+            <td class="text-end py-4 pe-4 fw-bolder ${grandVar >= 0 ? 'text-success' : 'text-danger'}">${fmtPct(grandPct)}</td>
+        </tr>`;
+
+        // Recursive row builder
+        const buildRows = (node, parentId, depth) => {
+            let sortedKeys = Object.keys(node.children).sort((a,b) => {
+                let vA = Math.abs((config.measure === 'v' ? node.children[a].currV : node.children[a].currQ) - (config.measure === 'v' ? node.children[a].prevV : node.children[a].prevQ));
+                let vB = Math.abs((config.measure === 'v' ? node.children[b].currV : node.children[b].currQ) - (config.measure === 'v' ? node.children[b].prevV : node.children[b].prevQ));
+                return vB - vA;
+            });
+
+            let outHtml = '';
+            sortedKeys.forEach((key, idx) => {
+                let child = node.children[key];
+                let cPrev = config.measure === 'v' ? child.prevV : child.prevQ;
+                let cCurr = config.measure === 'v' ? child.currV : child.currQ;
+                
+                if (cPrev === 0 && cCurr === 0) return;
+
+                let cVar = cCurr - cPrev;
+                let cPct = cPrev > 0 ? (cVar / cPrev) * 100 : 0;
+                let cColor = cVar >= 0 ? 'text-success' : 'text-danger';
+                let rowId = parentId ? `${parentId}-${idx}` : `rc-node-${idx}`;
+                
+                let hasChildren = Object.keys(child.children).length > 0;
+                let iconToggle = hasChildren ? `<i class="fas fa-chevron-right me-2 text-primary" style="font-size:0.8rem; width:10px;" id="icon-${rowId}"></i>` : `<i class="fas fa-circle text-muted opacity-25 me-2" style="font-size:0.4rem; width:10px;"></i>`;
+                
+                let iconClass = 'fa-tag';
+                if (child.level === 'segment') iconClass = 'fa-layer-group text-primary';
+                if (child.level === 'mainClient') iconClass = 'fa-building text-secondary';
+                if (child.level === 'branch') iconClass = 'fa-code-branch text-muted';
+                if (child.level === 'category') iconClass = 'fa-folder-open text-warning';
+                if (child.level === 'product') iconClass = 'fa-box text-success';
+
+                let bgClass = depth === 0 ? 'bg-light fw-bold text-dark border-top border-2' : (depth === 1 ? 'bg-white fw-bold text-dark' : (depth === 2 ? 'bg-white fw-semibold text-secondary' : 'bg-white text-muted'));
+                let display = depth === 0 ? '' : 'd-none';
+                let cursor = hasChildren ? 'cursor:pointer;' : '';
+                let onclick = hasChildren ? `onclick="toggleRcRow('${rowId}')"` : '';
+                let padding = 1.5 + (depth * 1.5); 
+                let labelExtra = (child.level === 'branch' && child.name === node.name) ? ` <span class="badge bg-secondary ms-1" style="font-size:0.6rem;">Main Branch</span>` : '';
+
+                outHtml += `
+                <tr id="${rowId}" data-parent="${parentId}" class="rc-row ${display} ${bgClass}" style="${cursor}" ${onclick}>
+                    <td style="padding-left: ${padding}rem; font-size: 0.9rem;" class="py-2 align-middle">
+                        ${iconToggle}<i class="fas ${iconClass} me-2 opacity-75"></i>${child.name}${labelExtra}
+                    </td>
+                    <td class="text-end align-middle" style="font-size: 0.95rem;">${formatNum(cPrev)}</td>
+                    <td class="text-end align-middle ${depth === 0 ? 'text-primary' : 'text-dark'}" style="font-size: 0.95rem;">${formatNum(cCurr)}</td>
+                    <td class="text-end align-middle pe-3 ${cColor} fw-bold" style="font-size: 0.95rem;">${formatVar(cVar)}</td>
+                    <td class="text-end align-middle pe-4 ${cColor} fw-bold" style="font-size: 0.95rem;">${fmtPct(cPct)}</td>
+                </tr>`;
+
+                if (hasChildren) {
+                    outHtml += buildRows(child, rowId, depth + 1);
+                }
+            });
+            return outHtml;
+        };
+
+        html += buildRows(tree, '', 0);
+
+        if (grandCurr === 0 && grandPrev === 0) html = `<tr><td colspan="5" class="text-center py-5 text-muted">No data available for this configuration.</td></tr>`;
+
+        const seqLabels = { segment: 'SEGMENT', mainClient: 'MAIN CLIENT', branch: 'BRANCH', category: 'CATEGORY', product: 'PRODUCT' };
+        const hierarchyStr = config.sequence.map(s => seqLabels[s]).join(' ➔ ');
+
+        let finalHtml = `
+        <div class="card border-0 shadow-sm rounded-4 w-100 bg-white">
+            <div class="table-responsive rounded-4" style="overflow-x: auto;">
+                <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem; min-width: 800px;">
+                    <thead class="table-light border-bottom text-muted" style="font-size: 0.75rem;">
+                        <tr>
+                            <th class="ps-4 py-3 fw-bold">HIERARCHY (${hierarchyStr})</th>
+                            <th class="text-end py-3 fw-bold">PRIOR YEAR <span class="badge bg-secondary ms-1">${config.baseYear}</span></th>
+                            <th class="text-end py-3 fw-bold text-primary">CURRENT PERIOD <span class="badge bg-primary ms-1">${config.period.replace('rc', '')}</span></th>
+                            <th class="text-end pe-3 py-3 fw-bold">VARIANCE (${measureLabel})</th>
+                            <th class="text-end pe-4 py-3 fw-bold">GROWTH (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${html}
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
+
+        document.getElementById('root-cause-data-container').innerHTML = finalHtml;
+    }
+
+    window.toggleRcRow = function(rowId) {
+        let icon = document.getElementById('icon-' + rowId);
+        let isExpanding = icon.classList.contains('fa-chevron-right');
+
+        if (isExpanding) {
+            icon.classList.replace('fa-chevron-right', 'fa-chevron-down');
+            document.querySelectorAll(`[data-parent="${rowId}"]`).forEach(r => r.classList.remove('d-none'));
+        } else {
+            icon.classList.replace('fa-chevron-down', 'fa-chevron-right');
+            hideRcChildren(rowId);
+        }
+    };
+
+    function hideRcChildren(rowId) {
+        document.querySelectorAll(`[data-parent="${rowId}"]`).forEach(r => {
+            r.classList.add('d-none');
+            let childId = r.getAttribute('id');
+            if (childId) {
+                let childIcon = document.getElementById('icon-' + childId);
+                if (childIcon && childIcon.classList.contains('fa-chevron-down')) {
+                    childIcon.classList.replace('fa-chevron-down', 'fa-chevron-right');
+                }
+                hideRcChildren(childId);
+            }
+        });
+    }
+
+    window.forceSyncRootCause = function(event) {
+        let isFullRebuild = false;
+        if (event && event.shiftKey) {
+            let msg = "⚠️ FULL HISTORICAL REBUILD ⚠️\n\nYou are about to rebuild the entire historical cache from scratch. This will take significantly longer.\n\nProceed?";
+            if (!confirm(msg)) return;
+            isFullRebuild = true;
+        }
+
+        let icon = document.getElementById('icon-sync-rootcause');
+        let text = document.getElementById('rootcause-last-sync');
+        if(icon) icon.classList.add('fa-spin');
+        if(text) text.innerText = isFullRebuild ? "Rebuilding Ledger..." : "Syncing Fast (12d)...";
+        
+        google.script.run.withSuccessHandler(res => {
+            if(icon) icon.classList.remove('fa-spin');
+            loadSource('rootcause');
+        }).triggerManualSalesRebuild(isFullRebuild);
+    };
+
+    window.exportRootCauseToPDF = async function() {
+        // 1. ROBUST BUTTON SELECTOR & LOADING STATE
+        const btn = document.querySelector('button[onclick*="exportRootCauseToPDF"]');
+        const originalBtnHtml = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Exporting...`;
+
+        // Force the browser to pause for 100ms to visually render the loading spinner
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        try {
+            // 2. USE THE ACTUAL LIVE DOM ELEMENT
+            let container = document.getElementById('root-cause-data-container');
+            
+            // Temporarily disable the scrollable overflow so html2canvas doesn't render blank boxes
+            let tableResponsive = container.querySelector('.table-responsive');
+            if (tableResponsive) {
+                tableResponsive.style.overflowX = 'visible';
+                tableResponsive.style.overflow = 'visible';
+            }
+            
+            // 3. INJECT DYNAMIC TITLE
+            let liveTitleBlock = document.getElementById('rc-title-display').parentElement;
+            let tempTitleClone = liveTitleBlock.cloneNode(true);
+            tempTitleClone.id = "temp-pdf-title-block";
+            tempTitleClone.style.borderTop = "none";
+            tempTitleClone.style.marginBottom = "15px";
+            
+            // 4. ARABIC SHAPING FIX: STRICT RTL
+            // We force the whole container into RTL to guarantee html2canvas joins Arabic letters
+            container.setAttribute('dir', 'rtl');
+            
+            tempTitleClone.setAttribute('dir', 'rtl');
+            tempTitleClone.style.textAlign = 'right';
+            container.insertBefore(tempTitleClone, container.firstChild);
+            
+            let table = container.querySelector('table');
+            if (table) {
+                table.setAttribute('dir', 'rtl'); // Force table column flow to RTL
+                
+                // Mirror the inline indentation padding for the expanding tree structure
+                container.querySelectorAll('td').forEach(el => {
+                    if (el.style.paddingLeft && el.style.paddingLeft !== '0px') {
+                        el.style.paddingRight = el.style.paddingLeft;
+                        el.style.paddingLeft = '0px';
+                    }
+                });
+            }
+
+            // 5. DYNAMIC FILE NAMING
+            let rawTitle = document.getElementById('rc-title-display').innerText || 'Root_Cause_Analysis';
+            let safeFileName = rawTitle.replace(/[<>:"/\\|?*]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
+
+            // 6. GENERATE PDF
+            let opt = {
+                margin: 0.3,
+                filename: safeFileName,
+                image: { type: 'jpeg', quality: 1.0 },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true,
+                    scrollY: 0 
+                }, 
+                jsPDF: { unit: 'in', format: 'a3', orientation: 'landscape' }
+            };
+            
+            await html2pdf().set(opt).from(container).save();
+
+        } catch (error) {
+            console.error("PDF Export Error:", error);
+            alert("An error occurred while generating the PDF.");
+        } finally {
+            // 7. INSTANT CLEANUP
+            // Removing the RTL attribute before redrawing
+            let container = document.getElementById('root-cause-data-container');
+            container.removeAttribute('dir');
+            
+            // Redrawing the table instantly removes the temporary title and restores all CSS/overflows/LTR
+            renderRootCause();
+            
+            // Restore Button
+            btn.disabled = false;
+            btn.innerHTML = originalBtnHtml;
+        }
+    };
   </script>
 </body>
-
 </html>
