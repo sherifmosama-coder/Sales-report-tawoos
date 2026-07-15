@@ -528,3 +528,214 @@ function generateCostingCache(forceFullRebuild = false) {
       return { error: e.message };
   }
 }
+
+// =====================================================================
+// ROOT CAUSE SALES PORTAL - JSON ENGINE
+// =====================================================================
+
+/**
+ * Builds an in-memory dictionary (Hash Map) from the Products_Map sheet.
+ * Coding Lesson: Instead of searching the sheet 12,000 times, we read it once.
+ * Now, asking for pMap["Premium Tahini"] instantly returns its category.
+ */
+function buildProductHashMap() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mapSheet = ss.getSheetByName("Products_Map");
+  if (!mapSheet) return {};
+  
+  // Data starts on row 2, so we ignore the header (index 0)
+  const data = mapSheet.getDataRange().getValues();
+  let pMap = {};
+  
+  for (let i = 1; i < data.length; i++) { 
+    let pName = String(data[i][0]).trim(); // Col A
+    if (!pName) continue;
+    
+    let isPrivate = String(data[i][1]).toUpperCase() === "TRUE"; // Col B
+    let category = String(data[i][2]).trim() || "Uncategorized"; // Col C
+    
+    pMap[pName] = {
+      type: isPrivate ? "Private Label" : "OWN PRODUCT",
+      category: category
+    };
+  }
+  
+  return pMap;
+}
+
+/**
+ * Main engine to compress the 12k+ Sales Matrix into a nested JSON file.
+ * @param {boolean} isHardRebuild - If true, processes all 12k rows. If false, only the last 12 days.
+ */
+function generateSalesRootCauseJSON(isHardRebuild = false) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const dataSheet = ss.getSheetByName("All Data");
+  const timeZone = ss.getSpreadsheetTimeZone() || "GMT";
+  
+  // 1. Initialize the Product Dictionary
+  const pMap = buildProductHashMap();
+  
+  // 2. Locate or Initialize the JSON file in Google Drive
+  const fileName = "sales_root_cause_cache.json";
+  let files = DriveApp.getFilesByName(fileName);
+  let file = files.hasNext() ? files.next() : null;
+  let jsonData = {};
+  
+  if (file && !isHardRebuild) {
+    try {
+      jsonData = JSON.parse(file.getBlob().getDataAsString());
+    } catch(e) {
+      jsonData = {}; // Reset if corrupted
+    }
+  }
+
+  // 3. Establish the Delta Update Threshold (12 Days Ago)
+  let thresholdMs = 0;
+  if (!isHardRebuild) {
+    let d = new Date();
+    d.setDate(d.getDate() - 12);
+    d.setHours(0, 0, 0, 0);
+    thresholdMs = d.getTime();
+    
+    // Coding Lesson: Key Deletion. To update the last 12 days, we first 
+    // delete them from the existing JSON. This prevents adding "double sales".
+    Object.keys(jsonData).forEach(dateStr => {
+      let dMs = new Date(dateStr).getTime();
+      if (dMs >= thresholdMs) {
+        delete jsonData[dateStr]; 
+      }
+    });
+  }
+
+  // 4. Read the Massive Sales Matrix into Memory
+  const lastRow = dataSheet.getLastRow();
+  const lastCol = dataSheet.getLastColumn();
+  if (lastRow < 10) return "No data found.";
+  
+  // We grab everything from Row 8 downward.
+  // matrixData[0] = Row 8 (Headers), matrixData[1] = Row 9, matrixData[2] = Row 10 (First Data)
+  const matrixData = dataSheet.getRange(8, 1, lastRow - 7, lastCol).getValues();
+  const headersRow = matrixData[0]; 
+  
+  // Map out exactly where every product lives dynamically
+  // Col R is index 17 in Arrays (A=0, B=1... R=17)
+  let productCols = []; 
+  for (let c = 17; c < lastCol; c += 2) {
+    let pName = String(headersRow[c]).trim();
+    if (pName) {
+      productCols.push({ name: pName, qtyIdx: c, valIdx: c + 1 });
+    }
+  }
+
+  // 5. Build the Multi-Dimensional Data Tree
+  for (let i = 2; i < matrixData.length; i++) { // Start at index 2 (Row 10)
+    let row = matrixData[i];
+    let clientName = String(row[2]).trim(); // Col C -> Index 2 (Branch)
+    let mainClient = String(row[3]).trim() || clientName; // Col D -> Index 3 (Main Client)
+    let segment = String(row[4]).trim() || "Uncategorized"; // Col E -> Index 4
+    let dateVal = row[6]; // Col G -> Index 6
+    
+    if (!dateVal || !clientName) continue;
+    
+    let dateObj = new Date(dateVal);
+    if (isNaN(dateObj.getTime())) continue;
+    dateObj.setHours(0, 0, 0, 0);
+    let dateMs = dateObj.getTime();
+    
+    // Skip old rows if we are doing a 12-day soft update
+    if (!isHardRebuild && dateMs < thresholdMs) continue;
+    
+    let dateStr = Utilities.formatDate(dateObj, timeZone, "yyyy-MM-dd");
+    
+    // Safely build the nested tree path if it doesn't exist yet
+    if (!jsonData[dateStr]) jsonData[dateStr] = {};
+    if (!jsonData[dateStr][segment]) jsonData[dateStr][segment] = {};
+    if (!jsonData[dateStr][segment][mainClient]) jsonData[dateStr][segment][mainClient] = {};
+    if (!jsonData[dateStr][segment][mainClient][clientName]) jsonData[dateStr][segment][mainClient][clientName] = {};
+    
+    let clientNode = jsonData[dateStr][segment][mainClient][clientName];
+    
+    // Scan all product columns for this specific row
+    productCols.forEach(p => {
+      let qty = Number(row[p.qtyIdx]) || 0;
+      let val = Number(row[p.valIdx]) || 0;
+      
+      if (qty !== 0 || val !== 0) { // Only log if there is a transaction
+        let meta = pMap[p.name] || { category: "Uncategorized", type: "OWN PRODUCT" };
+        let cat = meta.category;
+        let type = meta.type;
+        
+        if (!clientNode[cat]) clientNode[cat] = {};
+        if (!clientNode[cat][type]) clientNode[cat][type] = {};
+        if (!clientNode[cat][type][p.name]) {
+          clientNode[cat][type][p.name] = { q: 0, v: 0 }; // Short keys = smaller file size
+        }
+        
+        clientNode[cat][type][p.name].q += qty;
+        clientNode[cat][type][p.name].v += val;
+      }
+    });
+  }
+
+  // 6. Overwrite the Google Drive Cache
+  const jsonString = JSON.stringify(jsonData);
+  if (file) {
+    file.setContent(jsonString);
+  } else {
+    DriveApp.createFile(fileName, jsonString, MimeType.PLAIN_TEXT);
+  }
+  
+  return isHardRebuild ? "Hard Rebuild JSON Cache Complete." : "12-Day Delta Sync Complete.";
+}
+
+
+// =====================================================================
+// AUTOMATION TRIGGERS
+// =====================================================================
+
+/**
+ * Execute this function ONCE manually from the editor to set up the timer.
+ */
+function setupSalesJSONAutoTrigger() {
+  // Clear existing triggers to avoid duplicates
+  const triggers = ScriptApp.getProjectTriggers();
+  for (let i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === "runScheduledDeltaUpdate") {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  
+  // Create the 6-hour loop
+  ScriptApp.newTrigger("runScheduledDeltaUpdate")
+           .timeBased()
+           .everyHours(6)
+           .create();
+}
+
+/**
+ * The function fired by the automated timer
+ */
+function runScheduledDeltaUpdate() {
+  generateSalesRootCauseJSON(false); // false = Delta Update
+}
+
+/**
+ * Call from the WebApp UI for manual rebuilds
+ */
+function triggerManualSalesRebuild() {
+  return generateSalesRootCauseJSON(true); // true = Hard Rebuild
+}
+
+/**
+ * Called by the frontend to instantly fetch the cached Root Cause JSON
+ */
+function getRootCauseDataFromCache() {
+  let files = DriveApp.getFilesByName("sales_root_cause_cache.json");
+  if (!files.hasNext()) return { data: {}, lastUpdated: new Date().toISOString() };
+  let file = files.next();
+  return {
+    data: JSON.parse(file.getBlob().getDataAsString()),
+    lastUpdated: file.getLastUpdated().toISOString(),
+    latestData: new Date().toISOString()
+  };
+}
