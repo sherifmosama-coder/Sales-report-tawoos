@@ -90,7 +90,17 @@ function mapRecipes(sheet) {
     if (!recipeId) continue;
     
     const product = String(row[2] || "").trim();
-    recipes[recipeId] = { product: product, materials: {} };
+    const validFromRaw = row[3];
+    const validToRaw = (row[4] !== undefined && row[4] !== null && String(row[4]).trim() !== "") ? row[4] : null;
+    const vFromMs = validFromRaw ? normalizeCostDateMs(validFromRaw) : NaN;
+    const vToMs = validToRaw ? normalizeCostDateMs(validToRaw) : NaN;
+
+    recipes[recipeId] = {
+      product: product,
+      validFromMs: isNaN(vFromMs) ? 0 : vFromMs,
+      validToMs: isNaN(vToMs) ? Infinity : (vToMs + 86399999),
+      materials: {}
+    };
     
     for (let col = 6; col < headers.length; col++) {
       let genMatName = String(headers[col]).trim();
@@ -408,8 +418,8 @@ function syncCostLedger(existingSS) {
 
   // 3. MAP PALLETS (STRICT DATE PARSER + DAILY OVERWRITE "LATEST WINS")
   const palletsData = palletsSheet.getDataRange().getValues();
-  let dailyPallets = {};           // dateMs -> { conciseName: { planId, recipeId, dateMs } }
-  let productTimeline = {};        // conciseName -> [ { dateMs, planId, recipeId }, ... ]
+  let dailyPallets = {};           // dateMs -> { "conciseName||recipeId": { conciseName, planId, recipeId, dateMs } }
+  let productRecipeTimeline = {};  // conciseName -> { recipeId: [ { dateMs, planId, recipeId }, ... ] }
   let palletDateToProducts = {};   // dateMs -> Set of conciseNames produced on this day
   let matToProducts = {}; 
 
@@ -476,8 +486,8 @@ function syncCostLedger(existingSS) {
     let rowDateMs = parsePalletDateMs(palletsData[i]);
     
     if (!dailyPallets[rowDateMs]) dailyPallets[rowDateMs] = {};
-    // "LATEST ON DATE WINS": Downward loop naturally overwrites earlier rows on the same date
-    dailyPallets[rowDateMs][conciseName] = { planId: planId, recipeId: recipeId, dateMs: rowDateMs };
+    // "LATEST ON DATE WINS" per (product, recipeId): Downward loop naturally overwrites earlier rows for same product+recipe on the same date
+    dailyPallets[rowDateMs][conciseName + "||" + recipeId] = { conciseName: conciseName, planId: planId, recipeId: recipeId, dateMs: rowDateMs };
 
     // Register pallet production dates into the master calculation calendar
     if (rowDateMs > 0) {
@@ -491,71 +501,96 @@ function syncCostLedger(existingSS) {
   const minBaseDateMs = baseDatesMs.length > 0 ? Math.min(...baseDatesMs) : 0;
   const maxBaseDateMs = baseDatesMs.length > 0 ? Math.max(...baseDatesMs) : 0;
 
-  // Build sorted chronological timeline per product
+  // Build sorted chronological timeline per (product, recipeId)
   Object.keys(dailyPallets).forEach(dateKey => {
-    let dayProds = dailyPallets[dateKey];
-    Object.keys(dayProds).forEach(conciseName => {
-      if (!productTimeline[conciseName]) productTimeline[conciseName] = [];
-      productTimeline[conciseName].push(dayProds[conciseName]);
+    let dayEntries = dailyPallets[dateKey];
+    Object.keys(dayEntries).forEach(compKey => {
+      let entry = dayEntries[compKey];
+      if (!productRecipeTimeline[entry.conciseName]) productRecipeTimeline[entry.conciseName] = {};
+      if (!productRecipeTimeline[entry.conciseName][entry.recipeId]) productRecipeTimeline[entry.conciseName][entry.recipeId] = [];
+      productRecipeTimeline[entry.conciseName][entry.recipeId].push({ planId: entry.planId, recipeId: entry.recipeId, dateMs: entry.dateMs });
     });
   });
 
-  Object.keys(productTimeline).forEach(conciseName => {
-    productTimeline[conciseName].sort((a, b) => a.dateMs - b.dateMs);
-    
-    // Map material dependencies across all recipe versions and manufacturing date ranges for this product
-    productTimeline[conciseName].forEach(cfg => {
-      let recipe = maps.recipes[cfg.recipeId];
-      let plan = maps.plans[cfg.planId];
-      if (recipe) {
-        Object.keys(recipe.materials).forEach(genMat => {
-          if (!matToProducts[genMat]) matToProducts[genMat] = new Set();
-          matToProducts[genMat].add(conciseName);
-          
-          if (maps.manufacturing[genMat] && maps.manufacturing[genMat].length > 0) {
-            maps.manufacturing[genMat].forEach(rule => {
-              if (rule.validFromMs > minBaseDateMs && rule.validFromMs <= maxBaseDateMs) {
-                eventDates.add(rule.validFromMs);
-                if (!dateToMats[rule.validFromMs]) dateToMats[rule.validFromMs] = new Set();
-                dateToMats[rule.validFromMs].add(genMat);
-              }
-              Object.keys(rule.rawMats).forEach(raw => {
-                if (!matToProducts[raw]) matToProducts[raw] = new Set();
-                matToProducts[raw].add(conciseName);
+  Object.keys(productRecipeTimeline).forEach(conciseName => {
+    let byRecipe = productRecipeTimeline[conciseName];
+    Object.keys(byRecipe).forEach(rId => {
+      byRecipe[rId].sort((a, b) => a.dateMs - b.dateMs);
+      
+      // Map material dependencies across all recipe versions and manufacturing date ranges for this product
+      byRecipe[rId].forEach(cfg => {
+        let recipe = maps.recipes[cfg.recipeId];
+        let plan = maps.plans[cfg.planId];
+        if (recipe) {
+          Object.keys(recipe.materials).forEach(genMat => {
+            if (!matToProducts[genMat]) matToProducts[genMat] = new Set();
+            matToProducts[genMat].add(conciseName);
+            
+            if (maps.manufacturing[genMat] && maps.manufacturing[genMat].length > 0) {
+              maps.manufacturing[genMat].forEach(rule => {
+                if (rule.validFromMs > minBaseDateMs && rule.validFromMs <= maxBaseDateMs) {
+                  eventDates.add(rule.validFromMs);
+                  if (!dateToMats[rule.validFromMs]) dateToMats[rule.validFromMs] = new Set();
+                  dateToMats[rule.validFromMs].add(genMat);
+                }
+                Object.keys(rule.rawMats).forEach(raw => {
+                  if (!matToProducts[raw]) matToProducts[raw] = new Set();
+                  matToProducts[raw].add(conciseName);
+                });
               });
-            });
-          }
-          if (plan && plan.materials[genMat]) {
-            let specId = plan.materials[genMat];
-            if (!matToProducts[specId]) matToProducts[specId] = new Set();
-            matToProducts[specId].add(conciseName);
-          }
-        });
-      }
+            }
+            if (plan && plan.materials[genMat]) {
+              let specId = plan.materials[genMat];
+              if (!matToProducts[specId]) matToProducts[specId] = new Set();
+              matToProducts[specId].add(conciseName);
+            }
+          });
+        }
+      });
     });
   });
 
-  // Helper: Resolves active recipe active on or before targetDateMs (latest deployed takes effect)
-  var getActiveProductConfig = function(conciseName, targetDateMs) {
-    var timeline = productTimeline[conciseName];
-    if (!timeline || timeline.length === 0) return null;
-    
-    var activeCfg = timeline[0];
-    for (var k = 0; k < timeline.length; k++) {
-      if (timeline[k].dateMs <= targetDateMs) {
-        activeCfg = timeline[k];
-      } else {
-        break;
+  // Helper: Resolves ALL valid active recipe configs for conciseName on targetDateMs (that have appeared in Pallets/PLANS by targetDateMs)
+  var getActiveProductConfigs = function(conciseName, targetDateMs) {
+    var byRecipe = productRecipeTimeline[conciseName];
+    if (!byRecipe) return [];
+    var usedConfigs = [];
+
+    Object.keys(byRecipe).forEach(function(rId) {
+      var timeline = byRecipe[rId];
+      if (!timeline || timeline.length === 0) return;
+      if (timeline[0].dateMs > targetDateMs) return;
+
+      var activeCfg = timeline[0];
+      for (var k = 0; k < timeline.length; k++) {
+        if (timeline[k].dateMs <= targetDateMs) {
+          activeCfg = timeline[k];
+        } else {
+          break;
+        }
       }
-    }
-    return activeCfg;
+      usedConfigs.push(activeCfg);
+    });
+
+    if (usedConfigs.length === 0) return [];
+
+    var validConfigs = usedConfigs.filter(function(cfg) {
+      var rec = maps.recipes[cfg.recipeId];
+      if (!rec) return false;
+      return targetDateMs >= rec.validFromMs && targetDateMs <= rec.validToMs;
+    });
+
+    var result = validConfigs.length > 0 ? validConfigs : usedConfigs;
+    // Emit most recently produced recipe LAST so Profitability binary search uses latest production recipe
+    result.sort(function(a, b) { return a.dateMs - b.dateMs; });
+    return result;
   };
 
   let sortedDatesMs = Array.from(eventDates).sort((a, b) => a - b);
   if (sortedDatesMs.length === 0) return "No valid calculation dates found.";
   
   const minDateMs = sortedDatesMs[0];
-  let allActiveProducts = Object.keys(productTimeline);
+  let allActiveProducts = Object.keys(productRecipeTimeline);
 
   // 4. GENERATE COST ROWS WITH RECIPE EVOLUTION & INTELLIGENT VAT
   let newRows = [];
@@ -582,68 +617,72 @@ function syncCostLedger(existingSS) {
      }
 
      targetProducts.forEach(conciseName => {
-        let p = getActiveProductConfig(conciseName, dateMs);
-        if (!p) return;
-        let recipe = maps.recipes[p.recipeId]; 
-        let plan = maps.plans[p.planId];
-        if (!recipe || !plan) return;
+        let activeConfigs = getActiveProductConfigs(conciseName, dateMs);
+        if (!activeConfigs || activeConfigs.length === 0) return;
 
         let isVatExempt = (productVatMap[conciseName] === 0);
 
-        let totalAct = 0; let totalMkt = 0;
-        let bomAct = {}; let bomMkt = {}; 
-        let bomMeta = { _isVatExempt: isVatExempt };
+        activeConfigs.forEach(p => {
+          let recipe = maps.recipes[p.recipeId]; 
+          let plan = maps.plans[p.planId];
+          if (!recipe || !plan) return;
 
-        const addBomLine = (matKey, qty, r, specId) => {
-          let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
-          let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
-          let lineAct = actRateToUse * qty;
-          let lineMkt = mktRateToUse * qty;
+          let totalAct = 0; let totalMkt = 0;
+          let bomAct = {}; let bomMkt = {}; 
+          let bomMeta = { _isVatExempt: isVatExempt, _recipeId: p.recipeId };
+          if (isFinite(recipe.validToMs)) bomMeta._recipeValidToMs = recipe.validToMs;
 
-          totalAct += lineAct;
-          totalMkt += lineMkt;
-          bomAct[matKey] = Number(((bomAct[matKey] || 0) + lineAct).toFixed(2));
-          bomMkt[matKey] = Number(((bomMkt[matKey] || 0) + lineMkt).toFixed(2));
+          const addBomLine = (matKey, qty, r, specId) => {
+            let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
+            let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
+            let lineAct = actRateToUse * qty;
+            let lineMkt = mktRateToUse * qty;
 
-          if (bomMeta[matKey]) {
-            bomMeta[matKey].qty = Number((bomMeta[matKey].qty + qty).toFixed(6));
-          } else {
-            let metaObj = {
-              qty: Number(qty.toFixed(6)),
-              actRate: actRateToUse,
-              mktRate: mktRateToUse,
-              unit: r.unit,
-              actDateMs: r.actDateMs,
-              mktDateMs: r.mktDateMs,
-              hasMktOverride: r.hasMktOverride,
-              actBaseRate: r.actBaseRate,
-              actVatRate: r.actVatRate
-            };
-            if (specId) metaObj.specId = specId;
-            bomMeta[matKey] = metaObj;
-          }
-        };
+            totalAct += lineAct;
+            totalMkt += lineMkt;
+            bomAct[matKey] = Number(((bomAct[matKey] || 0) + lineAct).toFixed(2));
+            bomMkt[matKey] = Number(((bomMkt[matKey] || 0) + lineMkt).toFixed(2));
 
-        Object.keys(recipe.materials).forEach(genMat => {
-          let reqQty = recipe.materials[genMat];
-          let mfg = resolveManufacturingRule(maps.manufacturing, genMat, dateMs);
-          if (mfg) {
-            Object.keys(mfg.rawMats).forEach(raw => {
-              let qty = mfg.rawMats[raw] * (reqQty / mfg.yield);
-              let r = getMaterialRates(dateMs, null, maps.marketPrices.byMatName[raw], false);
-              addBomLine(raw, qty, r, null);
-            });
-          } else {
-            let specId = plan.materials[genMat];
-            let hasSpecId = !!specId;
-            let r = getMaterialRates(dateMs, hasSpecId ? maps.marketPrices.bySpecId[specId] : null, maps.marketPrices.byMatName[genMat], hasSpecId);
-            addBomLine(genMat, reqQty, r, specId);
+            if (bomMeta[matKey]) {
+              bomMeta[matKey].qty = Number((bomMeta[matKey].qty + qty).toFixed(6));
+            } else {
+              let metaObj = {
+                qty: Number(qty.toFixed(6)),
+                actRate: actRateToUse,
+                mktRate: mktRateToUse,
+                unit: r.unit,
+                actDateMs: r.actDateMs,
+                mktDateMs: r.mktDateMs,
+                hasMktOverride: r.hasMktOverride,
+                actBaseRate: r.actBaseRate,
+                actVatRate: r.actVatRate
+              };
+              if (specId) metaObj.specId = specId;
+              bomMeta[matKey] = metaObj;
+            }
+          };
+
+          Object.keys(recipe.materials).forEach(genMat => {
+            let reqQty = recipe.materials[genMat];
+            let mfg = resolveManufacturingRule(maps.manufacturing, genMat, dateMs);
+            if (mfg) {
+              Object.keys(mfg.rawMats).forEach(raw => {
+                let qty = mfg.rawMats[raw] * (reqQty / mfg.yield);
+                let r = getMaterialRates(dateMs, null, maps.marketPrices.byMatName[raw], false);
+                addBomLine(raw, qty, r, null);
+              });
+            } else {
+              let specId = plan.materials[genMat];
+              let hasSpecId = !!specId;
+              let r = getMaterialRates(dateMs, hasSpecId ? maps.marketPrices.bySpecId[specId] : null, maps.marketPrices.byMatName[genMat], hasSpecId);
+              addBomLine(genMat, reqQty, r, specId);
+            }
+          });
+          
+          if (totalAct > 0) {
+            newRows.push([dateStr, maps.products[conciseName] || conciseName, "", 1, Number(totalAct.toFixed(2)), totalAct, JSON.stringify(bomAct), p.planId, Number(totalMkt.toFixed(2)), totalMkt, JSON.stringify(bomMkt), JSON.stringify(bomMeta)]);
           }
         });
-        
-        if (totalAct > 0) {
-          newRows.push([dateStr, maps.products[conciseName] || conciseName, "", 1, Number(totalAct.toFixed(2)), totalAct, JSON.stringify(bomAct), p.planId, Number(totalMkt.toFixed(2)), totalMkt, JSON.stringify(bomMkt), JSON.stringify(bomMeta)]);
-        }
      });
   });
 
@@ -651,7 +690,7 @@ function syncCostLedger(existingSS) {
   costSheet.getRange(2, 1, Math.max(costSheet.getMaxRows()-1, 1), 12).clearContent();
   if (newRows.length > 0) costSheet.getRange(2, 1, newRows.length, 12).setValues(newRows);
 
-  return "Cost Engine Synced (Daily Scan + Latest Recipe Resolved).";
+  return "Cost Engine Synced (Daily Scan + Active Recipes Resolved).";
 }
 // --- DASHBOARD API ---
 

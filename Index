@@ -1378,6 +1378,7 @@
           <div class="card-header bg-transparent border-0 pt-4 pb-2 text-center position-relative">
             <h6 class="fw-bold m-0"><i class="fas fa-search-dollar me-2 text-warning"></i>Cost Composition</h6>
             <div id="bom-panel-subtitle" class="badge bg-light text-dark border mt-2">Loading...</div>
+            <div id="bom-recipe-pills" class="d-flex justify-content-center flex-wrap gap-1 mt-2 d-none"></div>
             <button id="btn-inspect-transactions" class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 mt-3 me-3 d-none shadow-sm" onclick="openTransactionInspector()" style="font-size: 0.7rem; border-radius: 8px;">
                 <i class="fas fa-search-plus me-1"></i>Inspect
             </button>
@@ -2582,7 +2583,8 @@
              </div>
 
              <div class="tab-pane fade p-4" id="costs-pane" role="tabpanel">
-                <div class="table-responsive border rounded-3" style="max-height: 400px; overflow-y: auto;">
+                <div id="inspector-costs-multi" class="row g-3 d-none"></div>
+                <div id="inspector-costs-single-wrap" class="table-responsive border rounded-3" style="max-height: 400px; overflow-y: auto;">
                    <table class="table table-hover table-sm align-middle mb-0">
                       <thead class="table-light sticky-top shadow-sm">
                          <tr>
@@ -4442,13 +4444,78 @@
        }
     }
 
+    function getRecipeKey(entry) {
+       if (!entry) return 'default';
+       if (entry.bomMeta && entry.bomMeta._recipeId) return String(entry.bomMeta._recipeId);
+       if (entry.recipeId) return String(entry.recipeId);
+       return 'default';
+    }
+
+    function formatRecipeLabel(rk) {
+       return (rk && rk !== 'default') ? ('R' + rk) : 'Main';
+    }
+
+    function getActiveProductRecipesAt(costingData, product, targetMs) {
+       const pRows = (costingData || []).filter(d => d.product === product && new Date(d.date).getTime() <= targetMs);
+       if (pRows.length === 0) return [];
+       pRows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+       const byRecipe = {};
+       pRows.forEach(d => {
+          byRecipe[getRecipeKey(d)] = d;
+       });
+
+       let entries = Object.values(byRecipe);
+       const validEntries = entries.filter(d => {
+          const vTo = d.bomMeta && d.bomMeta._recipeValidToMs;
+          return !vTo || targetMs <= vTo;
+       });
+       if (validEntries.length > 0) entries = validEntries;
+
+       entries.sort((a, b) => {
+          const ka = getRecipeKey(a), kb = getRecipeKey(b);
+          const na = Number(ka), nb = Number(kb);
+          if (!isNaN(na) && !isNaN(nb)) return na - nb;
+          return ka.localeCompare(kb);
+       });
+       return entries;
+    }
+
+    function evaluateEntryCost(entry, globalLedger) {
+       if (!entry) return 0;
+       if (!entry.bomMeta) return entry.unitActual || 0;
+       let cost = 0;
+       let hasValidLines = false;
+       Object.keys(entry.bomMeta).forEach(mat => {
+          if (mat.startsWith('_')) return;
+          let localMeta = entry.bomMeta[mat];
+          if (!localMeta || typeof localMeta !== 'object') return;
+          hasValidLines = true;
+          let ledgerKey = localMeta.specId ? (mat + '||' + localMeta.specId) : mat;
+          let gMeta = globalLedger[ledgerKey] || localMeta;
+          let actMs = gMeta.actDateMs || 0;
+          let mktMs = gMeta.mktDateMs || 0;
+          let isVatExempt = entry.bomMeta._isVatExempt;
+          let resolvedActRate = gMeta.actRate;
+          if (gMeta.actBaseRate > 0) resolvedActRate = isVatExempt ? gMeta.actVatRate : gMeta.actBaseRate;
+          let rate = (mktMs > actMs) ? gMeta.mktRate : resolvedActRate;
+          let actCost = entry.bomActual ? (entry.bomActual[mat] || 0) : 0;
+          let mktCost = entry.bomMarket ? (entry.bomMarket[mat] || 0) : 0;
+          let qtyUsed = (typeof localMeta.qty === 'number' && localMeta.qty > 0)
+             ? localMeta.qty
+             : ((localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0));
+          cost += (qtyUsed * rate);
+       });
+       return hasValidLines ? cost : (entry.unitActual || 0);
+    }
+
     function buildGlobalMaterialLedger(costingData, evalMs) {
        let ledger = {};
        (costingData || []).forEach(d => {
           let eventMs = new Date(d.date).getTime();
           if (eventMs <= evalMs && d.bomMeta) {
              Object.keys(d.bomMeta).forEach(m => {
-                if (m === '_isVatExempt') return;
+                if (m.startsWith('_')) return;
                 let meta = d.bomMeta[m];
                 if (!meta || typeof meta !== 'object') return;
                 let key = meta.specId ? (m + '||' + meta.specId) : m;
@@ -4534,39 +4601,8 @@
 
        let scorecardHtml = '';
        catProducts.forEach(p => {
-           const pHistory = appState.costingData.filter(d => d.product === p).sort((a,b) => new Date(b.date) - new Date(a.date));
-           const latestEntry = pHistory[0] || {};
-           
-           let displayCost = 0;
-           if (latestEntry.bomMeta) {
-               Object.keys(latestEntry.bomMeta).forEach(mat => {
-                   if (mat === '_isVatExempt') return;
-                   let localMeta = latestEntry.bomMeta[mat];
-                   if (!localMeta || typeof localMeta !== 'object') return;
-                   let ledgerKey = localMeta.specId ? (mat + '||' + localMeta.specId) : mat;
-                   let gMeta = scorecardGlobalLedger[ledgerKey] || localMeta;
-                   
-                   let actMs = gMeta.actDateMs || 0;
-                   let mktMs = gMeta.mktDateMs || 0;
-                   
-                   // DYNAMIC VAT ROUTING: Resolve the correct base vs VAT rate
-                   let isVatExempt = latestEntry.bomMeta._isVatExempt;
-                   let resolvedActRate = gMeta.actRate; // Fallback to old cache
-                   if (gMeta.actBaseRate > 0) { resolvedActRate = isVatExempt ? gMeta.actVatRate : gMeta.actBaseRate; }
-                   
-                   let rate = (mktMs > actMs) ? gMeta.mktRate : resolvedActRate;
-                   
-                   let actCost = latestEntry.bomActual ? (latestEntry.bomActual[mat] || 0) : 0;
-                   let mktCost = latestEntry.bomMarket ? (latestEntry.bomMarket[mat] || 0) : 0;
-                   let qtyUsed = (typeof localMeta.qty === 'number' && localMeta.qty > 0)
-                       ? localMeta.qty
-                       : ((localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0));
-                   
-                   displayCost += (qtyUsed * rate);
-               });
-           } else {
-               displayCost = latestEntry.unitActual || 0; // Fallback
-           }
+           const activeRecipes = getActiveProductRecipesAt(appState.costingData, p, scorecardEvalMs);
+           const latestEntry = activeRecipes[0] || {};
            
            // --- NEW: SINGLE-DAY SPOT PRICING FOR DETAILED SCORECARDS ---
            let historicalSales = (appState.netSalesData || []).filter(s => s.product === p && s.dateMs <= Date.now());
@@ -4587,64 +4623,98 @@
                grossAsp = qty > 0 ? (gRev / qty) : 0;
                netAsp = qty > 0 ? (nRev / qty) : 0;
            }
-           
-           const gpVal = netAsp > 0 ? netAsp - displayCost : 0; // True Profit Margin
-           const gpPct = netAsp > 0 ? ((gpVal / netAsp) * 100).toFixed(1) : 0;
 
-           let needsAttention = false;
-           if (latestEntry.bomMeta) {
-               needsAttention = Object.keys(latestEntry.bomMeta).some(m => alertMats.has(m));
-           }
+           let needsAttention = activeRecipes.some(entry =>
+               entry.bomMeta && Object.keys(entry.bomMeta).some(m => !m.startsWith('_') && alertMats.has(m))
+           );
 
            const isActive = appState.cFilters.product === p ? 'active' : '';
            const alertClass = needsAttention ? 'needs-attention alert-pulse' : '';
-           const gpColor = gpVal >= 0 ? 'text-success' : 'text-danger';
 
-           scorecardHtml += `
-           <div class="product-card rounded-3 p-2 m-1 d-inline-block shadow-sm ${isActive} ${alertClass}" 
-                onclick="updateCostingState('product', '${p.replace(/'/g, "\\'")}')" 
-                style="width: 240px; vertical-align: top;">
-              <div class="d-flex justify-content-between align-items-start mb-1">
-                 <span class="fw-bold text-dark text-truncate" style="font-size:0.75rem; max-width:190px;">${p}</span>
-                 ${needsAttention ? '<i class="fas fa-exclamation-circle text-danger" style="font-size:0.7rem;"></i>' : ''}
-              </div>
-              <div class="row g-0 mt-2 border-top pt-2">
-                 <div class="col-3 border-end pe-1">
-                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;">COST</div>
-                    <div class="fw-bold text-primary" style="font-size:0.7rem;">${displayCost.toFixed(1)}</div>
-                 </div>
-                 <div class="col-3 border-end ps-1 pe-1 text-center">
-                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Spot Date: ${spotLabel}">G.ASP</div>
-                    <div class="fw-bold text-secondary" style="font-size:0.7rem; text-decoration: line-through;" title="Spot Date: ${spotLabel}">${grossAsp > 0 ? grossAsp.toFixed(1) : '--'}</div>
-                 </div>
-                 <div class="col-3 border-end ps-1 pe-1 text-center">
-                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Spot Date: ${spotLabel}">N.ASP</div>
-                    <div class="fw-bold text-dark" style="font-size:0.7rem;" title="Spot Date: ${spotLabel}">${netAsp > 0 ? netAsp.toFixed(1) : '--'}</div>
-                 </div>
-                 <div class="col-3 ps-1 text-end">
-                    <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Net Gross Margin">N.GP%</div>
-                    <div class="fw-bold ${gpColor}" style="font-size:0.7rem;">${gpPct}%</div>
-                 </div>
-              </div>
-           </div>`;
+           if (activeRecipes.length <= 1) {
+               const displayCost = evaluateEntryCost(latestEntry, scorecardGlobalLedger);
+               const gpVal = netAsp > 0 ? netAsp - displayCost : 0;
+               const gpPct = netAsp > 0 ? ((gpVal / netAsp) * 100).toFixed(1) : 0;
+               const gpColor = gpVal >= 0 ? 'text-success' : 'text-danger';
+
+               scorecardHtml += `
+               <div class="product-card rounded-3 p-2 m-1 d-inline-block shadow-sm ${isActive} ${alertClass}" 
+                    onclick="updateCostingState('product', '${p.replace(/'/g, "\\'")}')" 
+                    style="width: 240px; vertical-align: top;">
+                  <div class="d-flex justify-content-between align-items-start mb-1">
+                     <span class="fw-bold text-dark text-truncate" style="font-size:0.75rem; max-width:190px;">${p}</span>
+                     ${needsAttention ? '<i class="fas fa-exclamation-circle text-danger" style="font-size:0.7rem;"></i>' : ''}
+                  </div>
+                  <div class="row g-0 mt-2 border-top pt-2">
+                     <div class="col-3 border-end pe-1">
+                        <div class="text-muted" style="font-size:0.5rem; font-weight:800;">COST</div>
+                        <div class="fw-bold text-primary" style="font-size:0.7rem;">${displayCost.toFixed(1)}</div>
+                     </div>
+                     <div class="col-3 border-end ps-1 pe-1 text-center">
+                        <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Spot Date: ${spotLabel}">G.ASP</div>
+                        <div class="fw-bold text-secondary" style="font-size:0.7rem; text-decoration: line-through;" title="Spot Date: ${spotLabel}">${grossAsp > 0 ? grossAsp.toFixed(1) : '--'}</div>
+                     </div>
+                     <div class="col-3 border-end ps-1 pe-1 text-center">
+                        <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Spot Date: ${spotLabel}">N.ASP</div>
+                        <div class="fw-bold text-dark" style="font-size:0.7rem;" title="Spot Date: ${spotLabel}">${netAsp > 0 ? netAsp.toFixed(1) : '--'}</div>
+                     </div>
+                     <div class="col-3 ps-1 text-end">
+                        <div class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Net Gross Margin">N.GP%</div>
+                        <div class="fw-bold ${gpColor}" style="font-size:0.7rem;">${gpPct}%</div>
+                     </div>
+                  </div>
+               </div>`;
+           } else {
+               let recipeColsHtml = activeRecipes.map((recEntry, rIdx) => {
+                   const rLabel = formatRecipeLabel(getRecipeKey(recEntry));
+                   const rCost = evaluateEntryCost(recEntry, scorecardGlobalLedger);
+                   const rGpVal = netAsp > 0 ? netAsp - rCost : 0;
+                   const rGpPct = netAsp > 0 ? ((rGpVal / netAsp) * 100).toFixed(1) : 0;
+                   const rGpColor = rGpVal >= 0 ? 'text-success' : 'text-danger';
+                   const borderCls = rIdx < activeRecipes.length - 1 ? 'border-end pe-1' : 'ps-1';
+                   return `
+                     <div class="col ${borderCls}" title="Recipe ${rLabel} (${recEntry.planId || ''})">
+                        <div class="d-flex justify-content-between align-items-center">
+                           <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-1" style="font-size:0.5rem;">${rLabel}</span>
+                           <span class="fw-bold ${rGpColor}" style="font-size:0.65rem;">${rGpPct}%</span>
+                        </div>
+                        <div class="fw-bold text-primary mt-1" style="font-size:0.72rem;">${rCost.toFixed(1)} <span class="text-muted fw-normal" style="font-size:0.55rem;">EGP</span></div>
+                     </div>`;
+               }).join('');
+
+               scorecardHtml += `
+               <div class="product-card rounded-3 p-2 m-1 d-inline-block shadow-sm ${isActive} ${alertClass}" 
+                    onclick="updateCostingState('product', '${p.replace(/'/g, "\\'")}')" 
+                    style="width: 265px; vertical-align: top;">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                     <span class="fw-bold text-dark text-truncate" style="font-size:0.75rem; max-width:175px;">${p}</span>
+                     <div class="d-flex align-items-center gap-1">
+                        <span class="badge bg-info bg-opacity-10 text-info border border-info px-1" style="font-size:0.5rem;">${activeRecipes.length} Recipes</span>
+                        ${needsAttention ? '<i class="fas fa-exclamation-circle text-danger" style="font-size:0.7rem;"></i>' : ''}
+                     </div>
+                  </div>
+                  <div class="row g-0 border-top pt-1 mt-1">
+                     <div class="col-6 border-end pe-1">
+                        <span class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Spot Date: ${spotLabel}">G.ASP: </span>
+                        <span class="fw-bold text-secondary" style="font-size:0.65rem; text-decoration: line-through;" title="Spot Date: ${spotLabel}">${grossAsp > 0 ? grossAsp.toFixed(1) : '--'}</span>
+                     </div>
+                     <div class="col-6 ps-1 text-end">
+                        <span class="text-muted" style="font-size:0.5rem; font-weight:800;" title="Spot Date: ${spotLabel}">N.ASP: </span>
+                        <span class="fw-bold text-dark" style="font-size:0.65rem;" title="Spot Date: ${spotLabel}">${netAsp > 0 ? netAsp.toFixed(1) : '--'}</span>
+                     </div>
+                  </div>
+                  <div class="row g-1 border-top pt-1 mt-1">
+                     ${recipeColsHtml}
+                  </div>
+               </div>`;
+           }
        });
        
        document.getElementById('costing-product-toggles').innerHTML = scorecardHtml;
 
-       // 2. Isolate COST SHIFT EVENTS
+       // 2. Isolate COST DATA FOR SELECTED PRODUCT
        const rawCostData = appState.costingData.filter(d => d.product === appState.cFilters.product);
        const chronoCostData = [...rawCostData].sort((a, b) => new Date(a.date) - new Date(b.date));
-       
-       let changeEvents = [];
-       let lastActual = null;
-       let lastMarket = null;
-       for (let i = 0; i < chronoCostData.length; i++) {
-          let d = chronoCostData[i];
-          if (i === 0 || d.unitActual !== lastActual || d.unitMarket !== lastMarket) {
-             changeEvents.push(d);
-             lastActual = d.unitActual; lastMarket = d.unitMarket;
-          }
-       }
 
        // =================================================================
        // --- NEW: CALENDAR TIME-SERIES AGGREGATION ---
@@ -4654,7 +4724,7 @@
        let filterYear = appState.cFilters.year || new Date().getFullYear().toString();
        let productSales = (appState.netSalesData || []).filter(s => s.product === appState.cFilters.product);
 
-       let allDatesMs = [...changeEvents.map(ev => new Date(ev.date).getTime()), ...productSales.map(s => s.dateMs)];
+       let allDatesMs = [...chronoCostData.map(ev => new Date(ev.date).getTime()), ...productSales.map(s => s.dateMs)];
        if (allDatesMs.length === 0) return; 
 
        let minMs = Math.min(...allDatesMs);
@@ -4705,8 +4775,10 @@
        }
 
        let chartLabels = [];
-       let chartAct = []; let chartMkt = []; let chartGrossAsp = []; let chartNetAsp = [];
+       let chartGrossAsp = []; let chartNetAsp = [];
        let clickableEvents = [];
+       let visibleRecipeKeySet = new Set();
+       let binRecipeEvents = [];
 
        // --- NEW: DYNAMIC LOOKBACK WINDOW BASED ON TIMELINE ---
        let lookbackDays = timeline === 'monthly' ? 30 : (timeline === 'weekly' ? 7 : 1);
@@ -4765,20 +4837,28 @@
            chartGrossAsp.push(calcGross);
            chartNetAsp.push(calcNet);
 
-           // 3. Find the active Cost FOR this period (latest cost event on or before the bin ends)
-           let activeEv = changeEvents[0];
-           for (let i = 0; i < changeEvents.length; i++) {
-               if (new Date(changeEvents[i].date).getTime() < bin.endMs) activeEv = changeEvents[i];
-               else break;
-           }
-
+           // 3. Find ALL active valid recipe events for this bin
+           const binEvalMs = bin.endMs - 1;
+           let activeEvs = getActiveProductRecipesAt(rawCostData, appState.cFilters.product, binEvalMs);
+           let evMap = {};
+           activeEvs.forEach(ev => {
+               const rk = getRecipeKey(ev);
+               evMap[rk] = ev;
+               visibleRecipeKeySet.add(rk);
+           });
+           binRecipeEvents.push(evMap);
            chartLabels.push(bin.label);
-           chartAct.push(activeEv ? activeEv.unitActual : null);
-           chartMkt.push(activeEv ? activeEv.unitMarket : null);
 
-           // Store the exact, mathematically synchronized bin state for the Lineage Inspector
-           clickableEvents.push({ ...activeEv, inspectStartMs: iStartMs, inspectEndMs: iEndMs, inspectLabel: iLabel, bomEvalMs: bin.endMs - 1 });
+           let primaryEv = activeEvs[0] || {};
+           clickableEvents.push({ ...primaryEv, bomEvents: activeEvs, inspectStartMs: iStartMs, inspectEndMs: iEndMs, inspectLabel: iLabel, bomEvalMs: binEvalMs });
        });
+
+       let visibleRecipeKeys = Array.from(visibleRecipeKeySet).sort((a, b) => {
+           const na = Number(a), nb = Number(b);
+           if (!isNaN(na) && !isNaN(nb)) return na - nb;
+           return a.localeCompare(b);
+       });
+       if (visibleRecipeKeys.length === 0) visibleRecipeKeys = ['default'];
 
        // =================================================================
        // --- RENDER CHART ---
@@ -4786,13 +4866,33 @@
        const ctx = document.getElementById('costingTrendChart').getContext('2d');
        if(appState.cChartInstance) appState.cChartInstance.destroy();
        
+       const recipePalette = [
+           { act: '#3b82f6', actBg: 'rgba(59, 130, 246, 0.1)', mkt: '#ef4444', mktBg: 'rgba(239, 68, 68, 0.1)' },
+           { act: '#8b5cf6', actBg: 'rgba(139, 92, 246, 0.1)', mkt: '#f97316', mktBg: 'rgba(249, 115, 22, 0.1)' },
+           { act: '#14b8a6', actBg: 'rgba(20, 184, 166, 0.1)', mkt: '#ec4899', mktBg: 'rgba(236, 72, 153, 0.1)' },
+           { act: '#0284c7', actBg: 'rgba(2, 132, 199, 0.1)', mkt: '#e11d48', mktBg: 'rgba(225, 29, 72, 0.1)' }
+       ];
+
        let datasets = [];
-       if (appState.cFilters.view === 'actual' || appState.cFilters.view === 'compare') {
-          datasets.push({ label: 'Actual Unit Cost', data: chartAct, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: appState.cFilters.view === 'actual', tension: 0, borderWidth: 3, pointHitRadius: 15 });
-       }
-       if (appState.cFilters.view === 'market' || appState.cFilters.view === 'compare') {
-          datasets.push({ label: 'Market Unit Cost', data: chartMkt, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: appState.cFilters.view === 'market', tension: 0, borderWidth: 3, borderDash: appState.cFilters.view === 'compare' ? [5, 5] : [], pointHitRadius: 15 });
-       }
+       let datasetRecipeMap = {};
+       const isMultiRecipe = visibleRecipeKeys.length > 1;
+
+       visibleRecipeKeys.forEach((rk, rIdx) => {
+           const pal = recipePalette[rIdx % recipePalette.length];
+           const suffix = isMultiRecipe ? ` (${formatRecipeLabel(rk)})` : '';
+           const seriesAct = binRecipeEvents.map(m => m[rk] ? m[rk].unitActual : null);
+           const seriesMkt = binRecipeEvents.map(m => m[rk] ? m[rk].unitMarket : null);
+
+           if (appState.cFilters.view === 'actual' || appState.cFilters.view === 'compare') {
+              datasetRecipeMap[datasets.length] = rk;
+              datasets.push({ label: `Actual Unit Cost${suffix}`, data: seriesAct, borderColor: pal.act, backgroundColor: pal.actBg, fill: !isMultiRecipe && appState.cFilters.view === 'actual', tension: 0, borderWidth: 3, pointHitRadius: 15, spanGaps: true });
+           }
+           if (appState.cFilters.view === 'market' || appState.cFilters.view === 'compare') {
+              datasetRecipeMap[datasets.length] = rk;
+              datasets.push({ label: `Market Unit Cost${suffix}`, data: seriesMkt, borderColor: pal.mkt, backgroundColor: pal.mktBg, fill: !isMultiRecipe && appState.cFilters.view === 'market', tension: 0, borderWidth: 3, borderDash: appState.cFilters.view === 'compare' ? [5, 5] : [], pointHitRadius: 15, spanGaps: true });
+           }
+       });
+
        datasets.push({ label: 'Gross ASP', data: chartGrossAsp, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 2, borderDash: [2, 2], pointRadius: 3, pointHitRadius: 10, spanGaps: true });
        datasets.push({ label: 'Net ASP (True)', data: chartNetAsp, borderColor: '#10b981', backgroundColor: 'transparent', borderWidth: 3, borderDash: [4, 4], pointRadius: 5, pointHitRadius: 15, spanGaps: true });
 
@@ -4808,6 +4908,7 @@
                       label: function(context) {
                          let label = context.dataset.label || '';
                          let val = context.parsed.y;
+                         if (val === null || val === undefined) return label + ': N/A';
                          let netAsp = chartNetAsp[context.dataIndex];
                          if (label) label += ': ';
                          label += val.toFixed(2) + ' EGP';
@@ -4826,13 +4927,18 @@
                 if (activeEls.length > 0) {
                    let idx = activeEls[0].index;
                    let ev = clickableEvents[idx];
+                   if (!ev || !ev.bomEvents || ev.bomEvents.length === 0) return;
+
+                   let clickedRk = datasetRecipeMap[activeEls[0].datasetIndex];
+                   let chosenEv = (clickedRk && ev.bomEvents.find(b => getRecipeKey(b) === clickedRk)) || ev.bomEvents[0];
                    
                    appState.activeInspectPeriod = {
                       startMs: ev.inspectStartMs,
                       endMs: ev.inspectEndMs,
-                      bomEvalMs: ev.bomEvalMs || (ev.date ? new Date(ev.date).getTime() + 86399999 : ev.inspectEndMs),
+                      bomEvalMs: ev.bomEvalMs || (chosenEv.date ? new Date(chosenEv.date).getTime() + 86399999 : ev.inspectEndMs),
                       dateLabel: ev.inspectLabel,
-                      bomEvent: ev
+                      bomEvent: chosenEv,
+                      bomEvents: ev.bomEvents
                    };
                    
                    let inspectBtn = document.getElementById('btn-inspect-transactions');
@@ -4840,15 +4946,39 @@
                    
                    // Support both naming conventions for the side panel function
                    if(typeof renderSidePanel === 'function') {
-                   renderSidePanel(ev);
+                   renderSidePanel(chosenEv, ev.bomEvents);
                } else if(typeof renderCostingBom === 'function') {
                    document.getElementById('bom-panel-subtitle').innerHTML = `<i class="fas fa-calendar-day me-1"></i>${ev.inspectLabel}`;
-                   renderCostingBom(ev);
+                   renderCostingBom(chosenEv);
                }
             }
          }
       }
    });
+
+   let latestClickEv = null;
+   for (let k = clickableEvents.length - 1; k >= 0; k--) {
+       if (clickableEvents[k].bomEvents && clickableEvents[k].bomEvents.length > 0) {
+           latestClickEv = clickableEvents[k];
+           break;
+       }
+   }
+   if (latestClickEv) {
+       let chosenEv = latestClickEv.bomEvents[0];
+       appState.activeInspectPeriod = {
+           startMs: latestClickEv.inspectStartMs,
+           endMs: latestClickEv.inspectEndMs,
+           bomEvalMs: latestClickEv.bomEvalMs,
+           dateLabel: latestClickEv.inspectLabel,
+           bomEvent: chosenEv,
+           bomEvents: latestClickEv.bomEvents
+       };
+       let inspectBtn = document.getElementById('btn-inspect-transactions');
+       if (inspectBtn) inspectBtn.classList.remove('d-none');
+       if (typeof renderSidePanel === 'function') {
+           renderSidePanel(chosenEv, latestClickEv.bomEvents);
+       }
+   }
 
    // Hook: Auto-update the Executive View if it is currently active
    if (appState.execState && appState.execState.isSummary) {
@@ -4971,49 +5101,13 @@ function renderExecutiveSummary() {
 
         products.forEach(p => {
             const getStatsAt = (targetMs) => {
-                let pData = appState.costingData.filter(d => d.product === p && new Date(d.date).getTime() <= targetMs);
-                pData.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                let activeEntry = pData.length > 0 ? pData[0] : null;
-
-                // --- NEW: HYBRID CHRONOLOGICAL COST LOGIC (GLOBAL KNOWLEDGE) ---
-                let cost = 0;
                 let globalLedger = (targetMs === nowMs) ? globalCurrMaterials : globalBaseMaterialsMap[targetMs];
-
-                if (activeEntry && activeEntry.bomMeta) {
-                    Object.keys(activeEntry.bomMeta).forEach(mat => {
-                        if (mat === '_isVatExempt') return;
-                        let localMeta = activeEntry.bomMeta[mat];
-                        if (!localMeta || typeof localMeta !== 'object') return;
-                        let ledgerKey = localMeta.specId ? (mat + '||' + localMeta.specId) : mat;
-                        let gMeta = globalLedger[ledgerKey] || localMeta;
-                        
-                        let actMs = gMeta.actDateMs || 0;
-                        let mktMs = gMeta.mktDateMs || 0;
-                        
-                        // DYNAMIC VAT ROUTING
-                        let isVatExempt = activeEntry.bomMeta._isVatExempt;
-                        let resolvedActRate = gMeta.actRate;
-                        if (gMeta.actBaseRate > 0) { resolvedActRate = isVatExempt ? gMeta.actVatRate : gMeta.actBaseRate; }
-                        
-                        let rate = (mktMs > actMs) ? gMeta.mktRate : resolvedActRate;
-                        
-                        // Extract original recipe qty (exact if stored, otherwise ratio fallback for old cache)
-                        let actCost = activeEntry.bomActual ? (activeEntry.bomActual[mat] || 0) : 0;
-                        let mktCost = activeEntry.bomMarket ? (activeEntry.bomMarket[mat] || 0) : 0;
-                        let qtyUsed = (typeof localMeta.qty === 'number' && localMeta.qty > 0)
-                            ? localMeta.qty
-                            : ((localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0));
-                        
-                        cost += (qtyUsed * rate);
-                    });
-                } else if (activeEntry) {
-                    cost = activeEntry.unitActual || 0; // Fallback
-                }
+                let activeRecipes = getActiveProductRecipesAt(appState.costingData, p, targetMs);
 
                 // --- NEW: SINGLE-DAY SPOT PRICING LOGIC ---
                 let historicalSales = (appState.netSalesData || []).filter(s => s.product === p && s.dateMs <= targetMs);
                 
-                let gAsp = 0, nAsp = 0, profAmt = 0, profPct = 0;
+                let gAsp = 0, nAsp = 0;
                 let spotMs = targetMs;
                 let spotLabel = "No Sales Found";
                 
@@ -5033,11 +5127,22 @@ function renderExecutiveSummary() {
                     gAsp = qty > 0 ? gRev / qty : 0;
                     nAsp = qty > 0 ? nRev / qty : 0;
                 }
-                
-                profAmt = nAsp > 0 ? nAsp - cost : 0;
-                profPct = nAsp > 0 ? (profAmt / nAsp) * 100 : 0;
 
-                return { cost, gAsp, nAsp, profAmt, profPct, spotMs, spotLabel };
+                let recipes = activeRecipes.map(entry => {
+                    const rk = getRecipeKey(entry);
+                    const label = formatRecipeLabel(rk);
+                    const cost = evaluateEntryCost(entry, globalLedger);
+                    const profAmt = nAsp > 0 ? nAsp - cost : 0;
+                    const profPct = nAsp > 0 ? (profAmt / nAsp) * 100 : 0;
+                    return { recipeKey: rk, label, entry, cost, profAmt, profPct };
+                });
+
+                if (recipes.length === 0) {
+                    recipes.push({ recipeKey: 'default', label: 'Main', entry: null, cost: 0, profAmt: 0, profPct: 0 });
+                }
+
+                const primary = recipes[0];
+                return { cost: primary.cost, gAsp, nAsp, profAmt: primary.profAmt, profPct: primary.profPct, spotMs, spotLabel, recipes };
             };
 
             let currStats = getStatsAt(nowMs);
@@ -5064,71 +5169,129 @@ function renderExecutiveSummary() {
                     return { theme, icon, text: Math.abs(pct).toFixed(1) + '%' };
                 };
 
-                let cB = getBadge(calcPct(currStats.cost, oldestBaseStats.cost), true);
                 let aB = getBadge(calcPct(currStats.nAsp, oldestBaseStats.nAsp), false);
-                let pB = getBadge(calcPct(currStats.profAmt, oldestBaseStats.profAmt), false);
+                if (currStats.recipes.length <= 1) {
+                    let cR = currStats.recipes[0];
+                    let bR = oldestBaseStats.recipes.find(br => br.recipeKey === cR.recipeKey) || oldestBaseStats.recipes[0];
+                    let cB = getBadge(calcPct(cR.cost, bR.cost), true);
+                    let pB = getBadge(calcPct(cR.profAmt, bR.profAmt), false);
 
-                compareSummaryHtml = `
-                    <div class="mt-3 d-flex justify-content-between align-items-center w-100 gap-2">
-                        <span class="badge rounded-pill bg-${cB.theme} bg-opacity-10 text-${cB.theme} border border-${cB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
-                            <i class="fas ${cB.icon} me-2"></i>Cost: ${cB.text}
-                        </span>
-                        <span class="badge rounded-pill bg-${aB.theme} bg-opacity-10 text-${aB.theme} border border-${aB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
-                            <i class="fas ${aB.icon} me-2"></i>Net ASP: ${aB.text}
-                        </span>
-                        <span class="badge rounded-pill bg-${pB.theme} bg-opacity-10 text-${pB.theme} border border-${pB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
-                            <i class="fas ${pB.icon} me-2"></i>Profit: ${pB.text}
-                        </span>
-                    </div>
-                `;
+                    compareSummaryHtml = `
+                        <div class="mt-3 d-flex justify-content-between align-items-center w-100 gap-2">
+                            <span class="badge rounded-pill bg-${cB.theme} bg-opacity-10 text-${cB.theme} border border-${cB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
+                                <i class="fas ${cB.icon} me-2"></i>Cost: ${cB.text}
+                            </span>
+                            <span class="badge rounded-pill bg-${aB.theme} bg-opacity-10 text-${aB.theme} border border-${aB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
+                                <i class="fas ${aB.icon} me-2"></i>Net ASP: ${aB.text}
+                            </span>
+                            <span class="badge rounded-pill bg-${pB.theme} bg-opacity-10 text-${pB.theme} border border-${pB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.85rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
+                                <i class="fas ${pB.icon} me-2"></i>Profit: ${pB.text}
+                            </span>
+                        </div>
+                    `;
+                } else {
+                    let recipeVarianceRows = currStats.recipes.map((cR, rIdx) => {
+                        let bR = oldestBaseStats.recipes.find(br => br.recipeKey === cR.recipeKey) || oldestBaseStats.recipes[0];
+                        let cB = getBadge(calcPct(cR.cost, bR.cost), true);
+                        let pB = getBadge(calcPct(cR.profAmt, bR.profAmt), false);
+                        return `
+                            <div class="mt-2 d-flex justify-content-between align-items-center w-100 gap-2 flex-wrap">
+                                <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 py-2 px-3" style="font-size: 0.8rem;">${cR.label}</span>
+                                <span class="badge rounded-pill bg-${cB.theme} bg-opacity-10 text-${cB.theme} border border-${cB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.8rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
+                                    <i class="fas ${cB.icon} me-2"></i>Cost: ${cB.text}
+                                </span>
+                                ${rIdx === 0 ? `
+                                <span class="badge rounded-pill bg-${aB.theme} bg-opacity-10 text-${aB.theme} border border-${aB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.8rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
+                                    <i class="fas ${aB.icon} me-2"></i>Net ASP: ${aB.text}
+                                </span>` : ''}
+                                <span class="badge rounded-pill bg-${pB.theme} bg-opacity-10 text-${pB.theme} border border-${pB.theme} py-2 px-3 shadow-sm flex-fill text-center" style="font-size: 0.8rem;" title="Change vs ${new Date(baseTimestamps[0]).toLocaleDateString('en-GB')}">
+                                    <i class="fas ${pB.icon} me-2"></i>Profit: ${pB.text}
+                                </span>
+                            </div>`;
+                    }).join('');
+                    compareSummaryHtml = `<div class="mt-2">${recipeVarianceRows}</div>`;
+                }
             }
 
-            // VISUALLY DISTINCT CURRENT ROW
-            let rowHtml = `
-                <tr onclick="openSummaryInspector('${p.replace(/'/g, "\\'")}', ${nowMs}, '${currDateStr}', ${currStats.spotMs}, '${currStats.spotLabel}')" class="bg-primary bg-opacity-10 border-bottom border-primary border-2" style="cursor: pointer;" title="Click to inspect lineage">
-                    <td class="fw-bold text-dark text-nowrap ps-4 py-3" style="font-size: 1.05rem;"><i class="fas fa-clock text-primary me-2"></i>${currDateStr}</td>
+            const safeProd = p.replace(/'/g, "\\'");
+            const isMultiCurr = currStats.recipes.length > 1;
+            let rowHtml = '';
+
+            // VISUALLY DISTINCT CURRENT ROW(S)
+            currStats.recipes.forEach((r, rIdx) => {
+                const isLastCurr = rIdx === currStats.recipes.length - 1;
+                const rowBorder = isLastCurr ? 'border-bottom border-primary border-2' : 'border-bottom border-primary border-opacity-25';
+                const recipeBadge = isMultiCurr
+                    ? `<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-2" style="font-size:0.7rem;">${r.label}</span>`
+                    : '';
+                const dateCellHtml = (rIdx === 0)
+                    ? `<i class="fas fa-clock text-primary me-2"></i>${currDateStr}${recipeBadge}`
+                    : `<span class="text-muted ms-4 me-1">↳</span>${recipeBadge}`;
+                const gAspHtml = currStats.gAsp > 0 ? fmt.format(currStats.gAsp) : '--';
+                const nAspHtml = currStats.nAsp > 0 ? fmt.format(currStats.nAsp) + ' EGP' : '--';
+                const safeRk = r.recipeKey.replace(/'/g, "\\'");
+
+                rowHtml += `
+                <tr onclick="openSummaryInspector('${safeProd}', ${nowMs}, '${currDateStr}', ${currStats.spotMs}, '${currStats.spotLabel}', '${safeRk}')" class="bg-primary bg-opacity-10 ${rowBorder}" style="cursor: pointer;" title="Click to inspect lineage">
+                    <td class="fw-bold text-dark text-nowrap ps-4 py-3" style="font-size: 1.05rem;">${dateCellHtml}</td>
                     <td class="text-danger fw-bold text-nowrap py-3" style="font-size: 1.05rem;">
-                        ${fmt.format(currStats.cost)} EGP 
-                        <span class="d-print-none ms-3 bg-white border border-primary text-primary rounded px-3 py-2 shadow-sm" style="cursor: pointer; display: inline-block;" title="Inspect Detailed BOM" onclick="openBomTab(event, '${p.replace(/'/g, "\\'")}', ${nowMs}, '${currDateStr}', ${currStats.spotMs}, '${currStats.spotLabel}')">
+                        ${fmt.format(r.cost)} EGP 
+                        <span class="d-print-none ms-3 bg-white border border-primary text-primary rounded px-3 py-2 shadow-sm" style="cursor: pointer; display: inline-block;" title="Inspect Detailed BOM" onclick="openBomTab(event, '${safeProd}', ${nowMs}, '${currDateStr}', ${currStats.spotMs}, '${currStats.spotLabel}', '${safeRk}')">
                             <i class="fas fa-search-plus fs-6"></i>
                         </span>
                     </td>
-                    <td class="text-muted text-nowrap py-3" style="text-decoration: line-through;" title="Derived from spot sales on ${currStats.spotLabel}">${currStats.gAsp > 0 ? fmt.format(currStats.gAsp) : '--'}</td>
-                    <td class="text-dark fw-bold text-nowrap py-3" title="Derived from spot sales on ${currStats.spotLabel}">${currStats.nAsp > 0 ? fmt.format(currStats.nAsp) + ' EGP' : '--'}</td>
-                    <td class="${currStats.profPct >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap py-3" style="font-size: 1.1rem;">${currStats.nAsp > 0 ? currStats.profPct.toFixed(1) + '%' : '--'}</td>
-                    <td class="${currStats.profAmt >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap py-3" style="font-size: 1.1rem;">${currStats.nAsp > 0 ? fmt.format(currStats.profAmt) + ' EGP' : '--'}</td>
+                    <td class="text-muted text-nowrap py-3 ${rIdx > 0 ? 'opacity-50 small' : ''}" style="text-decoration: line-through;" title="Derived from spot sales on ${currStats.spotLabel}">${gAspHtml}</td>
+                    <td class="text-dark fw-bold text-nowrap py-3 ${rIdx > 0 ? 'opacity-75 small' : ''}" title="Derived from spot sales on ${currStats.spotLabel}">${nAspHtml}</td>
+                    <td class="${r.profPct >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap py-3" style="font-size: 1.1rem;">${currStats.nAsp > 0 ? r.profPct.toFixed(1) + '%' : '--'}</td>
+                    <td class="${r.profAmt >= 0 ? 'text-success' : 'text-danger'} fw-bold text-nowrap py-3" style="font-size: 1.1rem;">${currStats.nAsp > 0 ? fmt.format(r.profAmt) + ' EGP' : '--'}</td>
                 </tr>
-            `;
+                `;
+            });
 
             // MUTED HISTORICAL ROWS (Iterate backwards so newest history is directly below the current date)
             if (appState.execState.isCompare && allBaseStats.length > 0) {
                 for (let i = allBaseStats.length - 1; i >= 0; i--) {
                     let bStats = allBaseStats[i];
                     let bDateStr = new Date(baseTimestamps[i]).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
-                    
-                    rowHtml += `
-                    <tr class="bg-white border-bottom" onclick="openSummaryInspector('${p.replace(/'/g, "\\'")}', ${baseTimestamps[i]}, '${bDateStr}', ${bStats.spotMs}, '${bStats.spotLabel}')" style="cursor: pointer;" title="Click to inspect lineage">
-                        <td class="fw-bold text-muted text-nowrap ps-4 py-3"><span class="badge bg-secondary ms-1 me-2" style="font-size:0.5rem;">V${i+1}</span> ${bDateStr}</td>
-                        <td class="text-danger opacity-75 text-nowrap py-3">
-                            ${fmt.format(bStats.cost)} EGP 
-                            <span class="d-print-none ms-3 bg-light border border-secondary rounded px-3 py-2 shadow-sm" style="cursor: pointer; display: inline-block;" title="Inspect Detailed BOM" onclick="openBomTab(event, '${p.replace(/'/g, "\\'")}', ${baseTimestamps[i]}, '${bDateStr}', ${bStats.spotMs}, '${bStats.spotLabel}')">
-                                <i class="fas fa-search-plus text-secondary fs-6"></i>
-                            </span>
-                        </td>
-                        <td class="text-muted opacity-75 text-nowrap py-3" style="text-decoration: line-through;" title="Derived from spot sales on ${bStats.spotLabel}">${bStats.gAsp > 0 ? fmt.format(bStats.gAsp) : '--'}</td>
-                        <td class="text-dark opacity-75 text-nowrap py-3" title="Derived from spot sales on ${bStats.spotLabel}">${bStats.nAsp > 0 ? fmt.format(bStats.nAsp) + ' EGP' : '--'}</td>
-                        <td class="${bStats.profPct >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap py-3" style="font-size: 1.05rem;">${bStats.nAsp > 0 ? bStats.profPct.toFixed(1) + '%' : '--'}</td>
-                        <td class="${bStats.profAmt >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap py-3" style="font-size: 1.05rem;">${bStats.nAsp > 0 ? fmt.format(bStats.profAmt) + ' EGP' : '--'}</td>
-                    </tr>
-                    `;
+                    let isMultiBase = bStats.recipes.length > 1;
+
+                    bStats.recipes.forEach((br, brIdx) => {
+                        const safeRk = br.recipeKey.replace(/'/g, "\\'");
+                        const recipeBadge = isMultiBase
+                            ? `<span class="badge bg-secondary bg-opacity-10 text-secondary border ms-2" style="font-size:0.65rem;">${br.label}</span>`
+                            : '';
+                        const dateCellHtml = (brIdx === 0)
+                            ? `<span class="badge bg-secondary ms-1 me-2" style="font-size:0.5rem;">V${i+1}</span> ${bDateStr}${recipeBadge}`
+                            : `<span class="text-muted ms-4 me-1">↳</span>${recipeBadge}`;
+
+                        rowHtml += `
+                        <tr class="bg-white border-bottom" onclick="openSummaryInspector('${safeProd}', ${baseTimestamps[i]}, '${bDateStr}', ${bStats.spotMs}, '${bStats.spotLabel}', '${safeRk}')" style="cursor: pointer;" title="Click to inspect lineage">
+                            <td class="fw-bold text-muted text-nowrap ps-4 py-3">${dateCellHtml}</td>
+                            <td class="text-danger opacity-75 text-nowrap py-3">
+                                ${fmt.format(br.cost)} EGP 
+                                <span class="d-print-none ms-3 bg-light border border-secondary rounded px-3 py-2 shadow-sm" style="cursor: pointer; display: inline-block;" title="Inspect Detailed BOM" onclick="openBomTab(event, '${safeProd}', ${baseTimestamps[i]}, '${bDateStr}', ${bStats.spotMs}, '${bStats.spotLabel}', '${safeRk}')">
+                                    <i class="fas fa-search-plus text-secondary fs-6"></i>
+                                </span>
+                            </td>
+                            <td class="text-muted opacity-75 text-nowrap py-3" style="text-decoration: line-through;" title="Derived from spot sales on ${bStats.spotLabel}">${bStats.gAsp > 0 ? fmt.format(bStats.gAsp) : '--'}</td>
+                            <td class="text-dark opacity-75 text-nowrap py-3" title="Derived from spot sales on ${bStats.spotLabel}">${bStats.nAsp > 0 ? fmt.format(bStats.nAsp) + ' EGP' : '--'}</td>
+                            <td class="${br.profPct >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap py-3" style="font-size: 1.05rem;">${bStats.nAsp > 0 ? br.profPct.toFixed(1) + '%' : '--'}</td>
+                            <td class="${br.profAmt >= 0 ? 'text-success' : 'text-danger'} opacity-75 text-nowrap py-3" style="font-size: 1.05rem;">${bStats.nAsp > 0 ? fmt.format(br.profAmt) + ' EGP' : '--'}</td>
+                        </tr>
+                        `;
+                    });
                 }
             }
+
+            const multiBadgeHeader = isMultiCurr
+                ? `<span class="badge bg-info bg-opacity-10 text-info border border-info ms-2" style="font-size: 0.7rem;">${currStats.recipes.length} Active Recipes</span>`
+                : '';
 
             // --- CRITICAL UPDATE: ADDED RED DISCOUNTS NOTE TO NET SELLING PRICE HEADER ---
             html += `
             <div class="card border border-2 border-secondary shadow-sm rounded-4 w-100 mb-4 overflow-hidden" style="page-break-inside: avoid; break-inside: avoid;">
                 <div class="card-header bg-transparent border-bottom border-secondary py-3 px-4" style="page-break-inside: avoid; break-inside: avoid;">
-                    <h5 class="m-0 fw-bold text-dark"><i class="fas fa-box-open me-2 text-primary"></i>${p}</h5>
+                    <h5 class="m-0 fw-bold text-dark"><i class="fas fa-box-open me-2 text-primary"></i>${p}${multiBadgeHeader}</h5>
                     ${compareSummaryHtml}
                 </div>
                 <div class="table-responsive mb-0" style="scrollbar-width: thin;">
@@ -5163,14 +5326,13 @@ function renderExecutiveSummary() {
 // --- NEW: SUMMARY INSPECTOR HOOK ---
 // Bridges the Executive Cards to the Drill-Down Modal
 // ==========================================
-function openSummaryInspector(product, targetMs, dateLabel, spotMs, spotLabel) {
+function openSummaryInspector(product, targetMs, dateLabel, spotMs, spotLabel, recipeKey) {
     // Set the global product filter so the modal identifies the correct product
     appState.cFilters.product = product;
 
-    // Find the active Cost/BOM event for this point in time
-    let pHistory = appState.costingData.filter(d => d.product === product && new Date(d.date).getTime() <= targetMs);
-    pHistory.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    let activeBomEvent = pHistory.length > 0 ? pHistory[0] : null;
+    // Find ALL active Cost/BOM events for this point in time
+    let activeBomEvents = getActiveProductRecipesAt(appState.costingData, product, targetMs);
+    let activeBomEvent = (recipeKey && activeBomEvents.find(b => getRecipeKey(b) === String(recipeKey))) || activeBomEvents[0] || null;
 
     if (!activeBomEvent) {
         alert("No cost data available for this date to inspect.");
@@ -5184,7 +5346,8 @@ function openSummaryInspector(product, targetMs, dateLabel, spotMs, spotLabel) {
         endMs: activeSpotMs + 86400000, // This is for Sales matching only
         bomEvalMs: targetMs, // NEW: Absolute strict timeline constraint for BOM (Current or Baseline)
         dateLabel: "Spot Day: " + (spotLabel || dateLabel),
-        bomEvent: activeBomEvent
+        bomEvent: activeBomEvent,
+        bomEvents: activeBomEvents
     };
 
     // Default to Sales Tab for general row clicks
@@ -5208,11 +5371,11 @@ function openSummaryInspector(product, targetMs, dateLabel, spotMs, spotLabel) {
 // --- NEW: DIRECT BOM INSPECTOR HOOK ---
 // Opens the Drill-Down Modal directly to the BOM tab
 // ==========================================
-function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
+function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel, recipeKey) {
     // Stop the row click from firing so we don't trigger the modal twice
     if (event) event.stopPropagation();
     
-    openSummaryInspector(product, targetMs, dateLabel, spotMs, spotLabel);
+    openSummaryInspector(product, targetMs, dateLabel, spotMs, spotLabel, recipeKey);
     
     // Override default tab switch to instantly reveal the Costs (BOM) tab
     let salesTab = document.getElementById('sales-tab');
@@ -5228,16 +5391,44 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
     }
 }
 
-    function renderSidePanel(eventData) {
-       document.getElementById('bom-panel-subtitle').innerText = `Date: ${eventData.date}`;
+    window.switchSidePanelRecipe = function(idx) {
+       if (!appState.sidePanelEvents || !appState.sidePanelEvents[idx]) return;
+       const chosenEv = appState.sidePanelEvents[idx];
+       if (appState.activeInspectPeriod) appState.activeInspectPeriod.bomEvent = chosenEv;
+       renderSidePanel(chosenEv, appState.sidePanelEvents);
+    };
 
+    function renderSidePanel(eventData, allRecipeEvents) {
        let isCompare = appState.cFilters.view === 'compare';
        let isMarket = appState.cFilters.view === 'market';
+
+       appState.sidePanelEvents = (allRecipeEvents && allRecipeEvents.length > 0) ? allRecipeEvents : (eventData ? [eventData] : []);
+       const activeRk = getRecipeKey(eventData);
+       const pillsEl = document.getElementById('bom-recipe-pills');
+       if (pillsEl) {
+           if (appState.sidePanelEvents.length > 1) {
+               pillsEl.innerHTML = appState.sidePanelEvents.map((ev, idx) => {
+                   const rk = getRecipeKey(ev);
+                   const isAct = rk === activeRk;
+                   const unitVal = isMarket ? (ev.unitMarket || 0) : (ev.unitActual || 0);
+                   const cls = isAct ? 'btn-primary text-white shadow-sm' : 'btn-outline-secondary bg-white';
+                   return `<button type="button" class="btn btn-sm rounded-pill px-2 py-0 ${cls}" style="font-size:0.68rem;" onclick="switchSidePanelRecipe(${idx})">${formatRecipeLabel(rk)} · ${unitVal.toFixed(2)}</button>`;
+               }).join('');
+               pillsEl.classList.remove('d-none');
+           } else {
+               pillsEl.innerHTML = '';
+               pillsEl.classList.add('d-none');
+           }
+       }
+
+       const rkSuffix = (appState.sidePanelEvents.length > 1) ? ` | ${formatRecipeLabel(activeRk)}` : '';
+       document.getElementById('bom-panel-subtitle').innerText = `Date: ${eventData.date}${rkSuffix}`;
        
        let allMats = new Set([...Object.keys(eventData.bomActual || {}), ...Object.keys(eventData.bomMarket || {})]);
        
-       // 1. OMIT ZERO-COST MATERIALS
+       // 1. OMIT ZERO-COST MATERIALS & METADATA KEYS
        let validMats = Array.from(allMats).filter(mat => {
+           if (mat.startsWith('_')) return false;
            let a = eventData.bomActual[mat] || 0;
            let m = eventData.bomMarket[mat] || 0;
            return a > 0 || m > 0;
@@ -5620,7 +5811,7 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
         chronoData.forEach(d => {
             if(d.bomMeta) {
                 Object.keys(d.bomMeta).forEach(m => {
-                    if (m === '_isVatExempt' || !d.bomMeta[m] || typeof d.bomMeta[m] !== 'object') return;
+                    if (m.startsWith('_') || !d.bomMeta[m] || typeof d.bomMeta[m] !== 'object') return;
                     let a = d.bomMeta[m].actRate || 0;
                     let mkt = d.bomMeta[m].mktRate || d.bomMeta[m].rate || 0;
                     
@@ -5734,7 +5925,7 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
             let dateMs = new Date(d.date).getTime();
             if (d.bomMeta) {
                 Object.keys(d.bomMeta).forEach(mat => {
-                    if (mat === '_isVatExempt' || !d.bomMeta[mat] || typeof d.bomMeta[mat] !== 'object') return;
+                    if (mat.startsWith('_') || !d.bomMeta[mat] || typeof d.bomMeta[mat] !== 'object') return;
                     let a = d.bomMeta[mat].actRate || 0;
                     let m = d.bomMeta[mat].mktRate || d.bomMeta[mat].rate || 0;
                     if (a > 0 || m > 0) {
@@ -6540,59 +6731,15 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
     // ==========================================
     // COSTING DRILL-DOWN INSPECTOR
     // ==========================================
-    function openTransactionInspector() {
-        if (!appState.activeInspectPeriod) return;
-        
-        let p = appState.activeInspectPeriod;
-        let product = appState.cFilters.product;
-        
-        document.getElementById('inspectorModalTitle').innerHTML = 
-            `<i class="fas fa-microscope text-primary me-2"></i>Lineage: ${product} 
-             <span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">${p.dateLabel} Period</span>`;
-             
-        const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits: 1 });
-        
-        // --- 1. BUILD SALES LEDGER TAB ---
-        let salesInPeriod = (appState.netSalesData || []).filter(s => 
-             s.product === product && s.dateMs >= p.startMs && s.dateMs <= p.endMs
-        );
-        
-        let sHtml = '';
-        if (salesInPeriod.length === 0) {
-            sHtml = `<tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-folder-open mb-2 fs-3 opacity-50"></i><br>No sales recorded for this product during this exact period.</td></tr>`;
-        } else {
-            salesInPeriod.forEach(s => {
-                let marginBadge = s.backMarginApplied > 0 ? `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">${(s.backMarginApplied*100).toFixed(1)}%</span>` : `<span class="text-muted">-</span>`;
-                sHtml += `
-                    <tr>
-                        <td class="ps-3 fw-bold" style="font-size: 0.8rem;">${s.date}</td>
-                        <td style="font-size: 0.8rem;">${s.client}</td>
-                        <td class="text-center fw-bold" style="font-size: 0.8rem;">${s.qty.toLocaleString()}</td>
-                        <td class="text-end text-muted" style="font-size: 0.8rem;">${fmt.format(s.grossRev)}</td>
-                        <td class="text-center">${marginBadge}</td>
-                        <td class="text-end fw-bold text-success" style="font-size: 0.8rem;">${fmt.format(s.netRev)}</td>
-                        <td class="text-end pe-3 fw-bold text-dark" style="font-size: 0.8rem;">${s.netAsp > 0 ? fmt.format(s.netAsp) : '--'}</td>
-                    </tr>`;
-            });
-        }
-        document.getElementById('inspector-sales-body').innerHTML = sHtml;
-        
-        // --- 2. BUILD COSTS (BOM) TAB (GLOBAL CHRONOLOGICAL KNOWLEDGE) ---
+    function buildBomTableRows(bomEv, globalLedger, fmt) {
         let cHtml = '';
         let totalCost = 0;
         let hybridBomEntries = [];
 
-        // 1. Uncouple BOM timeline from Sales timeline
-        let bomEvalMs = p.bomEvalMs || p.endMs;
-
-        // 2. Build Global Material Ledger (Harvests newest prices across ALL products up to bomEvalMs)
-        let globalLedger = buildGlobalMaterialLedger(appState.costingData, bomEvalMs);
-
-        // 3. Evaluate BOM using Recipe from snapshot, but Prices from Global Ledger
-        if (p.bomEvent && p.bomEvent.bomMeta) {
-            Object.keys(p.bomEvent.bomMeta).forEach(mat => {
-                if (mat === '_isVatExempt') return;
-                let localMeta = p.bomEvent.bomMeta[mat];
+        if (bomEv && bomEv.bomMeta) {
+            Object.keys(bomEv.bomMeta).forEach(mat => {
+                if (mat.startsWith('_')) return;
+                let localMeta = bomEv.bomMeta[mat];
                 if (!localMeta || typeof localMeta !== 'object') return;
                 let ledgerKey = localMeta.specId ? (mat + '||' + localMeta.specId) : mat;
                 let gMeta = globalLedger[ledgerKey] || localMeta; // Fallback to snapshot if not in ledger
@@ -6601,7 +6748,7 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
                 let mktMs = gMeta.mktDateMs || 0;
                 
                 // DYNAMIC VAT ROUTING
-                let isVatExempt = p.bomEvent.bomMeta._isVatExempt;
+                let isVatExempt = bomEv.bomMeta._isVatExempt;
                 let resolvedActRate = gMeta.actRate;
                 if (gMeta.actBaseRate > 0) { resolvedActRate = isVatExempt ? gMeta.actVatRate : gMeta.actBaseRate; }
                 
@@ -6610,8 +6757,8 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
                 let rate = useMarket ? gMeta.mktRate : resolvedActRate;
                 
                 // Prefer exact recipe Qty from backend metadata; fallback to ratio for old cached rows
-                let actCost = p.bomEvent.bomActual ? (p.bomEvent.bomActual[mat] || 0) : 0;
-                let mktCost = p.bomEvent.bomMarket ? (p.bomEvent.bomMarket[mat] || 0) : 0;
+                let actCost = bomEv.bomActual ? (bomEv.bomActual[mat] || 0) : 0;
+                let mktCost = bomEv.bomMarket ? (bomEv.bomMarket[mat] || 0) : 0;
                 let qtyUsed = (typeof localMeta.qty === 'number' && localMeta.qty > 0)
                     ? localMeta.qty
                     : ((localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0));
@@ -6664,7 +6811,104 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
             cHtml = `<tr><td colspan="5" class="text-center py-4 text-muted">No bill of materials data available for this date.</td></tr>`;
         }
 
-        document.getElementById('inspector-costs-body').innerHTML = cHtml;
+        return { html: cHtml, totalCost: totalCost, entryCount: hybridBomEntries.length };
+    }
+
+    function openTransactionInspector() {
+        if (!appState.activeInspectPeriod) return;
+        
+        let p = appState.activeInspectPeriod;
+        let product = appState.cFilters.product;
+        
+        document.getElementById('inspectorModalTitle').innerHTML = 
+            `<i class="fas fa-microscope text-primary me-2"></i>Lineage: ${product} 
+             <span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">${p.dateLabel} Period</span>`;
+             
+        const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EGP', maximumFractionDigits: 1 });
+        
+        // --- 1. BUILD SALES LEDGER TAB ---
+        let salesInPeriod = (appState.netSalesData || []).filter(s => 
+             s.product === product && s.dateMs >= p.startMs && s.dateMs <= p.endMs
+        );
+        
+        let sHtml = '';
+        if (salesInPeriod.length === 0) {
+            sHtml = `<tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-folder-open mb-2 fs-3 opacity-50"></i><br>No sales recorded for this product during this exact period.</td></tr>`;
+        } else {
+            salesInPeriod.forEach(s => {
+                let marginBadge = s.backMarginApplied > 0 ? `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">${(s.backMarginApplied*100).toFixed(1)}%</span>` : `<span class="text-muted">-</span>`;
+                sHtml += `
+                    <tr>
+                        <td class="ps-3 fw-bold" style="font-size: 0.8rem;">${s.date}</td>
+                        <td style="font-size: 0.8rem;">${s.client}</td>
+                        <td class="text-center fw-bold" style="font-size: 0.8rem;">${s.qty.toLocaleString()}</td>
+                        <td class="text-end text-muted" style="font-size: 0.8rem;">${fmt.format(s.grossRev)}</td>
+                        <td class="text-center">${marginBadge}</td>
+                        <td class="text-end fw-bold text-success" style="font-size: 0.8rem;">${fmt.format(s.netRev)}</td>
+                        <td class="text-end pe-3 fw-bold text-dark" style="font-size: 0.8rem;">${s.netAsp > 0 ? fmt.format(s.netAsp) : '--'}</td>
+                    </tr>`;
+            });
+        }
+        document.getElementById('inspector-sales-body').innerHTML = sHtml;
+        
+        // --- 2. BUILD COSTS (BOM) TAB (GLOBAL CHRONOLOGICAL KNOWLEDGE) ---
+        // 1. Uncouple BOM timeline from Sales timeline
+        let bomEvalMs = p.bomEvalMs || p.endMs;
+
+        // 2. Build Global Material Ledger (Harvests newest prices across ALL products up to bomEvalMs)
+        let globalLedger = buildGlobalMaterialLedger(appState.costingData, bomEvalMs);
+
+        // 3. Evaluate BOM for all active valid recipes on bomEvalMs
+        const bomEvents = (p.bomEvents && p.bomEvents.length > 0) ? p.bomEvents : (p.bomEvent ? [p.bomEvent] : []);
+        const singleWrap = document.getElementById('inspector-costs-single-wrap');
+        const multiWrap = document.getElementById('inspector-costs-multi');
+        const selectedRk = p.bomEvent ? getRecipeKey(p.bomEvent) : null;
+
+        if (bomEvents.length <= 1) {
+            if (multiWrap) { multiWrap.classList.add('d-none'); multiWrap.innerHTML = ''; }
+            if (singleWrap) singleWrap.classList.remove('d-none');
+            const built = buildBomTableRows(bomEvents[0] || p.bomEvent, globalLedger, fmt);
+            document.getElementById('inspector-costs-body').innerHTML = built.html;
+        } else {
+            if (singleWrap) singleWrap.classList.add('d-none');
+            if (multiWrap) {
+                multiWrap.classList.remove('d-none');
+                multiWrap.innerHTML = bomEvents.map(ev => {
+                    const rk = getRecipeKey(ev);
+                    const rLabel = formatRecipeLabel(rk);
+                    const built = buildBomTableRows(ev, globalLedger, fmt);
+                    const planStr = ev.planId ? `<span class="text-muted ms-2" style="font-size:0.75rem;">${ev.planId}</span>` : '';
+                    const isFocused = selectedRk && rk === selectedRk;
+                    const cardBorder = isFocused ? 'border border-2 border-primary' : 'border';
+                    return `
+                    <div class="col-lg-6">
+                       <div class="${cardBorder} rounded-3 overflow-hidden shadow-sm h-100 bg-white">
+                          <div class="bg-light border-bottom px-3 py-2 d-flex justify-content-between align-items-center">
+                             <div>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">${rLabel}</span>
+                                ${planStr}
+                             </div>
+                             <span class="fw-bold text-danger" style="font-size: 0.85rem;">${fmt.format(built.totalCost)}</span>
+                          </div>
+                          <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+                             <table class="table table-hover table-sm align-middle mb-0">
+                                <thead class="table-light sticky-top shadow-sm">
+                                   <tr>
+                                      <th class="ps-3 text-muted" style="font-size: 0.7rem;">MATERIAL</th>
+                                      <th class="text-center text-muted" style="font-size: 0.7rem;">QTY / UNIT</th>
+                                      <th class="text-center text-muted" style="font-size: 0.7rem;">RATE DATE</th>
+                                      <th class="text-end text-muted" style="font-size: 0.7rem;">UNIT RATE</th>
+                                      <th class="text-end pe-3 text-muted" style="font-size: 0.7rem;">TOTAL COST</th>
+                                   </tr>
+                                </thead>
+                                <tbody>${built.html}</tbody>
+                             </table>
+                          </div>
+                       </div>
+                    </div>`;
+                }).join('');
+            }
+        }
         
         // Show Modal
         new bootstrap.Modal(document.getElementById('transactionInspectorModal')).show();

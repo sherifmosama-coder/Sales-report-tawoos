@@ -509,7 +509,8 @@ function generateCostingCache(forceFullRebuild = false) {
         output.push({
           date: dateStr, product: String(row[1]).trim(), qty: Number(row[3]) || 0,
           unitActual: Number(row[4]) || 0, totalActual: Number(row[5]) || 0, bomActual: parsedBomActual,
-          planId: String(row[7]), unitMarket: Number(row[8]) || 0, totalMarket: Number(row[9]) || 0, 
+          planId: String(row[7]), recipeId: (parsedBomMeta && parsedBomMeta._recipeId) ? String(parsedBomMeta._recipeId) : "",
+          unitMarket: Number(row[8]) || 0, totalMarket: Number(row[9]) || 0, 
           bomMarket: parsedBomMarket, bomMeta: parsedBomMeta
         });
       }
