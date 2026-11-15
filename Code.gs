@@ -479,16 +479,11 @@ function generateProductsCache(forceFullRebuild = false) {
 
 // --- 4. COSTING DELTA & REBUILD ---
 function generateCostingCache(forceFullRebuild = false) {
-  const CUTOFF_MS = new Date().getTime() - (12 * 24 * 60 * 60 * 1000);
   try {
-      syncCostLedger(); 
-      
-      let existingCache = forceFullRebuild ? null : readCacheFile("Tawoos_Cache_Costing.json");
-      let output = (existingCache && existingCache.data) ? existingCache.data.filter(item => {
-          return new Date(item.date).getTime() < CUTOFF_MS;
-      }) : [];
-
       const ss = SpreadsheetApp.openById("1NTLovSrQLtFfebXrSOuWitB29VUV4ifLHmc-Rt_MxWo");
+      syncCostLedger(ss); 
+      
+      let output = [];
       const sheet = ss.getSheetByName("Items costs");
       if (!sheet || sheet.getLastRow() < 2) return { lastUpdated: new Date().getTime(), latestData: "N/A", data: output };
 
@@ -498,9 +493,6 @@ function generateCostingCache(forceFullRebuild = false) {
         const row = rawData[i];
         let rawDate = row[0];
         if (!rawDate) continue;
-        
-        let dateMs = (rawDate instanceof Date) ? rawDate.getTime() : new Date(rawDate).getTime();
-        if (existingCache && existingCache.data && dateMs < CUTOFF_MS) continue;
 
         let dateStr = "";
         if (rawDate instanceof Date) {

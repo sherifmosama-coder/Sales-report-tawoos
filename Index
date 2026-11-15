@@ -4442,6 +4442,39 @@
        }
     }
 
+    function buildGlobalMaterialLedger(costingData, evalMs) {
+       let ledger = {};
+       (costingData || []).forEach(d => {
+          let eventMs = new Date(d.date).getTime();
+          if (eventMs <= evalMs && d.bomMeta) {
+             Object.keys(d.bomMeta).forEach(m => {
+                if (m === '_isVatExempt') return;
+                let meta = d.bomMeta[m];
+                if (!meta || typeof meta !== 'object') return;
+                let key = meta.specId ? (m + '||' + meta.specId) : m;
+                if (!ledger[key]) ledger[key] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0, actBaseRate: 0, actVatRate: 0 };
+                if (meta.actDateMs && meta.actDateMs <= evalMs) {
+                   if (meta.actDateMs > ledger[key].actDateMs || (meta.actDateMs === ledger[key].actDateMs && meta.actBaseRate > 0)) {
+                      ledger[key].actDateMs = meta.actDateMs;
+                      ledger[key].actRate = meta.actRate;
+                      if (meta.actBaseRate > 0) {
+                         ledger[key].actBaseRate = meta.actBaseRate;
+                         ledger[key].actVatRate = meta.actVatRate;
+                      }
+                   }
+                }
+                if (meta.mktRate > 0 && meta.mktDateMs && meta.mktDateMs <= evalMs) {
+                   if (meta.mktDateMs > ledger[key].mktDateMs) {
+                      ledger[key].mktDateMs = meta.mktDateMs;
+                      ledger[key].mktRate = meta.mktRate;
+                   }
+                }
+             });
+          }
+       });
+       return ledger;
+    }
+
     function renderCostingDashboard() {
        // --- NEW: DYNAMIC HEADER & DESCRIPTION ENGINE ---
        const currentView = appState.cFilters.view;
@@ -4496,41 +4529,22 @@
            appState.cFilters.product = catProducts.includes('خل الطاووس ( 900 مللي )') ? 'خل الطاووس ( 900 مللي )' : (catProducts.length > 0 ? catProducts[0] : 'All');
        }
        
+       const scorecardEvalMs = Date.now();
+       const scorecardGlobalLedger = buildGlobalMaterialLedger(appState.costingData, scorecardEvalMs);
+
        let scorecardHtml = '';
        catProducts.forEach(p => {
            const pHistory = appState.costingData.filter(d => d.product === p).sort((a,b) => new Date(b.date) - new Date(a.date));
            const latestEntry = pHistory[0] || {};
-           
-           // --- NEW: HYBRID CHRONOLOGICAL COST WITH GLOBAL LEDGER FOR DETAILED SCORECARDS ---
-           let evalMs = Date.now(); // Detailed view always looks at 'Today'
-           let globalLedger = {};
-           appState.costingData.forEach(d => {
-                let eventMs = new Date(d.date).getTime();
-                if (eventMs <= evalMs && d.bomMeta) {
-                    Object.keys(d.bomMeta).forEach(m => {
-                        if (m === '_isVatExempt') return;
-                        let meta = d.bomMeta[m];
-                        if (!globalLedger[m]) globalLedger[m] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0, actBaseRate: 0, actVatRate: 0 };
-                        if (meta.actDateMs && meta.actDateMs <= evalMs) {
-                            // Ensure we capture the dual rates if available
-                            if (meta.actDateMs > globalLedger[m].actDateMs || (meta.actDateMs === globalLedger[m].actDateMs && meta.actBaseRate > 0)) { 
-                                globalLedger[m].actDateMs = meta.actDateMs; globalLedger[m].actRate = meta.actRate; 
-                                if (meta.actBaseRate > 0) { globalLedger[m].actBaseRate = meta.actBaseRate; globalLedger[m].actVatRate = meta.actVatRate; }
-                            }
-                        }
-                        if (meta.mktRate > 0 && meta.mktDateMs && meta.mktDateMs <= evalMs) {
-                            if (meta.mktDateMs > globalLedger[m].mktDateMs) { globalLedger[m].mktDateMs = meta.mktDateMs; globalLedger[m].mktRate = meta.mktRate; }
-                        }
-                    });
-                }
-           });
            
            let displayCost = 0;
            if (latestEntry.bomMeta) {
                Object.keys(latestEntry.bomMeta).forEach(mat => {
                    if (mat === '_isVatExempt') return;
                    let localMeta = latestEntry.bomMeta[mat];
-                   let gMeta = globalLedger[mat] || localMeta;
+                   if (!localMeta || typeof localMeta !== 'object') return;
+                   let ledgerKey = localMeta.specId ? (mat + '||' + localMeta.specId) : mat;
+                   let gMeta = scorecardGlobalLedger[ledgerKey] || localMeta;
                    
                    let actMs = gMeta.actDateMs || 0;
                    let mktMs = gMeta.mktDateMs || 0;
@@ -4544,7 +4558,9 @@
                    
                    let actCost = latestEntry.bomActual ? (latestEntry.bomActual[mat] || 0) : 0;
                    let mktCost = latestEntry.bomMarket ? (latestEntry.bomMarket[mat] || 0) : 0;
-                   let qtyUsed = (localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0);
+                   let qtyUsed = (typeof localMeta.qty === 'number' && localMeta.qty > 0)
+                       ? localMeta.qty
+                       : ((localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0));
                    
                    displayCost += (qtyUsed * rate);
                });
@@ -4761,7 +4777,7 @@
            chartMkt.push(activeEv ? activeEv.unitMarket : null);
 
            // Store the exact, mathematically synchronized bin state for the Lineage Inspector
-           clickableEvents.push({ ...activeEv, inspectStartMs: iStartMs, inspectEndMs: iEndMs, inspectLabel: iLabel });
+           clickableEvents.push({ ...activeEv, inspectStartMs: iStartMs, inspectEndMs: iEndMs, inspectLabel: iLabel, bomEvalMs: bin.endMs - 1 });
        });
 
        // =================================================================
@@ -4814,6 +4830,7 @@
                    appState.activeInspectPeriod = {
                       startMs: ev.inspectStartMs,
                       endMs: ev.inspectEndMs,
+                      bomEvalMs: ev.bomEvalMs || (ev.date ? new Date(ev.date).getTime() + 86399999 : ev.inspectEndMs),
                       dateLabel: ev.inspectLabel,
                       bomEvent: ev
                    };
@@ -4932,36 +4949,13 @@ function renderExecutiveSummary() {
     }
 
     // --- NEW: DYNAMIC GLOBAL MATERIAL LEDGER ---
-    const getGlobalMaterialsAt = (targetMs) => {
-        let ledger = {};
-        appState.costingData.forEach(d => {
-            let eventMs = new Date(d.date).getTime();
-            if (eventMs <= targetMs && d.bomMeta) {
-                Object.keys(d.bomMeta).forEach(mat => {
-                    if (mat === '_isVatExempt') return;
-                    let meta = d.bomMeta[mat];
-                    if (!ledger[mat]) ledger[mat] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0, actBaseRate: 0, actVatRate: 0 };
-                    if (meta.actDateMs && meta.actDateMs <= targetMs) {
-                        if (meta.actDateMs > ledger[mat].actDateMs || (meta.actDateMs === ledger[mat].actDateMs && meta.actBaseRate > 0)) { 
-                            ledger[mat].actDateMs = meta.actDateMs; ledger[mat].actRate = meta.actRate; 
-                            if (meta.actBaseRate > 0) { ledger[mat].actBaseRate = meta.actBaseRate; ledger[mat].actVatRate = meta.actVatRate; }
-                        }
-                    }
-                    if (meta.mktRate > 0 && meta.mktDateMs && meta.mktDateMs <= targetMs) {
-                        if (meta.mktDateMs > ledger[mat].mktDateMs) { ledger[mat].mktDateMs = meta.mktDateMs; ledger[mat].mktRate = meta.mktRate; }
-                    }
-                });
-            }
-        });
-        return ledger;
-    };
-    const globalCurrMaterials = getGlobalMaterialsAt(nowMs);
+    const globalCurrMaterials = buildGlobalMaterialLedger(appState.costingData, nowMs);
     
     // Create a specific global ledger for EVERY selected historical date
     let globalBaseMaterialsMap = {};
     if (appState.execState.isCompare) {
         baseTimestamps.forEach(ms => {
-            globalBaseMaterialsMap[ms] = getGlobalMaterialsAt(ms);
+            globalBaseMaterialsMap[ms] = buildGlobalMaterialLedger(appState.costingData, ms);
         });
     }
 
@@ -4989,7 +4983,9 @@ function renderExecutiveSummary() {
                     Object.keys(activeEntry.bomMeta).forEach(mat => {
                         if (mat === '_isVatExempt') return;
                         let localMeta = activeEntry.bomMeta[mat];
-                        let gMeta = globalLedger[mat] || localMeta;
+                        if (!localMeta || typeof localMeta !== 'object') return;
+                        let ledgerKey = localMeta.specId ? (mat + '||' + localMeta.specId) : mat;
+                        let gMeta = globalLedger[ledgerKey] || localMeta;
                         
                         let actMs = gMeta.actDateMs || 0;
                         let mktMs = gMeta.mktDateMs || 0;
@@ -5001,10 +4997,12 @@ function renderExecutiveSummary() {
                         
                         let rate = (mktMs > actMs) ? gMeta.mktRate : resolvedActRate;
                         
-                        // Extract original recipe qty using the local snapshot rates
+                        // Extract original recipe qty (exact if stored, otherwise ratio fallback for old cache)
                         let actCost = activeEntry.bomActual ? (activeEntry.bomActual[mat] || 0) : 0;
                         let mktCost = activeEntry.bomMarket ? (activeEntry.bomMarket[mat] || 0) : 0;
-                        let qtyUsed = (localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0);
+                        let qtyUsed = (typeof localMeta.qty === 'number' && localMeta.qty > 0)
+                            ? localMeta.qty
+                            : ((localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0));
                         
                         cost += (qtyUsed * rate);
                     });
@@ -5622,6 +5620,7 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
         chronoData.forEach(d => {
             if(d.bomMeta) {
                 Object.keys(d.bomMeta).forEach(m => {
+                    if (m === '_isVatExempt' || !d.bomMeta[m] || typeof d.bomMeta[m] !== 'object') return;
                     let a = d.bomMeta[m].actRate || 0;
                     let mkt = d.bomMeta[m].mktRate || d.bomMeta[m].rate || 0;
                     
@@ -5735,6 +5734,7 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
             let dateMs = new Date(d.date).getTime();
             if (d.bomMeta) {
                 Object.keys(d.bomMeta).forEach(mat => {
+                    if (mat === '_isVatExempt' || !d.bomMeta[mat] || typeof d.bomMeta[mat] !== 'object') return;
                     let a = d.bomMeta[mat].actRate || 0;
                     let m = d.bomMeta[mat].mktRate || d.bomMeta[mat].rate || 0;
                     if (a > 0 || m > 0) {
@@ -6586,36 +6586,16 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
         let bomEvalMs = p.bomEvalMs || p.endMs;
 
         // 2. Build Global Material Ledger (Harvests newest prices across ALL products up to bomEvalMs)
-        let globalLedger = {};
-        appState.costingData.forEach(d => {
-            let eventMs = new Date(d.date).getTime();
-            if (eventMs <= bomEvalMs && d.bomMeta) {
-                Object.keys(d.bomMeta).forEach(mat => {
-                    if (mat === '_isVatExempt') return;
-                    let meta = d.bomMeta[mat];
-                    if (!globalLedger[mat]) globalLedger[mat] = { actDateMs: 0, actRate: 0, mktDateMs: 0, mktRate: 0, actBaseRate: 0, actVatRate: 0 };
-                    
-                    if (meta.actDateMs && meta.actDateMs <= bomEvalMs) {
-                        if (meta.actDateMs > globalLedger[mat].actDateMs || (meta.actDateMs === globalLedger[mat].actDateMs && meta.actBaseRate > 0)) {
-                            globalLedger[mat].actDateMs = meta.actDateMs; globalLedger[mat].actRate = meta.actRate;
-                            if (meta.actBaseRate > 0) { globalLedger[mat].actBaseRate = meta.actBaseRate; globalLedger[mat].actVatRate = meta.actVatRate; }
-                        }
-                    }
-                    if (meta.mktRate > 0 && meta.mktDateMs && meta.mktDateMs <= bomEvalMs) {
-                        if (meta.mktDateMs > globalLedger[mat].mktDateMs) {
-                            globalLedger[mat].mktDateMs = meta.mktDateMs; globalLedger[mat].mktRate = meta.mktRate;
-                        }
-                    }
-                });
-            }
-        });
+        let globalLedger = buildGlobalMaterialLedger(appState.costingData, bomEvalMs);
 
         // 3. Evaluate BOM using Recipe from snapshot, but Prices from Global Ledger
         if (p.bomEvent && p.bomEvent.bomMeta) {
             Object.keys(p.bomEvent.bomMeta).forEach(mat => {
                 if (mat === '_isVatExempt') return;
                 let localMeta = p.bomEvent.bomMeta[mat];
-                let gMeta = globalLedger[mat] || localMeta; // Fallback to snapshot if not in ledger
+                if (!localMeta || typeof localMeta !== 'object') return;
+                let ledgerKey = localMeta.specId ? (mat + '||' + localMeta.specId) : mat;
+                let gMeta = globalLedger[ledgerKey] || localMeta; // Fallback to snapshot if not in ledger
                 
                 let actMs = gMeta.actDateMs || 0;
                 let mktMs = gMeta.mktDateMs || 0;
@@ -6629,17 +6609,16 @@ function openBomTab(event, product, targetMs, dateLabel, spotMs, spotLabel) {
                 let activeDateMs = useMarket ? mktMs : actMs;
                 let rate = useMarket ? gMeta.mktRate : resolvedActRate;
                 
-                // Reverse-engineer the recipe Qty from the event's stored snapshot costs
+                // Prefer exact recipe Qty from backend metadata; fallback to ratio for old cached rows
                 let actCost = p.bomEvent.bomActual ? (p.bomEvent.bomActual[mat] || 0) : 0;
                 let mktCost = p.bomEvent.bomMarket ? (p.bomEvent.bomMarket[mat] || 0) : 0;
-                let qtyUsed = 0;
-                if (localMeta.actRate > 0 && actCost > 0) qtyUsed = actCost / localMeta.actRate;
-                else if (localMeta.mktRate > 0 && mktCost > 0) qtyUsed = mktCost / localMeta.mktRate;
+                let qtyUsed = (typeof localMeta.qty === 'number' && localMeta.qty > 0)
+                    ? localMeta.qty
+                    : ((localMeta.actRate > 0 && actCost > 0) ? (actCost / localMeta.actRate) : ((localMeta.mktRate > 0 && mktCost > 0) ? (mktCost / localMeta.mktRate) : 0));
                 
                 let cost = qtyUsed * rate;
                 
                 if (cost > 0) {
-                    // BUGFIX: Changed 'meta.unit' to 'localMeta.unit'
                     hybridBomEntries.push({ mat, cost, rate, qtyUsed, useMarket, activeDateMs, unit: localMeta.unit || '' });
                 }
             });
