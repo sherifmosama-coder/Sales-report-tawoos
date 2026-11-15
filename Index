@@ -847,13 +847,106 @@
       border-left: 3px solid #e2e8f0;
       padding-left: 15px;
     }
+
+    /* CLIENT SIMULATOR PDF EXPORT STYLES */
+    @media print {
+        @page { size: landscape; margin: 10mm; }
+        
+        /* Completely hide background elements (added via JS) */
+        .temp-hide-for-print { display: none !important; }
+        
+        body.printing-modal {
+            background: white !important;
+            overflow: visible !important;
+            height: auto !important;
+        }
+        
+        /* Reset modal layout to normal document flow */
+        body.printing-modal #clientSimulatorModal {
+            position: relative !important;
+            display: block !important;
+            overflow: visible !important;
+            height: auto !important;
+            opacity: 1 !important;
+            background: white !important;
+        }
+        
+        body.printing-modal .modal-dialog,
+        body.printing-modal .modal-content,
+        body.printing-modal .modal-body {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            height: auto !important;
+        }
+        
+        /* DESTROY SCROLLBARS & HEIGHT LIMITS */
+        body.printing-modal .table-responsive {
+            max-height: none !important;
+            overflow: visible !important;
+            border: none !important;
+        }
+        
+        /* Shrink table slightly & remove width limits to fit 1 page */
+        body.printing-modal table {
+            min-width: 0 !important;
+            width: 100% !important;
+        }
+        
+        /* Layout Configurations */
+        body.printing-modal.print-main-only .simulator-column { display: none !important; }
+        body.printing-modal.print-main-only .breakdown-column {
+            width: 100% !important;
+            flex: 0 0 100% !important;
+            max-width: 100% !important;
+        }
+        
+        /* Clean UI */
+        body.printing-modal .btn-close, 
+        body.printing-modal .print-dropdown { display: none !important; }
+        /* BULK PRINT ENGINE STYLES */
+        .temp-hide-for-print { display: none !important; }
+        
+        body.printing-bulk {
+            background: white !important;
+            overflow: visible !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        body.printing-bulk #bulk-print-container {
+            display: block !important;
+            width: 100% !important;
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .client-print-page {
+            width: 100%;
+            page-break-after: always; 
+            break-after: page;
+        }
+        .client-print-page:last-child {
+            page-break-after: auto; 
+            break-after: auto;
+        }
+    }
   </style>
 </head>
 
 <body>
   <div id="landing-screen">
 
-    <div class="portal-header text-center">
+    <div class="portal-header text-center position-relative">
+      <div class="position-absolute top-0 end-0 m-3">
+        <button class="btn btn-outline-primary rounded-pill fw-bold shadow-sm px-4 py-2" onclick="openEmailConfigModal()">
+          <i class="fas fa-envelope-open-text me-2 text-primary"></i>Email Digests
+        </button>
+      </div>
       <h1 class="fw-bold text-dark mb-2">Sales Analytics Portal</h1>
       <p class="text-muted mb-0">Select a reporting module to begin analysis</p>
     </div>
@@ -923,6 +1016,20 @@
 
               </div>
             </div>
+            <div class="col-md-6 col-lg-5 col-xl-4">
+          <div class="report-card" onclick="loadSource('profit')">
+            <div class="card-icon-box" style="background: #e0f2fe; color: #0284c7;">
+              <i class="fas fa-hand-holding-dollar"></i>
+            </div>
+            <h3 class="h4 fw-bold mb-3">Profitability Inspector</h3>
+            <p class="text-muted mb-4">
+              Invoice-level drill-down. Cross-reference exact daily sales with chronological BOM costs to determine net profit and true margins.
+            </p>
+            <div class="d-flex align-items-center fw-bold small" style="color: #0284c7;">
+              OPEN REPORT <i class="fas fa-arrow-right ms-2"></i>
+            </div>
+          </div>
+        </div>
 
             <!-- NEW: ROOT CAUSE PORTAL CARD -->
             <div class="col-md-6 col-lg-5 col-xl-4">
@@ -976,6 +1083,7 @@
     <button class="nav-btn" id="nav-btn-product" onclick="switchModule('product')"><i class="fas fa-cubes me-2"></i>Products</button>
     <button class="nav-btn" id="nav-btn-costing" onclick="switchModule('costing')"><i class="fas fa-calculator me-2"></i>Costing</button>
     <button class="nav-btn" id="nav-btn-rootcause" onclick="switchModule('rootcause')"><i class="fas fa-project-diagram me-2"></i>Root Cause</button>
+    <button class="nav-btn" id="nav-btn-profit" onclick="switchModule('profit')"><i class="fas fa-hand-holding-dollar me-2"></i>Profitability</button>
   </div>
 
   <div class="container-fluid px-3 pt-3" id="main-dashboard" style="display:none;">
@@ -1548,6 +1656,439 @@
           </div>
       </div>
   </div>
+
+      <!-- ========================================================= -->
+  <!-- PROFITABILITY & INVOICE INSPECTOR PORTAL -->
+  <!-- ========================================================= -->
+  <div id="profit-view-container" style="display: none; padding-bottom: 50px;">
+      
+      <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+          <div>
+              <h4 class="fw-bold mb-1 text-dark"><i class="fas fa-hand-holding-dollar me-2" style="color: #0284c7;"></i>Sales Profitability Inspector</h4>
+              <div class="mt-1">
+                  <span class="badge bg-opacity-10 border rounded-pill px-4 py-1" style="background-color: #e0f2fe; color: #0284c7; border-color: rgba(2, 132, 199, 0.25) !important; letter-spacing: 0.5px;">Invoice-Level Margin Analysis</span>
+              </div>
+          </div>
+          <button class="btn btn-outline-success shadow-sm fw-bold rounded-pill px-4 py-2" onclick="exportProfitToExcel()" id="btn-export-profit">
+              <i class="fas fa-file-excel me-2"></i>Export Excel
+          </button>
+      </div>
+
+      <!-- CONTROL PANEL -->
+      <div class="card border-0 shadow-sm rounded-4 w-100 mb-4 bg-white">
+          <div class="card-body p-4">
+              <div class="row g-3">
+                  <!-- Dates -->
+                  <div class="col-md-4">
+                     <label class="form-label small fw-bold text-muted mb-1"><i class="far fa-calendar-alt me-1"></i>Date Range</label>
+                     <div class="input-group input-group-sm">
+                        <input type="date" id="profit-date-start" class="form-control fw-bold text-secondary border-secondary" onchange="renderProfitDashboard()">
+                        <span class="input-group-text bg-light text-muted border-secondary">To</span>
+                        <input type="date" id="profit-date-end" class="form-control fw-bold text-secondary border-secondary" onchange="renderProfitDashboard()">
+                     </div>
+                  </div>
+                  <!-- Grouping Toggle -->
+                  <div class="col-md-3">
+                     <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-sitemap me-1"></i>Primary Grouping</label>
+                     <div class="segmented-control w-100 border border-secondary shadow-sm">
+                        <input type="radio" class="btn-check" name="profitGroupBy" id="pgb-client" value="client" checked onchange="appState.profitFilters.groupBy='client'; renderProfitDashboard();">
+                        <label for="pgb-client" class="flex-fill text-center px-2 py-1" style="font-size:0.75rem;">Main Client</label>
+                        <input type="radio" class="btn-check" name="profitGroupBy" id="pgb-segment" value="segment" onchange="appState.profitFilters.groupBy='segment'; renderProfitDashboard();">
+                        <label for="pgb-segment" class="flex-fill text-center px-2 py-1" style="font-size:0.75rem;">Segment</label>
+                     </div>
+                  </div>
+                  <!-- Overheads Input -->
+                  <div class="col-md-3">
+                     <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-money-bill-wave me-1"></i>Period Overheads (EGP)</label>
+                     <input type="number" id="profit-overheads" class="form-control form-control-sm fw-bold border-secondary shadow-sm text-danger" placeholder="0" onchange="renderProfitDashboard()" onkeyup="renderProfitDashboard()">
+                     <div id="overhead-context" class="text-muted mt-1 fw-bold" style="font-size:0.65rem; letter-spacing:0.5px;">Global Vol: 0 | Per Unit: 0.00 EGP</div>
+                  </div>
+                  
+                  <!-- Bulk Actions -->
+                  <div class="col-md-2 d-flex align-items-end pb-4">
+                     <button class="btn btn-danger btn-sm w-100 fw-bold shadow-sm rounded-3" onclick="openBulkPrintModal()">
+                         <i class="fas fa-layer-group me-2"></i>Bulk PDF
+                     </button>
+                  </div>
+                  <!-- Scorecard Split Toggle -->
+                  <div class="col-md-4 ms-auto">
+                     <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-layer-group me-1"></i>Split Scorecards By</label>
+                     <select id="profit-split" class="form-select form-select-sm fw-bold border-secondary shadow-sm" onchange="renderProfitDashboard();">
+                        <option value="none">No Split (Grand Total Only)</option>
+                        <option value="line">Brand (Tawoos vs. Private Label)</option>
+                        <option value="category">Product Category</option>
+                     </select>
+                  </div>
+              </div>
+
+              <!-- Filters -->
+              <div class="row g-3 mt-1 pt-3 border-top">
+                  <div class="col-md-3">
+                     <select id="profit-segment" class="form-select form-select-sm fw-bold border-secondary shadow-sm" onchange="updateProfitCascades('segment'); renderProfitDashboard();"><option value="All">All Segments</option></select>
+                  </div>
+                  <div class="col-md-3">
+                     <select id="profit-client" class="form-select form-select-sm fw-bold border-secondary shadow-sm" onchange="updateProfitCascades('client'); renderProfitDashboard();"><option value="All">All Clients</option></select>
+                  </div>
+                  <div class="col-md-2">
+                     <select id="profit-category" class="form-select form-select-sm fw-bold border-secondary shadow-sm" onchange="updateProfitCascades('category'); renderProfitDashboard();"><option value="All">All Categories</option></select>
+                  </div>
+                  <div class="col-md-2">
+                     <select id="profit-line" class="form-select form-select-sm fw-bold border-secondary shadow-sm" onchange="updateProfitCascades('line'); renderProfitDashboard();"><option value="All">All Brands</option><option value="OWN PRODUCT">Tawoos</option><option value="Private Label">Private</option></select>
+                  </div>
+                  <div class="col-md-2">
+                     <select id="profit-product" class="form-select form-select-sm fw-bold border-secondary shadow-sm" onchange="renderProfitDashboard();"><option value="All">All Products</option></select>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- DYNAMIC KPI RIBBON CONTAINER -->
+      <div id="profit-kpis" class="mb-4">
+          <!-- Dynamically generated based on Split selections -->
+      </div>
+
+      <!-- CLIENT SIMULATOR MODAL -->
+      <div class="modal fade" id="clientSimulatorModal" tabindex="-1" aria-labelledby="clientSimulatorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="max-width: 98%;">
+          <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header bg-light border-bottom-0 pb-0 pt-3 px-4 d-flex justify-content-between align-items-end">
+              <h4 class="modal-title fw-bold text-dark mb-2" id="clientSimulatorModalLabel">
+                  <i class="fas fa-search-dollar text-primary me-2"></i>Client Evaluator: <span id="sim-client-name" class="text-primary"></span>
+                  <span id="sim-date-range" class="ms-2 fs-6 text-muted fw-normal"></span>
+              </h4>
+              <div class="d-flex align-items-center">
+                  <div class="dropdown print-dropdown me-3 mb-2">
+                      <button class="btn btn-outline-danger fw-bold rounded-pill shadow-sm px-4 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                          <i class="fas fa-file-pdf me-2"></i>Export PDF
+                      </button>
+                      <ul class="dropdown-menu shadow-sm border-0">
+                          <li><a class="dropdown-item fw-bold text-secondary" href="#" onclick="printModal('main')"><i class="fas fa-table me-2"></i>Breakdown Table Only</a></li>
+                          <li><a class="dropdown-item fw-bold text-primary" href="#" onclick="printModal('both')"><i class="fas fa-columns me-2"></i>Side-by-Side (Breakdown + Simulator)</a></li>
+                      </ul>
+                  </div>
+                  <button type="button" class="btn-close mb-2" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+            </div>
+            <div class="modal-body px-4 pb-4">
+              
+              <!-- Client Contract Snapshot & Baselines -->
+              <div class="row g-3 mb-3">
+                  <div class="col-md-5">
+                      <div class="border rounded-3 shadow-sm overflow-hidden h-100">
+                          <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 0.75rem;">
+                              <thead class="table-warning text-dark text-center">
+                                  <tr>
+                                      <th colspan="2" class="py-1">نوع المنتج (Brand)</th>
+                                      <th rowspan="2" class="py-1 align-middle">خصم عقد<br>(Contract)</th>
+                                      <th rowspan="2" class="py-1 align-middle">خصم فاتورة<br>(Invoice)</th>
+                                      <th rowspan="2" class="py-1 align-middle">مبالغ نقدية<br>(Cash)</th>
+                                  </tr>
+                                  <tr>
+                                      <th class="py-1" style="width: 20%;">طاووس</th>
+                                      <th class="py-1" style="width: 20%;">برايفت</th>
+                                  </tr>
+                              </thead>
+                              <tbody id="sim-contract-matrix">
+                                  <!-- Filled via JS -->
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+                  <div class="col-md-7">
+                      <div class="p-2 bg-white border rounded-3 shadow-sm h-100 d-flex flex-column justify-content-center">
+                          <div class="text-muted fw-bold small text-uppercase mb-2 ps-2">Client Baseline (Period Totals)</div>
+                          <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                              <div class="text-center px-2 border-end">
+                                  <div class="text-muted" style="font-size:0.6rem;">VOLUME</div>
+                                  <div class="fw-bold text-secondary fs-6" id="sim-vol">0</div>
+                              </div>
+                              <div class="text-center px-2 border-end">
+                                  <div class="text-muted" style="font-size:0.6rem;">REVENUE</div>
+                                  <div class="fw-bold text-primary fs-6" id="sim-gross-rev">0</div>
+                              </div>
+                              <div class="text-center px-2 border-end">
+                                  <div class="text-muted" style="font-size:0.6rem;">GROSS PROFIT</div>
+                                  <div class="fw-bold text-success fs-6" id="sim-gross-profit">0</div>
+                              </div>
+                              <div class="text-center px-2 border-end">
+                                  <div class="text-muted" style="font-size:0.6rem;">FIXED FEES</div>
+                                  <div class="fw-bold text-danger fs-6" id="sim-fees">0</div>
+                              </div>
+                              <div class="text-center px-2">
+                                  <div class="text-muted" style="font-size:0.6rem;">NET PROFIT</div>
+                                  <div class="fw-bold text-success fs-6" id="sim-net">0</div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              <!-- Side-by-Side Tables -->
+              <div class="row g-2">
+                  <!-- MAIN BREAKDOWN (Left) -->
+                  <div class="col-md-9 breakdown-column">
+                      <div class="table-responsive border rounded-3 shadow-sm" style="max-height: 450px;">
+                          <table class="table table-hover align-middle mb-0" style="font-size: 0.75rem; min-width: 800px;">
+                              <thead class="table-light shadow-sm" style="position: sticky; top: 0; z-index: 10;">
+                                  <tr>
+                                      <th class="ps-3 py-2 text-muted fw-bold">PRODUCT</th>
+                                      <th class="text-center py-2 text-muted fw-bold">QTY</th>
+                                      <th class="text-end py-2 text-muted fw-bold">REVENUE</th>
+                                      <th class="text-end py-2 text-muted fw-bold">UNIT COST</th>
+                                      <th class="text-end py-2 text-muted fw-bold">UNIT PRICE</th>
+                                      <th class="text-end py-2 text-muted fw-bold">I. DISC</th>
+                                      <th class="text-end py-2 text-muted fw-bold">C. DISC</th>
+                                      <th class="text-end pe-3 py-2 text-success fw-bold">GROSS PROFIT</th>
+                                  </tr>
+                              </thead>
+                              <tbody id="sim-breakdown-table-body">
+                                  <!-- Filled via JS -->
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+
+                  <!-- SIMULATOR (Right) -->
+                  <div class="col-md-3 simulator-column">
+                      <div class="table-responsive border rounded-3 shadow-sm" style="max-height: 450px; border-color: #fd7e14 !important;">
+                          <table class="table table-hover align-middle mb-0" style="font-size: 0.75rem;">
+                              <thead class="shadow-sm" style="position: sticky; top: 0; z-index: 10; background-color: rgba(253, 126, 20, 0.1);">
+                                  <tr>
+                                      <th class="text-end py-2 fw-bold border-bottom" style="color: #fd7e14; border-color: #fd7e14 !important;">NEW PRICE (GROSS)</th>
+                                      <th class="text-end pe-3 py-2 text-success fw-bold border-bottom" style="border-color: #fd7e14 !important;">SIM. GROSS P.</th>
+                                  </tr>
+                              </thead>
+                              <tbody id="sim-simulator-table-body">
+                                  <!-- Filled via JS -->
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BULK PRINT SELECTION MODAL -->
+      <div class="modal fade" id="bulkPrintModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header bg-light border-bottom-0 pt-4 px-4">
+              <h5 class="modal-title fw-bold text-dark"><i class="fas fa-layer-group text-danger me-2"></i>Select Clients for Bulk PDF</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4">
+               <p class="text-muted small mb-3">Select the clients to generate a consolidated multi-page PDF report.</p>
+               
+               <!-- Search Bar -->
+               <div class="input-group input-group-sm mb-3 shadow-sm">
+                   <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-search"></i></span>
+                   <input type="text" id="bulk-client-search" class="form-control border-start-0 ps-0 bg-light" placeholder="Search clients..." onkeyup="filterBulkClients()">
+               </div>
+               
+               <div id="bulk-client-list" class="list-group shadow-sm border rounded-3" style="max-height: 350px; overflow-y: auto;">
+                  <!-- Filled via JS -->
+               </div>
+            </div>
+            <div class="modal-footer border-top-0 px-4 pb-4">
+               <button type="button" class="btn btn-outline-secondary btn-sm fw-bold rounded-pill px-3" onclick="toggleAllBulkClients()">Select All</button>
+               <button type="button" class="btn btn-danger btn-sm fw-bold rounded-pill px-4 shadow-sm" onclick="executeBulkPrint()">
+                   <i class="fas fa-print me-2"></i>Generate PDF
+               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INVISIBLE CONTAINER FOR BULK PRINT RENDERING -->
+      <div id="bulk-print-container" class="d-none"></div>
+
+      <!-- HIERARCHICAL DATA TABLE -->
+      <div class="card border-0 shadow-sm rounded-4 w-100 bg-white">
+          <div class="table-responsive rounded-4" style="max-height: 600px; overflow-y: auto; scrollbar-width: thin;">
+              <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem; min-width: 900px;">
+                  <thead class="table-light border-bottom text-muted sticky-top z-index-10 shadow-sm" style="font-size: 0.75rem;">
+                      <tr>
+                          <th class="ps-4 py-3 fw-bold">HIERARCHY (GROUP ➔ ORDER ➔ ITEM)</th>
+                          <th class="text-center py-3 fw-bold" style="width: 120px;">VOLUME</th>
+                          <th class="text-end py-3 fw-bold text-primary" style="width: 140px;">NET REVENUE</th>
+                          <th class="text-end py-3 fw-bold text-danger" style="width: 140px;">TOTAL COST</th>
+                          <th class="text-end pe-3 py-3 fw-bold text-success" style="width: 140px;">NET PROFIT</th>
+                          <th class="text-end pe-4 py-3 fw-bold text-warning" style="width: 100px;">MARGIN %</th>
+                      </tr>
+                  </thead>
+                  <tbody id="profit-table-body">
+                      <!-- Rendered via JS -->
+                  </tbody>
+              </table>
+          </div>
+      </div>
+  </div>
+  <!-- DYNAMIC EMAIL CONFIGURATION MODAL -->
+  <div class="modal fade" id="emailConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+        <div class="modal-header border-0 pb-2 bg-light rounded-top-4 align-items-center">
+          <div class="d-flex align-items-center justify-content-between w-100 me-3">
+            <h5 class="modal-title fw-bold text-dark mb-0">
+              <i class="fas fa-paper-plane text-primary me-2"></i>Automated Email Digest Builder
+            </h5>
+            <button id="icon-sync-engine" onclick="handleEngineSyncClick()" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2" title="Force refresh engine data caches">
+              <i class="fas fa-sync-alt" id="icon-sync-engine-spinner"></i>
+              <span id="sync-engine-time" style="font-size: 0.78rem; font-weight: 600;">Last sync: --</span>
+            </button>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="row g-0">
+            
+            <!-- Left Column: Template List Sidebar -->
+            <div class="col-md-4 border-end bg-light p-3" style="min-height: 520px;">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-uppercase text-muted m-0" style="font-size: 0.75rem;">Email Templates</h6>
+                <button class="btn btn-sm btn-primary rounded-pill fw-bold px-3" onclick="createNewTemplate()">
+                  <i class="fas fa-plus me-1"></i>New Template
+                </button>
+              </div>
+              <div id="email-template-list" class="d-flex flex-column gap-2 overflow-auto" style="max-height: 440px;">
+                <!-- Dynamically rendered list items -->
+              </div>
+            </div>
+
+            <!-- Right Column: Active Template Editor -->
+            <div class="col-md-8 p-4 bg-white" id="email-config-form">
+              
+              <div class="row g-3 mb-3 p-3 bg-light rounded-3 border align-items-center">
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold text-muted mb-1">Template Title</label>
+                  <input type="text" id="ec-name" class="form-control form-control-sm fw-bold text-dark border-secondary" placeholder="e.g., Wholesalers Daily Alert">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-id-badge me-1 text-primary"></i>Sender Display Name</label>
+                  <input type="text" id="ec-sender-name" class="form-control form-control-sm fw-bold text-dark border-secondary" placeholder="e.g., Sales Performance Engine">
+                </div>
+                <div class="col-md-2 text-end">
+                  <label class="form-label small fw-bold text-muted mb-1 d-block">Status</label>
+                  <div class="form-check form-switch fs-4 m-0 d-inline-block">
+                    <input class="form-check-input" type="checkbox" id="ec-enabled" style="cursor: pointer;">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scope, Schedule, Base Year & Language -->
+              <div class="row g-3 mb-3 p-3 bg-light rounded-3 border">
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-calendar-alt me-1"></i>Time Scope</label>
+                  <select id="ec-scope" class="form-select form-select-sm fw-bold border-secondary" onchange="onEmailScopeChange(this.value)">
+                    <option value="Daily">Daily</option>
+                    <option value="Weekly">Weekly</option>
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                  </select>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-clock me-1"></i>Dispatch Time</label>
+                  <input type="time" id="ec-schedule-time" class="form-control form-control-sm fw-bold border-secondary" value="08:00">
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-history me-1"></i>Vs Base Year</label>
+                  <select id="ec-base-year" class="form-select form-select-sm fw-bold border-secondary">
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                  </select>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-language me-1 text-primary"></i>Language</label>
+                  <select id="ec-lang" class="form-select form-select-sm fw-bold border-secondary">
+                    <option value="AR">العربية (AR)</option>
+                    <option value="EN">English (EN)</option>
+                  </select>
+                </div>
+
+                <div class="col-12 border-top pt-2">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-external-link-alt me-1 text-primary"></i>Header Dynamic Report Link (Top Right Button)</label>
+                  <select id="ec-report-portal" class="form-select form-select-sm fw-bold border-secondary">
+                    <option value="NONE">None (Hide Button)</option>
+                    <option value="PORTAL_ANALYTICS">Sales Analytics Portal</option>
+                    <option value="PORTAL_PERFORMANCE">Sales Performance & Price List Generator</option>
+                  </select>
+                </div>
+
+                <!-- Dynamic Day Selection Container -->
+                <div class="col-12 border-top pt-2" id="ec-day-selection-container">
+                  <!-- Injected via JS based on Scope (e.g., Weekday Checkboxes for Daily) -->
+                </div>
+              </div>
+
+              <!-- Segment Filtering -->
+              <div class="mb-3 p-3 border rounded-3 bg-white">
+                <label class="form-label small fw-bold text-muted mb-2"><i class="fas fa-filter me-1 text-primary"></i>Client Segment Scope (Multi-Select)</label>
+                <div id="ec-segments-container" class="d-flex flex-wrap gap-3">
+                  <!-- Checkboxes generated dynamically from known segments -->
+                </div>
+              </div>
+
+              <!-- Recipients: To & CC -->
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-at me-1 text-primary"></i>To Recipients</label>
+                  <textarea id="ec-to" class="form-control form-control-sm border-secondary fw-semibold" rows="2" placeholder="manager1@company.com, manager2@company.com"></textarea>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-copy me-1 text-secondary"></i>CC Recipients</label>
+                  <textarea id="ec-cc" class="form-control form-control-sm border-secondary fw-semibold" rows="2" placeholder="exec@company.com, ops@company.com"></textarea>
+                </div>
+              </div>
+
+              <!-- Metric Focus & Sections -->
+              <div class="row g-3">
+                <div class="col-md-5">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-chart-line me-1"></i>Metric Focus</label>
+                  <div class="segmented-control w-100 shadow-sm border">
+                    <input type="radio" class="btn-check" name="ecMeasure" id="ecMeasRev" value="REV">
+                    <label for="ecMeasRev" class="flex-fill text-center">Revenue</label>
+                    <input type="radio" class="btn-check" name="ecMeasure" id="ecMeasQty" value="QTY">
+                    <label for="ecMeasQty" class="flex-fill text-center">Volume</label>
+                    <input type="radio" class="btn-check" name="ecMeasure" id="ecMeasBoth" value="BOTH" checked>
+                    <label for="ecMeasBoth" class="flex-fill text-center">Both</label>
+                  </div>
+                </div>
+
+                <div class="col-md-7">
+                  <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-list-check me-1"></i>Email Body Sections (Reorder & Select)</label>
+                  <div class="d-flex flex-column gap-2 bg-light p-2 rounded-3 border" id="ec-sections-container">
+                    <!-- Dynamic Reordering Widget Injected via JS -->
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer border-0 p-3 bg-light rounded-bottom-4 d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-danger rounded-pill px-3 fw-bold" onclick="deleteActiveTemplate()">
+            <i class="fas fa-trash-alt me-1"></i>Delete Template
+          </button>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" id="btn-ec-test" onclick="triggerTestEmailDigest()">
+              <i class="fas fa-vial me-2"></i>Send Test Email
+            </button>
+            <button type="button" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm" style="background-color: #003366; border-color: #003366;" id="btn-ec-save" onclick="saveAllEmailConfigs()">
+              <i class="fas fa-save me-2"></i>Save All Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal fade" id="bomModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
@@ -2194,6 +2735,7 @@
        document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
        document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
        document.getElementById('nav-btn-rootcause').className = mode === 'rootcause' ? 'nav-btn active' : 'nav-btn';
+       document.getElementById('nav-btn-profit').className = mode === 'profit' ? 'nav-btn active' : 'nav-btn';
 
        // 2. Force Hide ALL containers safely
        document.getElementById('client-view-container').style.display = 'none';
@@ -2201,6 +2743,7 @@
        document.getElementById('product-content-area').style.display = 'none';
        document.getElementById('costing-view-container').style.display = 'none';
        document.getElementById('root-cause-view-container').style.display = 'none';
+       document.getElementById('profit-view-container').style.display = 'none';
 
        // 3. Route to the correct view
        if (mode === 'product') {
@@ -2212,6 +2755,9 @@
        } else if (mode === 'rootcause') {
           if (!appState.rootCauseData || Object.keys(appState.rootCauseData).length === 0) { loadSource('rootcause'); } 
           else { initRootCauseView(); }
+       } else if (mode === 'profit') {
+          if (!appState.profitData || appState.profitData.length === 0) { loadSource('profit'); } 
+          else { initProfitView(); }
        } else {
           if (!appState.rawData || appState.rawData.length === 0) { loadSource('client'); } 
           else { initClientView(); }
@@ -2229,6 +2775,7 @@
       if (mode === 'product' && appState.productData && appState.productData.length > 0) hasData = true;
       if (mode === 'costing' && appState.costingData && appState.costingData.length > 0 && appState.productData && appState.productData.length > 0) hasData = true;
       if (mode === 'rootcause' && appState.rootCauseData && Object.keys(appState.rootCauseData).length > 0) hasData = true;
+      if (mode === 'profit' && appState.profitData && appState.profitData.length > 0) hasData = true;
 
       if (hasData) {
           document.getElementById('landing-screen').style.display = 'none';
@@ -2240,6 +2787,7 @@
           document.getElementById('nav-btn-product').className = mode === 'product' ? 'nav-btn active' : 'nav-btn';
           document.getElementById('nav-btn-costing').className = mode === 'costing' ? 'nav-btn active' : 'nav-btn';
           document.getElementById('nav-btn-rootcause').className = mode === 'rootcause' ? 'nav-btn active' : 'nav-btn';
+          document.getElementById('nav-btn-profit').className = mode === 'profit' ? 'nav-btn active' : 'nav-btn';
           
           if (mode === 'product') {
              if (!document.getElementById('report-date').value) document.getElementById('report-date').valueAsDate = new Date();
@@ -2253,6 +2801,8 @@
              initCostingView();
           } else if (mode === 'rootcause') {
              initRootCauseView();
+          } else if (mode === 'profit') {
+             initProfitView();
           } else {
              initClientView();
           }
@@ -2292,6 +2842,11 @@
          document.getElementById('loader-icon-box').style.color = '#8b5cf6';
          title.innerText = "Variance & Root Cause Engine";
          insights = ["Fetching multi-dimensional cache...", "Aligning fiscal periods...", "Calculating volume vs revenue drivers...", "Building drill-down tree..."];
+      } else if (mode === 'profit') {
+         icon.className = 'fas fa-hand-holding-dollar text-primary';
+         document.getElementById('loader-icon-box').style.color = '#0284c7';
+         title.innerText = "Profitability Inspector";
+         insights = ["Merging Net Sales ledger...", "Aligning historical BOM costs...", "Extracting invoice timelines...", "Calculating actual margins..."];
       }
 
       loader.style.display = 'flex';
@@ -2323,6 +2878,7 @@
       if (mode === 'product') backendFn = 'getProductDataFromCache';
       if (mode === 'costing') backendFn = 'getCostingDataFromCache';
       if (mode === 'rootcause') backendFn = 'getRootCauseDataFromCache';
+      if (mode === 'profit') backendFn = 'getProfitabilityMergedData';
 
       google.script.run
         .withSuccessHandler(response => {
@@ -2338,6 +2894,7 @@
                 document.getElementById('nav-btn-product').className = modeToInit === 'product' ? 'nav-btn active' : 'nav-btn';
                 document.getElementById('nav-btn-costing').className = modeToInit === 'costing' ? 'nav-btn active' : 'nav-btn';
                 document.getElementById('nav-btn-rootcause').className = modeToInit === 'rootcause' ? 'nav-btn active' : 'nav-btn';
+                document.getElementById('nav-btn-profit').className = modeToInit === 'profit' ? 'nav-btn active' : 'nav-btn';
                 
                 if (modeToInit === 'product') {
                    document.getElementById('report-date').valueAsDate = new Date();
@@ -2346,6 +2903,8 @@
                    initCostingView();
                 } else if (modeToInit === 'rootcause') {
                    initRootCauseView();
+                } else if (modeToInit === 'profit') {
+                   initProfitView();
                 } else {
                    initClientView();
                 }
@@ -2389,6 +2948,12 @@
              if(syncText) syncText.innerHTML = `<span class="text-primary fw-bold">Synced: ${syncTime}</span><br><span class="text-success fw-bold" style="font-size: 0.55rem;">Data: ${dataDate}</span>`;
 
              finishLoad('rootcause');
+
+          } else if (mode === 'profit') {
+             if (response.error) { alert("Profit Engine Error: " + response.error); return; }
+             appState.profitData = response.data;
+             appState.profitContracts = response.contracts; // Map contracts to memory
+             finishLoad('profit');
              
           } else if (mode === 'costing') {
              if (response.error) { alert("Cost Engine Error: " + response.error); return; }
@@ -6853,6 +7418,1423 @@ function exportSummaryToPDF() {
             btn.disabled = false;
             btn.innerHTML = originalBtnHtml;
         }
+    };
+  // ==========================================
+    // DYNAMIC EMAIL DIGEST CONFIGURATION ENGINE
+    // ==========================================
+    appState.emailTemplates = [];
+    appState.activeTemplateId = null;
+    appState.masterSegmentsList = ["جملة", "تجزئة", "مطعم", "سلاسل", "سرجة / عطارة", "اون لاين", "اخرين"];
+    appState.masterSections = [
+      { id: 1, name: "Executive Variance Breakdown (تحليل مبيعات الفترة لكل قطاع)" },
+      { id: 2, name: "Newly Late Clients Watchlist (مراقبة المتأخرين عن دورة الطلب)" },
+      { id: 3, name: "Wins & Recovery (العملاء الجدد واستعادة المنقطعين)" },
+      { id: 4, name: "Underperforming Products (الأصناف الأكثر تراجعاً)" },
+      { id: 5, name: "Detailed Orders Register (سجل طلبات الفترة التفصيلي)" },
+      { id: 6, name: "Segment Orders Register (ملخص طلبات القطاعات)" },
+      { id: 7, name: "Product Category Breakdown (تحليل تصنيفات المنتجات)" },
+      { id: 8, name: "Macro Progress & YTD Tracking (متابعة الأداء الكلي والتراكمي)" }
+    ];
+    appState.activeSectionOrder = [1, 2, 3, 4, 5, 6, 7, 8];
+
+    window.renderEmailSectionsUI = function(orderedIds, activeIds) {
+      const container = document.getElementById('ec-sections-container');
+      if (!container) return;
+
+      let allIds = [1, 2, 3, 4, 5, 6, 7, 8];
+      let currentOrder = Array.isArray(orderedIds) ? [...orderedIds] : [1, 2, 3, 4, 5, 6, 7, 8];
+      allIds.forEach(id => { if (!currentOrder.includes(id)) currentOrder.push(id); });
+
+      appState.activeSectionOrder = currentOrder;
+      let activeSet = new Set(Array.isArray(activeIds) ? activeIds : currentOrder);
+
+      let html = '';
+      currentOrder.forEach((secId, idx) => {
+        let secObj = appState.masterSections.find(s => s.id === Number(secId)) || { id: secId, name: 'Section ' + secId };
+        let isChecked = activeSet.has(Number(secId));
+        let upDisabled = idx === 0 ? 'disabled' : '';
+        let downDisabled = idx === currentOrder.length - 1 ? 'disabled' : '';
+
+        html += `
+        <div class="d-flex align-items-center justify-content-between p-2 bg-white rounded-3 border shadow-sm section-reorder-row" data-sec-id="${secId}">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-secondary rounded-circle text-white d-flex align-items-center justify-content-center" style="width:22px; height:22px; font-size:0.65rem;">${idx + 1}</span>
+            <div class="form-check m-0">
+              <input class="form-check-input ec-sec-chk" type="checkbox" id="ec-sec-chk-${secId}" value="${secId}" ${isChecked ? 'checked' : ''}>
+              <label class="form-check-label small fw-bold text-dark" for="ec-sec-chk-${secId}">${secObj.name}</label>
+            </div>
+          </div>
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-sm btn-light border px-2 py-0 text-secondary" onclick="moveSectionOrder(${idx}, -1)" ${upDisabled} title="Move Up"><i class="fas fa-chevron-up" style="font-size:0.7rem;"></i></button>
+            <button type="button" class="btn btn-sm btn-light border px-2 py-0 text-secondary" onclick="moveSectionOrder(${idx}, 1)" ${downDisabled} title="Move Down"><i class="fas fa-chevron-down" style="font-size:0.7rem;"></i></button>
+          </div>
+        </div>`;
+      });
+
+      container.innerHTML = html;
+    };
+
+    window.moveSectionOrder = function(index, direction) {
+      let arr = appState.activeSectionOrder;
+      let targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= arr.length) return;
+
+      let temp = arr[index];
+      arr[index] = arr[targetIndex];
+      arr[targetIndex] = temp;
+
+      let checkedIds = [];
+      document.querySelectorAll('.ec-sec-chk:checked').forEach(c => checkedIds.push(Number(c.value)));
+
+      renderEmailSectionsUI(arr, checkedIds);
+    };
+
+    window.loadEngineSyncTime = function() {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(timeStr) {
+            const timeEl = document.getElementById('sync-engine-time');
+            if (timeEl) timeEl.innerText = "Last sync: " + (timeStr || "--");
+          })
+          .getLastEngineSyncTime();
+      }
+    };
+
+    window.handleEngineSyncClick = function() {
+      const btn = document.getElementById('icon-sync-engine');
+      const spinner = document.getElementById('icon-sync-engine-spinner');
+      const timeEl = document.getElementById('sync-engine-time');
+
+      if (btn) btn.disabled = true;
+      if (spinner) spinner.classList.add('fa-spin');
+      if (timeEl) timeEl.innerText = "Syncing...";
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(newTime) {
+            if (btn) btn.disabled = false;
+            if (spinner) spinner.classList.remove('fa-spin');
+            if (timeEl) timeEl.innerText = "Last sync: " + newTime;
+            alert("Engine caches refreshed successfully!");
+          })
+          .withFailureHandler(function(err) {
+            if (btn) btn.disabled = false;
+            if (spinner) spinner.classList.remove('fa-spin');
+            if (timeEl) timeEl.innerText = "Sync failed";
+            alert("Sync failed: " + err.message);
+          })
+          .syncEmailEngineCaches();
+      }
+    };
+
+    window.openEmailConfigModal = function() {
+        window.loadEngineSyncTime(); // Query latest sync time when modal opens
+        const modal = new bootstrap.Modal(document.getElementById('emailConfigModal'));
+        modal.show();
+        
+        document.getElementById('email-config-form').style.opacity = '0.5';
+        
+        google.script.run.withSuccessHandler(res => {
+            document.getElementById('email-config-form').style.opacity = '1';
+            if (res && res.templates) {
+                appState.emailTemplates = res.templates;
+                if (appState.emailTemplates.length > 0) {
+                    selectTemplate(appState.emailTemplates[0].templateId);
+                } else {
+                    createNewTemplate();
+                }
+            }
+        }).withFailureHandler(err => {
+            document.getElementById('email-config-form').style.opacity = '1';
+            alert("Error loading email settings: " + err.message);
+        }).getEmailConfigs();
+    };
+
+    function renderTemplateSidebar() {
+        const container = document.getElementById('email-template-list');
+        let html = '';
+        
+        appState.emailTemplates.forEach(t => {
+            let isActive = t.templateId === appState.activeTemplateId;
+            let activeClass = isActive ? 'bg-primary text-white shadow-sm' : 'bg-white text-dark border';
+            let badgeBg = t.enabled ? (isActive ? 'bg-light text-primary' : 'bg-success bg-opacity-10 text-success border border-success') : 'bg-secondary text-white';
+            let statusText = t.enabled ? 'ON' : 'OFF';
+
+            html += `
+            <div class="p-3 rounded-3 cursor-pointer ${activeClass} transition-all" onclick="selectTemplate('${t.templateId}')" style="cursor:pointer;">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="fw-bold text-truncate" style="max-width:170px; font-size:0.9rem;">${t.templateName || 'Untitled'}</span>
+                <span class="badge ${badgeBg} rounded-pill px-2 py-1" style="font-size:0.65rem;">${statusText}</span>
+              </div>
+              <div class="small ${isActive ? 'text-white-50' : 'text-muted'}" style="font-size:0.75rem;">
+                <i class="fas fa-calendar-alt me-1"></i>${t.timeScope} | ${t.scheduleTime || '08:00'}
+                ${t.lastSent ? `<br><i class="fas fa-paper-plane me-1"></i>Last Sent: ${t.lastSent}` : ''}
+              </div>
+            </div>`;
+        });
+        
+        container.innerHTML = html || '<div class="text-muted text-center py-4 small">No templates created yet.</div>';
+    }
+
+    window.createNewTemplate = function() {
+        saveCurrentFormToMemory();
+        let newId = 'tpl_' + Date.now();
+        let newTpl = {
+            templateId: newId,
+            templateName: 'New Custom Alert',
+            timeScope: 'Daily',
+            enabled: true,
+            toRecipients: '',
+            ccRecipients: '',
+            scheduleDay: 'MON,TUE,WED,THU,FRI',
+            scheduleTime: '08:00',
+            baseYear: '2025',
+            measure: 'BOTH',
+            segments: ['ALL'],
+            sections: [1,2,3,4,5,6,7,8],
+            reportPortal: 'NONE',
+            senderName: 'Sales Performance Engine',
+            language: 'AR'
+        };
+        appState.emailTemplates.push(newTpl);
+        selectTemplate(newId);
+    };
+
+    window.deleteActiveTemplate = function() {
+        if (!appState.activeTemplateId) return;
+        if (!confirm("Are you sure you want to delete this email template?")) return;
+
+        appState.emailTemplates = appState.emailTemplates.filter(t => t.templateId !== appState.activeTemplateId);
+        if (appState.emailTemplates.length > 0) {
+            selectTemplate(appState.emailTemplates[0].templateId);
+        } else {
+            createNewTemplate();
+        }
+    };
+
+    window.selectTemplate = function(templateId) {
+        saveCurrentFormToMemory();
+        appState.activeTemplateId = templateId;
+        
+        let t = appState.emailTemplates.find(x => x.templateId === templateId);
+        if (!t) return;
+
+        renderTemplateSidebar();
+
+        document.getElementById('ec-name').value = t.templateName || '';
+        document.getElementById('ec-sender-name').value = t.senderName || 'Sales Performance Engine';
+        document.getElementById('ec-enabled').checked = (String(t.enabled).toUpperCase() === 'TRUE' || t.enabled === true);
+        document.getElementById('ec-scope').value = t.timeScope || 'Daily';
+        document.getElementById('ec-schedule-time').value = t.scheduleTime || '08:00';
+        document.getElementById('ec-base-year').value = t.baseYear || '2025';
+        document.getElementById('ec-lang').value = t.language || 'AR';
+        document.getElementById('ec-to').value = t.toRecipients || '';
+        document.getElementById('ec-cc').value = t.ccRecipients || '';
+        document.getElementById('ec-report-portal').value = t.reportPortal || 'NONE';
+
+        // Measure Radio
+        let meas = t.measure || 'BOTH';
+        if (meas === 'REV') document.getElementById('ecMeasRev').checked = true;
+        else if (meas === 'QTY') document.getElementById('ecMeasQty').checked = true;
+        else document.getElementById('ecMeasBoth').checked = true;
+
+        // Sections Reordering UI
+        let secs = Array.isArray(t.sections) ? t.sections.map(Number) : String(t.sections || '1,2,3,4,5,6,7,8').split(',').map(Number);
+        renderEmailSectionsUI(secs, secs);
+
+        // Render Day Selection Controls
+        onEmailScopeChange(t.timeScope || 'Daily', t.scheduleDay);
+
+        // Render Segments Filter
+        renderSegmentCheckboxes(t.segments || ['ALL']);
+    };
+
+    window.onEmailScopeChange = function(scope, activeDaysValue) {
+        const container = document.getElementById('ec-day-selection-container');
+        let currentDays = activeDaysValue || (appState.emailTemplates.find(x => x.templateId === appState.activeTemplateId) || {}).scheduleDay || '';
+
+        if (scope === 'Daily') {
+            let daysArr = currentDays.split(',');
+            let weekdays = [
+                { id: 'MON', label: 'Mon' }, { id: 'TUE', label: 'Tue' }, { id: 'WED', label: 'Wed' },
+                { id: 'THU', label: 'Thu' }, { id: 'FRI', label: 'Fri' }, { id: 'SAT', label: 'Sat' }, { id: 'SUN', label: 'Sun' }
+            ];
+            let html = '<label class="form-label small fw-bold text-muted mb-1 d-block"><i class="fas fa-check-square me-1"></i>Active Days of Week (Multi-Select)</label><div class="d-flex flex-wrap gap-2">';
+            weekdays.forEach(w => {
+                let chk = daysArr.includes(w.id) ? 'checked' : '';
+                html += `
+                <div class="form-check form-check-inline m-0">
+                  <input class="btn-check ec-day-chk" type="checkbox" id="ec-day-${w.id}" value="${w.id}" ${chk}>
+                  <label class="btn btn-sm btn-outline-secondary fw-bold rounded-pill px-3" for="ec-day-${w.id}">${w.label}</label>
+                </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        } else if (scope === 'Weekly') {
+            container.innerHTML = `
+            <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-calendar-day me-1"></i>Weekly Dispatch Day</label>
+            <select id="ec-weekly-day" class="form-select form-select-sm fw-bold border-secondary">
+              <option value="MON" ${currentDays === 'MON' ? 'selected' : ''}>Monday</option>
+              <option value="TUE" ${currentDays === 'TUE' ? 'selected' : ''}>Tuesday</option>
+              <option value="WED" ${currentDays === 'WED' ? 'selected' : ''}>Wednesday</option>
+              <option value="THU" ${currentDays === 'THU' ? 'selected' : ''}>Thursday</option>
+              <option value="FRI" ${currentDays === 'FRI' ? 'selected' : ''}>Friday</option>
+              <option value="SAT" ${currentDays === 'SAT' ? 'selected' : ''}>Saturday</option>
+              <option value="SUN" ${currentDays === 'SUN' ? 'selected' : ''}>Sunday</option>
+            </select>`;
+        } else if (scope === 'Monthly') {
+            let options = '';
+            for (let i = 1; i <= 28; i++) {
+                options += `<option value="${i}" ${String(currentDays) === String(i) ? 'selected' : ''}>Day ${i} of Month</option>`;
+            }
+            options += `<option value="LAST_DAY" ${currentDays === 'LAST_DAY' ? 'selected' : ''}>Last Day of Month</option>`;
+            container.innerHTML = `
+            <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-calendar-day me-1"></i>Monthly Dispatch Day</label>
+            <select id="ec-monthly-day" class="form-select form-select-sm fw-bold border-secondary">${options}</select>`;
+        } else {
+            let currentDayVal = currentDays || 'Q_START';
+            container.innerHTML = `
+            <label class="form-label small fw-bold text-muted mb-1"><i class="fas fa-calendar-day me-1"></i>Quarterly Dispatch Timing</label>
+            <select id="ec-quarterly-day" class="form-select form-select-sm fw-bold border-secondary">
+              <option value="Q_START" ${currentDayVal === 'Q_START' ? 'selected' : ''}>First Day of Quarter (Q1, Q2, Q3, Q4)</option>
+              <option value="Q_END" ${currentDayVal === 'Q_END' ? 'selected' : ''}>Last Day of Quarter (Full Ended Quarter)</option>
+            </select>`;
+        }
+    };
+
+    function renderSegmentCheckboxes(selectedSegmentsArr) {
+        const container = document.getElementById('ec-segments-container');
+        let sel = Array.isArray(selectedSegmentsArr) ? selectedSegmentsArr : String(selectedSegmentsArr || 'ALL').split(',');
+        let isAll = sel.includes('ALL');
+
+        let html = `
+        <div class="form-check">
+          <input class="form-check-input ec-seg-chk" type="checkbox" value="ALL" id="seg-chk-all" ${isAll ? 'checked' : ''} onchange="toggleAllSegmentsCheck(this.checked)">
+          <label class="form-check-label fw-bold text-primary" for="seg-chk-all">ALL SEGMENTS</label>
+        </div>`;
+
+        appState.masterSegmentsList.forEach((seg, idx) => {
+            let chk = (!isAll && sel.includes(seg)) ? 'checked' : '';
+            let disabled = isAll ? 'disabled' : '';
+            html += `
+            <div class="form-check">
+              <input class="form-check-input ec-seg-chk" type="checkbox" value="${seg}" id="seg-chk-${idx}" ${chk} ${disabled}>
+              <label class="form-check-label fw-bold text-dark" for="seg-chk-${idx}">${seg}</label>
+            </div>`;
+        });
+
+        container.innerHTML = html;
+    }
+
+    window.toggleAllSegmentsCheck = function(isAllChecked) {
+        document.querySelectorAll('.ec-seg-chk').forEach(chk => {
+            if (chk.value !== 'ALL') {
+                chk.disabled = isAllChecked;
+                if (isAllChecked) chk.checked = false;
+            }
+        });
+    };
+
+    function saveCurrentFormToMemory() {
+        if (!appState.activeTemplateId) return;
+        let t = appState.emailTemplates.find(x => x.templateId === appState.activeTemplateId);
+        if (!t) return;
+
+        t.templateName = document.getElementById('ec-name').value.trim() || 'Untitled Alert';
+        t.senderName = document.getElementById('ec-sender-name').value.trim() || 'Sales Performance Engine';
+        t.enabled = document.getElementById('ec-enabled').checked;
+        t.lastSent = t.lastSent || ''; // Preserve timestamp in memory
+        t.timeScope = document.getElementById('ec-scope').value;
+        t.scheduleTime = document.getElementById('ec-schedule-time').value;
+        t.baseYear = document.getElementById('ec-base-year').value;
+        t.language = document.getElementById('ec-lang') ? document.getElementById('ec-lang').value : 'AR';
+        t.toRecipients = document.getElementById('ec-to').value.trim();
+        t.ccRecipients = document.getElementById('ec-cc').value.trim();
+        t.reportPortal = document.getElementById('ec-report-portal').value;
+
+        // Measure
+        if (document.getElementById('ecMeasRev').checked) t.measure = 'REV';
+        else if (document.getElementById('ecMeasQty').checked) t.measure = 'QTY';
+        else t.measure = 'BOTH';
+
+        // Sections Parsing (Preserves exact user UI sequence)
+        let selectedSecs = [];
+        document.querySelectorAll('.section-reorder-row').forEach(row => {
+            let secId = Number(row.getAttribute('data-sec-id'));
+            let chk = row.querySelector('.ec-sec-chk');
+            if (chk && chk.checked) {
+                selectedSecs.push(secId);
+            }
+        });
+        t.sections = selectedSecs.length > 0 ? selectedSecs : [1, 2, 3, 4, 5, 6, 7, 8];
+
+        // Days Parsing
+        if (t.timeScope === 'Daily') {
+            let selectedDays = [];
+            document.querySelectorAll('.ec-day-chk:checked').forEach(c => selectedDays.push(c.value));
+            t.scheduleDay = selectedDays.join(',') || 'MON,TUE,WED,THU,FRI';
+        } else if (t.timeScope === 'Weekly') {
+            let el = document.getElementById('ec-weekly-day');
+            t.scheduleDay = el ? el.value : 'MON';
+        } else if (t.timeScope === 'Monthly') {
+            let el = document.getElementById('ec-monthly-day');
+            t.scheduleDay = el ? el.value : '1';
+        } else {
+            let el = document.getElementById('ec-quarterly-day');
+            t.scheduleDay = el ? el.value : 'Q_START';
+        }
+
+        // Segments Parsing
+        let isAll = document.getElementById('seg-chk-all') ? document.getElementById('seg-chk-all').checked : true;
+        if (isAll) {
+            t.segments = ['ALL'];
+        } else {
+            let selSegs = [];
+            document.querySelectorAll('.ec-seg-chk:checked').forEach(c => {
+                if (c.value !== 'ALL') selSegs.push(c.value);
+            });
+            t.segments = selSegs.length > 0 ? selSegs : ['ALL'];
+        }
+    }
+
+    window.saveAllEmailConfigs = function() {
+        saveCurrentFormToMemory();
+
+        const saveBtn = document.getElementById('btn-ec-save');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Saving All...`;
+
+        google.script.run.withSuccessHandler(res => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i class="fas fa-save me-2"></i>Save All Changes`;
+            alert("All template configurations saved and background execution triggers updated!");
+            renderTemplateSidebar();
+        }).withFailureHandler(err => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i class="fas fa-save me-2"></i>Save All Changes`;
+            alert("Failed to save templates: " + err.message);
+        }).saveEmailConfigs(appState.emailTemplates);
+    };
+
+    window.triggerTestEmailDigest = function() {
+        saveCurrentFormToMemory();
+        let t = appState.emailTemplates.find(x => x.templateId === appState.activeTemplateId);
+        if (!t) return;
+
+        // ALLOW OVERWRITING RECIPIENT
+        let defaultTo = t.toRecipients || '';
+        let recipientOverride = prompt("Enter recipient email address for this TEST dispatch:", defaultTo);
+        if (recipientOverride === null) return; // User cancelled
+
+        const testBtn = document.getElementById('btn-ec-test');
+        testBtn.disabled = true;
+        testBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Sending...`;
+
+        google.script.run.withSuccessHandler(msg => {
+            testBtn.disabled = false;
+            testBtn.innerHTML = `<i class="fas fa-vial me-2"></i>Send Test Email`;
+            alert(msg || "Test digest email sent successfully!");
+        }).withFailureHandler(err => {
+            testBtn.disabled = false;
+            testBtn.innerHTML = `<i class="fas fa-vial me-2"></i>Send Test Email`;
+            alert("Test email failed: " + err.message);
+        }).sendTestEmailDigest(appState.activeTemplateId, recipientOverride, t);
+    };
+
+    // ==========================================
+    // PROFITABILITY & INVOICE INSPECTOR ENGINE
+    // ==========================================
+    appState.profitData = [];
+    appState.profitFilters = { groupBy: 'client' };
+    appState.profitHierarchy = {}; // JSON Tree
+
+    function initProfitView() {
+        document.getElementById('main-dashboard').style.display = 'block';
+        document.getElementById('client-view-container').style.display = 'none';
+        document.getElementById('product-controls').style.display = 'none';
+        document.getElementById('product-content-area').style.display = 'none';
+        document.getElementById('costing-view-container').style.display = 'none';
+        document.getElementById('root-cause-view-container').style.display = 'none';
+        document.getElementById('profit-view-container').style.display = 'block';
+        
+        // Setup initial dates (Month to Date)
+        if (!document.getElementById('profit-date-start').value) {
+            let d = new Date();
+            document.getElementById('profit-date-start').valueAsDate = new Date(d.getFullYear(), d.getMonth(), 1);
+            document.getElementById('profit-date-end').valueAsDate = d;
+        }
+
+        updateProfitCascades('all');
+        renderProfitDashboard();
+    }
+
+    function updateProfitCascades(triggerFilter) {
+        let segMap = new Set(), cliMap = new Set(), catMap = new Set(), prodMap = new Set();
+        
+        let curSeg = document.getElementById('profit-segment').value || 'All';
+        let curCli = document.getElementById('profit-client').value || 'All';
+        let curCat = document.getElementById('profit-category').value || 'All';
+        let curLin = document.getElementById('profit-line').value || 'All';
+
+        appState.profitData.forEach(r => {
+            let sMatch = curSeg === 'All' || r.segment === curSeg;
+            let cMatch = curCli === 'All' || r.client === curCli;
+            let catMatch = curCat === 'All' || r.category === curCat;
+            let lMatch = curLin === 'All' || r.line === curLin;
+
+            if (sMatch && cMatch && catMatch && lMatch) {
+                segMap.add(r.segment);
+                cliMap.add(r.client);
+                catMap.add(r.category);
+                prodMap.add(r.product);
+            }
+        });
+
+        const fillSelect = (id, set, label) => {
+            let el = document.getElementById(id);
+            let current = el.value;
+            let options = `<option value="All">${label}</option>` + Array.from(set).sort().map(s => `<option value="${s}">${s}</option>`).join('');
+            el.innerHTML = options;
+            if (set.has(current)) el.value = current;
+        };
+
+        if (triggerFilter === 'all' || triggerFilter === 'segment') fillSelect('profit-client', cliMap, 'All Clients');
+        if (triggerFilter === 'all' || triggerFilter !== 'category') fillSelect('profit-category', catMap, 'All Categories');
+        fillSelect('profit-product', prodMap, 'All Products');
+        
+        if (triggerFilter === 'all') fillSelect('profit-segment', new Set(appState.profitData.map(r=>r.segment)), 'All Segments');
+    }
+
+    function renderProfitDashboard() {
+        // 1. Get Filters & Base Math
+        let dStart = new Date(document.getElementById('profit-date-start').value).getTime();
+        let dEnd = new Date(document.getElementById('profit-date-end').value).getTime() + 86399000; 
+        let daysInPeriod = Math.max(1, Math.round((dEnd - dStart) / 86400000));
+
+        let seg = document.getElementById('profit-segment').value;
+        let cli = document.getElementById('profit-client').value;
+        let cat = document.getElementById('profit-category').value;
+        let lin = document.getElementById('profit-line').value;
+        let prd = document.getElementById('profit-product').value;
+        let splitBy = document.getElementById('profit-split').value; 
+        let groupBy = appState.profitFilters.groupBy;
+        let totalOverheadsEgp = parseFloat(document.getElementById('profit-overheads').value) || 0;
+
+        const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+
+        // 2. Global Volume Context
+        let globalVolume = 0;
+        appState.profitData.forEach(r => {
+            if (r.dateMs >= dStart && r.dateMs <= dEnd) globalVolume += r.qty;
+        });
+        document.getElementById('overhead-context').innerHTML = `GLOBAL VOL: <span class="text-primary">${fmt.format(globalVolume)}</span> | GLOBAL OPEX: <span class="text-danger">${fmt.format(totalOverheadsEgp)} EGP</span>`;
+
+        // 3. Contract Matching Helper
+        const getContractParams = (clientName) => {
+            if (!appState.profitContracts) return { contractDisc: 0, invoiceDisc: 0, cash: 0, isTawoos: false, isPrivate: false };
+            let generic = appState.profitContracts.find(c => c.client === clientName);
+            if (generic) return generic; 
+            return { contractDisc: 0, invoiceDisc: 0, cash: 0, isTawoos: false, isPrivate: false };
+        };
+
+        // 4. Filter Data, Process Item-Level Math & Build Client Profiles
+        let filtered = [];
+        let clientProfiles = {}; 
+
+        appState.profitData.forEach(r => {
+            if (r.dateMs < dStart || r.dateMs > dEnd) return;
+            if (seg !== 'All' && r.segment !== seg) return;
+            if (cli !== 'All' && r.client !== cli) return;
+            if (cat !== 'All' && r.category !== cat) return;
+            if (lin !== 'All' && r.line !== lin) return;
+            if (prd !== 'All' && r.product !== prd) return;
+            
+            let contract = getContractParams(r.client);
+            
+            let discPct = 0;
+            if (r.line === 'OWN PRODUCT' && contract.isTawoos) discPct = contract.contractDisc + contract.invoiceDisc;
+            else if (r.line === 'Private Label' && contract.isPrivate) discPct = contract.contractDisc + contract.invoiceDisc;
+            else if (!contract.isTawoos && !contract.isPrivate) discPct = contract.contractDisc + contract.invoiceDisc; 
+            
+            let itemNetRev = r.grossRev * (1 - discPct);
+            let itemCogs = r.unitCost * r.qty;
+            let itemGrossProfit = itemNetRev - itemCogs;
+            // OPEX is now excluded from item-level math. Net Profit here = Gross Profit.
+            let itemNetProfit = itemGrossProfit; 
+
+            if (!clientProfiles[r.client]) {
+                clientProfiles[r.client] = {
+                    totalRev: 0, revByCat: {}, revByLine: {},
+                    proratedCash: (contract.cash / 365) * daysInPeriod,
+                    annualCash: contract.cash,
+                    contract: contract
+                };
+            }
+            let prof = clientProfiles[r.client];
+            prof.totalRev += itemNetRev;
+            
+            let catKey = r.category || 'Uncategorized';
+            let lineKey = r.line === 'OWN PRODUCT' ? 'Tawoos Brand' : 'Private Label';
+            prof.revByCat[catKey] = (prof.revByCat[catKey] || 0) + itemNetRev;
+            prof.revByLine[lineKey] = (prof.revByLine[lineKey] || 0) + itemNetRev;
+
+            filtered.push({
+                ...r,
+                netRev: itemNetRev,
+                cogs: itemCogs,
+                grossProfit: itemGrossProfit,
+                opexFees: 0, // Ignored at item level
+                netProfit: itemNetProfit,
+                discPct: discPct
+            });
+        });
+
+        // ==========================================
+        // 5. ALLOCATE FIXED FEES & RENDER KPI RIBBON
+        // ==========================================
+        let splitGroups = {};
+        
+        filtered.forEach(r => {
+            let k = 'Total Portfolio';
+            if (splitBy === 'category') k = r.category || 'Uncategorized';
+            else if (splitBy === 'line') k = r.line === 'OWN PRODUCT' ? 'Tawoos Brand' : 'Private Label';
+            
+            if (!splitGroups[k]) splitGroups[k] = { rev: 0, cogs: 0, gross: 0, opexBase: 0, allocatedCash: 0, groupAnnualFees: 0 };
+            
+            splitGroups[k].rev += r.netRev;
+            splitGroups[k].cogs += r.cogs;
+            splitGroups[k].gross += r.grossProfit;
+        });
+
+        // Distribute Client Fixed Fees
+        Object.keys(clientProfiles).forEach(clientName => {
+            let prof = clientProfiles[clientName];
+            if (prof.proratedCash <= 0) return;
+            
+            if (splitBy === 'none') {
+                if (splitGroups['Total Portfolio']) {
+                    splitGroups['Total Portfolio'].allocatedCash += prof.proratedCash;
+                    splitGroups['Total Portfolio'].groupAnnualFees += prof.annualCash;
+                }
+            } else if (splitBy === 'category') {
+                Object.keys(prof.revByCat).forEach(cKey => {
+                    let weight = prof.totalRev > 0 ? (prof.revByCat[cKey] / prof.totalRev) : 0;
+                    if (splitGroups[cKey]) {
+                        splitGroups[cKey].allocatedCash += (prof.proratedCash * weight);
+                        splitGroups[cKey].groupAnnualFees += (prof.annualCash * weight);
+                    }
+                });
+            } else if (splitBy === 'line') {
+                let isT = prof.contract.isTawoos;
+                let isP = prof.contract.isPrivate;
+                
+                if (isT && !isP && splitGroups['Tawoos Brand']) {
+                    splitGroups['Tawoos Brand'].allocatedCash += prof.proratedCash;
+                    splitGroups['Tawoos Brand'].groupAnnualFees += prof.annualCash;
+                } else if (!isT && isP && splitGroups['Private Label']) {
+                    splitGroups['Private Label'].allocatedCash += prof.proratedCash;
+                    splitGroups['Private Label'].groupAnnualFees += prof.annualCash;
+                } else {
+                    Object.keys(prof.revByLine).forEach(lKey => {
+                        let weight = prof.totalRev > 0 ? (prof.revByLine[lKey] / prof.totalRev) : (1 / Object.keys(prof.revByLine).length);
+                        if (splitGroups[lKey]) {
+                            splitGroups[lKey].allocatedCash += (prof.proratedCash * weight);
+                            splitGroups[lKey].groupAnnualFees += (prof.annualCash * weight);
+                        }
+                    });
+                }
+            }
+        });
+
+        // Apply Global OPEX to "Total Portfolio" ONLY
+        if (splitGroups['Total Portfolio']) {
+            splitGroups['Total Portfolio'].opexBase += totalOverheadsEgp;
+        }
+
+        let kpiHtml = '';
+        Object.keys(splitGroups).sort((a,b) => splitGroups[b].rev - splitGroups[a].rev).forEach(key => {
+            let g = splitGroups[key];
+            let tOpexTotal = g.opexBase + g.allocatedCash;
+            let tNetProfit = g.gross - tOpexTotal;
+            
+            let gMargin = g.rev > 0 ? (g.gross / g.rev * 100).toFixed(1) : 0;
+            let nMargin = g.rev > 0 ? (tNetProfit / g.rev * 100).toFixed(1) : 0;
+
+            if (splitBy !== 'none') kpiHtml += `<h6 class="fw-bold text-dark mt-3 mb-2 ps-1"><i class="fas fa-chart-pie text-primary me-2"></i>${key}</h6>`;
+
+            let opexLabel = splitBy === 'none' ? 'OPEX & Fixed Fees' : 'Allocated Fixed Fees';
+            let opexSubtext = splitBy === 'none' 
+                ? `<b>OPEX:</b> ${fmt.format(g.opexBase)} | <b>Fees:</b> ${fmt.format(g.allocatedCash)} <br><span style="font-size:0.55rem;">(Fees Pro-rated ${daysInPeriod}d/365)</span>`
+                : `<b>Allocated Fees:</b> ${fmt.format(g.allocatedCash)} <br><span style="font-size:0.55rem;">(Pro-rated ${daysInPeriod}d/365)</span>`;
+
+            kpiHtml += `
+            <div class="row g-2 mb-3">
+                <div class="col">
+                    <div class="p-3 bg-white border border-primary border-opacity-25 rounded-4 shadow-sm h-100" style="border-left: 5px solid #0284c7 !important;">
+                        <div class="text-uppercase text-muted fw-bold mb-1" style="font-size:0.65rem;">Net Revenue</div>
+                        <h4 class="fw-bold text-dark mb-0">${fmt.format(g.rev)} <span class="fs-6 fw-normal">EGP</span></h4>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="p-3 bg-white border border-danger border-opacity-25 rounded-4 shadow-sm h-100" style="border-left: 5px solid #dc2626 !important;">
+                        <div class="text-uppercase text-muted fw-bold mb-1" style="font-size:0.65rem;">COGS</div>
+                        <h4 class="fw-bold text-danger mb-0">${fmt.format(g.cogs)} <span class="fs-6 fw-normal">EGP</span></h4>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="p-3 bg-white border border-info border-opacity-25 rounded-4 shadow-sm h-100 position-relative" style="border-left: 5px solid #06b6d4 !important;">
+                        <span class="position-absolute top-0 end-0 mt-2 me-2 badge bg-info bg-opacity-10 text-info border border-info">${gMargin}%</span>
+                        <div class="text-uppercase text-muted fw-bold mb-1" style="font-size:0.65rem;">Gross Profit</div>
+                        <h4 class="fw-bold text-info mb-0">${fmt.format(g.gross)} <span class="fs-6 fw-normal">EGP</span></h4>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="p-3 bg-white border border-secondary border-opacity-25 rounded-4 shadow-sm h-100" style="border-left: 5px solid #64748b !important;">
+                        <div class="text-uppercase text-muted fw-bold mb-1" style="font-size:0.65rem;">${opexLabel}</div>
+                        <h4 class="fw-bold text-secondary mb-0">${fmt.format(tOpexTotal)} <span class="fs-6 fw-normal">EGP</span></h4>
+                        <div class="mt-2 pt-2 border-top text-muted" style="font-size:0.6rem; line-height:1.2;">${opexSubtext}</div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="p-3 bg-white border border-success border-opacity-25 rounded-4 shadow-sm h-100 position-relative" style="border-left: 5px solid #16a34a !important;">
+                        <span class="position-absolute top-0 end-0 mt-2 me-2 badge bg-success bg-opacity-10 text-success border border-success">${nMargin}%</span>
+                        <div class="text-uppercase text-muted fw-bold mb-1" style="font-size:0.65rem;">Net Profit</div>
+                        <h4 class="fw-bold text-success mb-0">${fmt.format(tNetProfit)} <span class="fs-6 fw-normal">EGP</span></h4>
+                    </div>
+                </div>
+            </div>`;
+        });
+        document.getElementById('profit-kpis').innerHTML = kpiHtml;
+
+        // ==========================================
+        // 6. BUILD PRODUCT-LEVEL RECURSIVE HIERARCHY TREE
+        // ==========================================
+        // Notice we removed invoiceId. The tree stops at Product.
+        let hierarchyKeys = groupBy === 'segment' ? ['segment', 'client', 'branch', 'product'] : ['client', 'branch', 'product'];
+        let tree = { qty: 0, netRev: 0, cogs: 0, grossProfit: 0, opexFees: 0, netProfit: 0, children: {} };
+        
+        filtered.forEach(row => {
+            let current = tree;
+            current.qty+=row.qty; current.netRev+=row.netRev; current.cogs+=row.cogs; 
+            current.grossProfit+=row.grossProfit; current.opexFees+=row.opexFees; current.netProfit+=row.netProfit;
+
+            hierarchyKeys.forEach((key, idx) => {
+                let val = row[key] || 'Unknown';
+                if (!current.children[val]) {
+                    current.children[val] = { name: val, level: key, qty: 0, netRev: 0, cogs: 0, grossProfit: 0, opexFees: 0, netProfit: 0, children: {} };
+                }
+                current = current.children[val];
+                current.qty+=row.qty; current.netRev+=row.netRev; current.cogs+=row.cogs; 
+                current.grossProfit+=row.grossProfit; current.opexFees+=row.opexFees; current.netProfit+=row.netProfit;
+            });
+        });
+
+        // DEDUCT FIXED CASH FROM CLIENT/SEGMENT NODES (Option B)
+        Object.keys(clientProfiles).forEach(clientName => {
+            let prCash = clientProfiles[clientName].proratedCash;
+            if (prCash <= 0) return;
+            
+            tree.opexFees += prCash; 
+            tree.netProfit -= prCash; 
+            
+            if (groupBy === 'segment') {
+                let clientNodeInfo = filtered.find(r => r.client === clientName);
+                if (clientNodeInfo && tree.children[clientNodeInfo.segment]) {
+                    tree.children[clientNodeInfo.segment].opexFees += prCash;
+                    tree.children[clientNodeInfo.segment].netProfit -= prCash;
+                    if (tree.children[clientNodeInfo.segment].children[clientName]) {
+                        tree.children[clientNodeInfo.segment].children[clientName].opexFees += prCash;
+                        tree.children[clientNodeInfo.segment].children[clientName].netProfit -= prCash;
+                    }
+                }
+            } else {
+                if (tree.children[clientName]) {
+                    tree.children[clientName].opexFees += prCash;
+                    tree.children[clientName].netProfit -= prCash;
+                }
+            }
+        });
+
+        // APPLY GLOBAL OPEX AT THE VERY TOP ROOT ONLY
+        tree.opexFees += totalOverheadsEgp;
+        tree.netProfit -= totalOverheadsEgp;
+
+        appState.profitHierarchy = tree; // Cache for export
+
+        // ==========================================
+        // 7. RENDER RECURSIVE TABLE HTML
+        // ==========================================
+        let tableHtml = `
+            <thead class="table-light border-bottom border-2 text-muted shadow-sm" style="font-size: 0.75rem; position: sticky; top: 0; z-index: 10;">
+                <tr>
+                    <th class="ps-4 py-3 fw-bold">HIERARCHY</th>
+                    <th class="text-center py-3 fw-bold">VOL</th>
+                    <th class="text-end py-3 fw-bold text-primary">NET REV</th>
+                    <th class="text-end py-3 fw-bold text-danger">COGS</th>
+                    <th class="text-end py-3 fw-bold text-info">GROSS P.</th>
+                    <th class="text-end py-3 fw-bold text-info">GM%</th>
+                    <th class="text-end py-3 fw-bold text-secondary">OPEX+FEE</th>
+                    <th class="text-end py-3 fw-bold text-success">NET P.</th>
+                    <th class="text-end pe-4 py-3 fw-bold text-success">NM%</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+
+        function renderNode(node, depth, parentId) {
+            let sortedKeys = Object.keys(node.children).sort((a,b) => node.children[b].netRev - node.children[a].netRev);
+
+            sortedKeys.forEach((k, i) => {
+                let child = node.children[k];
+                let gMargin = child.netRev > 0 ? (child.grossProfit / child.netRev * 100).toFixed(1) + "%" : "0%";
+                let nMargin = child.netRev > 0 ? (child.netProfit / child.netRev * 100).toFixed(1) + "%" : "0%";
+                let nodeId = parentId ? `${parentId}-${i}` : `pn-${i}`;
+                
+                let indent = depth * 1.5;
+                let bgClass = depth === 0 ? 'bg-light' : 'bg-white';
+                let borderClass = depth === 0 ? 'border-bottom border-2 border-secondary' : 'border-bottom border-light';
+                let displayClass = depth === 0 ? '' : 'd-none';
+
+                let icon = '';
+                let evaluatorBtn = '';
+                if (child.level === 'segment') icon = '<i class="fas fa-layer-group text-primary me-2"></i>';
+                else if (child.level === 'client') {
+                    icon = '<i class="fas fa-building text-secondary me-2"></i>';
+                    // Inject Evaluator Magnifying Glass
+                    evaluatorBtn = `<i class="fas fa-search-dollar text-primary ms-3 shadow-sm rounded-circle bg-white p-1" style="font-size:0.9rem;" title="Evaluate Profitability" onclick="event.stopPropagation(); openClientSimulator('${child.name.replace(/'/g, "\\'")}')"></i>`;
+                }
+                else if (child.level === 'branch') icon = '<i class="fas fa-store text-muted me-2"></i>';
+                else if (child.level === 'product') icon = '<i class="fas fa-box text-muted me-2 opacity-50"></i>';
+
+                let isProduct = child.level === 'product';
+                let rowStyle = isProduct ? 'background-color:#f8fafc;' : bgClass;
+                let textFmt = isProduct ? 'text-muted opacity-75 font-size:0.75rem;' : 'font-size:0.75rem;';
+
+                tableHtml += `
+                <tr class="${rowStyle} ${borderClass} ${displayClass}" id="${nodeId}" data-parent="${parentId}" style="cursor:pointer;" onclick="toggleProfitRow('${nodeId}')">
+                    <td class="py-2" style="padding-left: ${indent + 1}rem;">
+                        ${isProduct ? '' : `<i class="fas fa-chevron-right me-2 text-muted" id="icon-${nodeId}" style="width:12px; font-size:0.75rem;"></i>`}
+                        ${icon}<span class="fw-bold ${isProduct ? 'text-muted' : 'text-dark'}" style="font-size:0.8rem;">${child.name}</span>${evaluatorBtn}
+                    </td>
+                    <td class="text-center py-2 fw-bold text-dark" style="${textFmt}">${fmt.format(child.qty)}</td>
+                    <td class="text-end py-2 fw-bold text-primary" style="${textFmt}">${fmt.format(child.netRev)}</td>
+                    <td class="text-end py-2 fw-bold text-danger" style="${textFmt}">${fmt.format(child.cogs)}</td>
+                    <td class="text-end py-2 fw-bold text-info" style="${textFmt}">${fmt.format(child.grossProfit)}</td>
+                    <td class="text-end py-2 fw-bold text-info bg-info bg-opacity-10" style="${textFmt}">${gMargin}</td>
+                    <td class="text-end py-2 fw-bold text-secondary" style="${textFmt}">${fmt.format(child.opexFees)}</td>
+                    <td class="text-end py-2 fw-bold text-success" style="${textFmt}">${fmt.format(child.netProfit)}</td>
+                    <td class="text-end pe-4 py-2 fw-bold text-success bg-success bg-opacity-10" style="${textFmt}">${nMargin}</td>
+                </tr>`;
+
+                if (!isProduct && child.children && Object.keys(child.children).length > 0) {
+                    renderNode(child, depth + 1, nodeId);
+                }
+            });
+        }
+        
+        renderNode(tree, 0, '');
+        if (Object.keys(tree.children).length === 0) tableHtml += `<tr><td colspan="9" class="text-center py-5 text-muted">No sales match these filters.</td></tr>`;
+        
+        // Add Grand Total Row to bottom of table
+        let rootGM = tree.netRev > 0 ? (tree.grossProfit / tree.netRev * 100).toFixed(1) + "%" : "0%";
+        let rootNM = tree.netRev > 0 ? (tree.netProfit / tree.netRev * 100).toFixed(1) + "%" : "0%";
+        tableHtml += `
+            <tr class="bg-dark text-white border-top border-3 border-dark">
+                <td class="py-3 ps-4 fw-bold"><i class="fas fa-globe me-2"></i>GRAND TOTAL (INCL. GLOBAL OPEX)</td>
+                <td class="text-center py-3 fw-bold" style="font-size:0.8rem;">${fmt.format(tree.qty)}</td>
+                <td class="text-end py-3 fw-bold" style="font-size:0.8rem;">${fmt.format(tree.netRev)}</td>
+                <td class="text-end py-3 fw-bold" style="font-size:0.8rem;">${fmt.format(tree.cogs)}</td>
+                <td class="text-end py-3 fw-bold" style="font-size:0.8rem;">${fmt.format(tree.grossProfit)}</td>
+                <td class="text-end py-3 fw-bold text-info" style="font-size:0.8rem;">${rootGM}</td>
+                <td class="text-end py-3 fw-bold" style="font-size:0.8rem;">${fmt.format(tree.opexFees)}</td>
+                <td class="text-end py-3 fw-bold" style="font-size:0.8rem;">${fmt.format(tree.netProfit)}</td>
+                <td class="text-end pe-4 py-3 fw-bold text-success" style="font-size:0.8rem;">${rootNM}</td>
+            </tr>
+        `;
+        tableHtml += `</tbody>`;
+
+        document.getElementById('profit-table-body').innerHTML = tableHtml;
+    }
+
+    // ==========================================
+    // CLIENT PROFITABILITY EVALUATOR (MODAL LOGIC)
+    // ==========================================
+    window.openClientSimulator = function(clientName) {
+        let dStart = new Date(document.getElementById('profit-date-start').value).getTime();
+        let dEnd = new Date(document.getElementById('profit-date-end').value).getTime() + 86399000;
+        let daysInPeriod = Math.max(1, Math.round((dEnd - dStart) / 86400000));
+        
+        let clientDataRaw = appState.profitData.filter(r => r.client === clientName && r.dateMs >= dStart && r.dateMs <= dEnd);
+        
+        // 1. Fetch ALL Contract Rows for this Client
+        let clientContracts = [];
+        if (appState.profitContracts) {
+            clientContracts = appState.profitContracts.filter(c => c.client === clientName);
+        }
+
+        // Set Client Name & Date Range
+        document.getElementById('sim-client-name').innerText = clientName;
+        document.getElementById('sim-date-range').innerText = `(${document.getElementById('profit-date-start').value} to ${document.getElementById('profit-date-end').value})`;
+        
+        // 2. Build the Contract Matrix UI (Matching Spreadsheet)
+        let matrixHtml = '';
+        let totalProratedCashForModal = 0;
+        let processedCashTiers = new Set(); // Prevent duplicate cash additions if client has 2 rows with same cash
+
+        if (clientContracts.length === 0) {
+            matrixHtml = `<tr><td colspan="5" class="text-center text-muted py-3">No active contracts found for this client.</td></tr>`;
+        } else {
+            clientContracts.forEach(c => {
+                let checkTawoos = c.isTawoos ? '<i class="fas fa-check-square text-success"></i>' : '<i class="far fa-square text-muted"></i>';
+                let checkPrivate = c.isPrivate ? '<i class="fas fa-check-square text-success"></i>' : '<i class="far fa-square text-muted"></i>';
+                
+                let cDiscStr = (c.contractDisc * 100).toFixed(1) + "%";
+                let iDiscStr = (c.invoiceDisc * 100).toFixed(1) + "%";
+                let cashStr = new Intl.NumberFormat('en-US').format(c.cash);
+
+                if (c.cash > 0 && !processedCashTiers.has(c.cash)) {
+                    totalProratedCashForModal += (c.cash / 365) * daysInPeriod;
+                    processedCashTiers.add(c.cash);
+                }
+
+                matrixHtml += `
+                <tr class="bg-white">
+                    <td class="text-center py-2">${checkTawoos}</td>
+                    <td class="text-center py-2">${checkPrivate}</td>
+                    <td class="text-center py-2 fw-bold text-danger">${cDiscStr}</td>
+                    <td class="text-center py-2 fw-bold text-danger">${iDiscStr}</td>
+                    <td class="text-end pe-4 py-2 fw-bold text-primary">${cashStr}</td>
+                </tr>`;
+            });
+        }
+        document.getElementById('sim-contract-matrix').innerHTML = matrixHtml;
+        document.getElementById('sim-fees').innerText = new Intl.NumberFormat('en-US').format(totalProratedCashForModal) + " EGP";
+
+        // 3. Aggregate Product Level Math & Find "Latest"
+        let products = {};
+        let tVol=0, tRev=0, tCogs=0, tGross=0;
+
+        clientDataRaw.forEach(r => {
+            // Find specific contract match for the transaction
+            let match = clientContracts.find(c => {
+                if (r.line === 'OWN PRODUCT' && c.isTawoos) return true;
+                if (r.line === 'Private Label' && c.isPrivate) return true;
+                return false;
+            }) || clientContracts[0] || { contractDisc: 0, invoiceDisc: 0 }; // Fallback
+
+            let cDiscVal = r.grossRev * match.contractDisc;
+            let iDiscVal = r.grossRev * match.invoiceDisc;
+            let itemNetRev = r.grossRev - cDiscVal - iDiscVal;
+            
+            let itemCogs = r.unitCost * r.qty;
+            let itemGross = itemNetRev - itemCogs;
+            
+            tVol += r.qty; tRev += r.grossRev; tCogs += itemCogs; tGross += itemGross;
+
+            if (!products[r.product]) {
+                products[r.product] = { 
+                    name: r.product, qty: 0, grossRev: 0, cogs: 0, gross: 0, 
+                    latestDateMs: 0, latestGrossRev: 0, latestQty: 0, latestUnitCost: 0, 
+                    cDiscPct: match.contractDisc, iDiscPct: match.invoiceDisc 
+                };
+            }
+            let p = products[r.product];
+            p.qty += r.qty; p.grossRev += r.grossRev; p.cogs += itemCogs; p.gross += itemGross;
+
+            // Track latest transaction
+            if (r.dateMs > p.latestDateMs) {
+                p.latestDateMs = r.dateMs;
+                p.latestGrossRev = r.grossRev;
+                p.latestQty = r.qty;
+                p.latestUnitCost = r.unitCost;
+            }
+        });
+
+        let tNet = tGross - totalProratedCashForModal;
+        const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+        
+        document.getElementById('sim-vol').innerText = fmt.format(tVol);
+        document.getElementById('sim-gross-rev').innerText = fmt.format(tRev);
+        document.getElementById('sim-gross-profit').innerText = fmt.format(tGross);
+        document.getElementById('sim-net').innerText = fmt.format(tNet);
+
+        // 4. Build Side-by-Side Tables
+        let breakdownHtml = '';
+        let simulatorHtml = '';
+        
+        Object.values(products).sort((a,b) => b.grossRev - a.grossRev).forEach((p, idx) => {
+            let latestGrossPrice = p.latestQty > 0 ? (p.latestGrossRev / p.latestQty) : 0;
+            let avgGrossPrice = p.qty > 0 ? (p.grossRev / p.qty) : 0;
+            let latestCost = p.latestUnitCost;
+            let avgCost = p.qty > 0 ? (p.cogs / p.qty) : 0;
+            
+            let cDiscDisplay = (p.cDiscPct * 100).toFixed(1) + "%";
+            let iDiscDisplay = (p.iDiscPct * 100).toFixed(1) + "%";
+            
+            // Baseline Profit Margins
+            let actualNetRev = p.grossRev * (1 - (p.cDiscPct + p.iDiscPct));
+            let gMargin = actualNetRev > 0 ? (p.gross / actualNetRev * 100).toFixed(1) + "%" : "0%";
+            
+            // TABLE 1: MAIN BREAKDOWN (Fixed 55px height for strict horizontal alignment)
+            breakdownHtml += `
+            <tr class="bg-white" style="height: 55px;">
+                <td class="ps-3 fw-bold text-secondary text-truncate" style="max-width: 140px;" title="${p.name}">${p.name}</td>
+                <td class="text-center fw-bold text-dark">${fmt.format(p.qty)}</td>
+                <td class="text-end fw-bold text-primary">${fmt.format(p.grossRev)}</td>
+                <td class="text-end">
+                    <div class="fw-bold text-danger">${fmt.format(latestCost)}</div>
+                    <div class="text-muted opacity-75" style="font-size:0.6rem;">Avg: ${fmt.format(avgCost)}</div>
+                </td>
+                <td class="text-end">
+                    <div class="fw-bold text-primary">${fmt.format(latestGrossPrice)}</div>
+                    <div class="text-muted opacity-75" style="font-size:0.6rem;">Avg: ${fmt.format(avgGrossPrice)}</div>
+                </td>
+                <td class="text-end text-danger">${iDiscDisplay}</td>
+                <td class="text-end text-danger">${cDiscDisplay}</td>
+                <td class="text-end pe-3">
+                    <div class="fw-bold text-success">${fmt.format(p.gross)}</div>
+                    <div class="text-success opacity-75 fw-bold" style="font-size:0.65rem;">${gMargin}</div>
+                </td>
+            </tr>`;
+
+            // TABLE 2: SIMULATOR (Fixed 55px height)
+            let simCogs = p.latestUnitCost * p.qty;
+            let simGrossRev = latestGrossPrice * p.qty;
+            let simNetRev = simGrossRev * (1 - (p.cDiscPct + p.iDiscPct));
+            let simGrossProfit = simNetRev - simCogs;
+            let simGMargin = simNetRev > 0 ? (simGrossProfit / simNetRev * 100).toFixed(1) + "%" : "0%";
+
+            if (!window.simState) window.simState = {};
+            window.simState[`sim-row-${idx}`] = { 
+                qty: p.qty, 
+                latestCogs: p.latestUnitCost, 
+                latestGrossPrice: latestGrossPrice,
+                cDiscPct: p.cDiscPct,
+                iDiscPct: p.iDiscPct 
+            };
+
+            simulatorHtml += `
+            <tr class="bg-white" style="height: 55px;">
+                <td class="text-end border-start align-middle" style="border-color: #fd7e14 !important; background-color: rgba(253, 126, 20, 0.1);">
+                    <input type="number" step="0.5" class="form-control form-control-sm text-end fw-bold" 
+                           style="color: #fd7e14; border-color: #fd7e14;"
+                           value="" placeholder="${latestGrossPrice.toFixed(2)}" 
+                           onkeyup="recalcSimRow('sim-row-${idx}', this.value)" 
+                           onchange="recalcSimRow('sim-row-${idx}', this.value)">
+                </td>
+                <td class="text-end pe-3 bg-success bg-opacity-10 align-middle" id="sim-res-container-${idx}">
+                    <div class="fw-bold text-success" id="sim-res-val-${idx}">${fmt.format(simGrossProfit)}</div>
+                    <div class="text-success fw-bold opacity-75" style="font-size:0.65rem;" id="sim-res-pct-${idx}">${simGMargin}</div>
+                </td>
+            </tr>`;
+        });
+
+        document.getElementById('sim-breakdown-table-body').innerHTML = breakdownHtml;
+        document.getElementById('sim-simulator-table-body').innerHTML = simulatorHtml;
+
+        let myModal = new bootstrap.Modal(document.getElementById('clientSimulatorModal'));
+        myModal.show();
+    };
+
+    // We only need ONE clean recalc function that updates the split DOM structure.
+    window.recalcSimRow = function(rowId, newGrossPriceStr) {
+        let state = window.simState[rowId];
+        // If the user clears the input box, fallback to the original latest price
+        let newGrossPrice = newGrossPriceStr === "" ? state.latestGrossPrice : (parseFloat(newGrossPriceStr) || 0);
+        
+        let simGrossRev = newGrossPrice * state.qty;
+        let simNetRev = simGrossRev * (1 - (state.cDiscPct + state.iDiscPct));
+        let simCogs = state.latestCogs * state.qty;
+        let simGrossProfit = simNetRev - simCogs;
+        let simGMargin = simNetRev > 0 ? (simGrossProfit / simNetRev * 100).toFixed(1) : 0;
+
+        let rowIdx = rowId.split('-')[2];
+        let valCell = document.getElementById('sim-res-val-' + rowIdx);
+        let pctCell = document.getElementById('sim-res-pct-' + rowIdx);
+        let container = document.getElementById('sim-res-container-' + rowIdx);
+
+        valCell.innerText = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(simGrossProfit);
+        pctCell.innerText = simGMargin + "%";
+        
+        let oldValStr = valCell.getAttribute('data-original');
+        if (!oldValStr) {
+            oldValStr = valCell.innerText.replace(/,/g, '');
+            valCell.setAttribute('data-original', oldValStr);
+        }
+        
+        let oldVal = parseFloat(valCell.getAttribute('data-original')) || 0;
+        if (simGrossProfit > oldVal) {
+            valCell.className = "fw-bold text-success";
+            pctCell.className = "text-success fw-bold opacity-75";
+            container.className = "text-end pe-3 bg-success bg-opacity-10 align-middle";
+        } else if (simGrossProfit < oldVal) {
+            valCell.className = "fw-bold text-danger";
+            pctCell.className = "text-danger fw-bold opacity-75";
+            container.className = "text-end pe-3 bg-danger bg-opacity-10 align-middle";
+        } else {
+            valCell.className = "fw-bold text-muted";
+            pctCell.className = "text-secondary fw-bold opacity-75";
+            container.className = "text-end pe-3 bg-light align-middle";
+        }
+    };
+
+    // Safely execute print dialog based on user's layout choice
+    window.printModal = function(mode) {
+        let modal = document.getElementById('clientSimulatorModal');
+        let originalParent = modal.parentNode;
+        let originalNextSibling = modal.nextSibling;
+        
+        // 1. Move modal directly to root body to avoid parent padding/heights
+        document.body.appendChild(modal);
+
+        // 2. Hide all other elements in the body
+        for (let i = 0; i < document.body.children.length; i++) {
+            if (document.body.children[i] !== modal && document.body.children[i].tagName !== 'SCRIPT') {
+                document.body.children[i].classList.add('temp-hide-for-print');
+            }
+        }
+        
+        // 3. Apply layout classes
+        document.body.classList.add('printing-modal');
+        if (mode === 'main') document.body.classList.add('print-main-only');
+        else document.body.classList.add('print-both');
+        
+        // 4. Trigger Print
+        window.print();
+        
+        // 5. Restore normal state
+        setTimeout(() => {
+            document.body.classList.remove('printing-modal', 'print-main-only', 'print-both');
+            for (let i = 0; i < document.body.children.length; i++) {
+                document.body.children[i].classList.remove('temp-hide-for-print');
+            }
+            // Put modal back where it belongs
+            if (originalNextSibling) originalParent.insertBefore(modal, originalNextSibling);
+            else originalParent.appendChild(modal);
+        }, 1000);
+    };
+    window.toggleProfitRow = function(rowId) {
+        let icon = document.getElementById('icon-' + rowId);
+        if (!icon) return; // Products don't have toggles
+        let isExpanding = icon.classList.contains('fa-chevron-right');
+
+        if (isExpanding) {
+            icon.classList.replace('fa-chevron-right', 'fa-chevron-down');
+            document.querySelectorAll(`[data-parent="${rowId}"]`).forEach(r => r.classList.remove('d-none'));
+        } else {
+            icon.classList.replace('fa-chevron-down', 'fa-chevron-right');
+            const hideDescendants = (parentId) => {
+                document.querySelectorAll(`[data-parent="${parentId}"]`).forEach(sub => {
+                    sub.classList.add('d-none');
+                    let childId = sub.getAttribute('id');
+                    if (childId) {
+                        let childIcon = document.getElementById('icon-' + childId);
+                        if (childIcon && childIcon.classList.contains('fa-chevron-down')) {
+                            childIcon.classList.replace('fa-chevron-down', 'fa-chevron-right');
+                        }
+                        hideDescendants(childId);
+                    }
+                });
+            };
+            hideDescendants(rowId);
+        }
+    };
+
+    window.exportProfitToExcel = function() {
+        if (!appState.profitHierarchy || Object.keys(appState.profitHierarchy.children).length === 0) {
+            alert("No data to export."); return;
+        }
+        
+        let btn = document.getElementById('btn-export-profit');
+        let origHtml = btn.innerHTML;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Exporting...`;
+        btn.disabled = true;
+
+        google.script.run.withSuccessHandler(res => {
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+            let iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = res.url;
+            document.body.appendChild(iframe);
+            setTimeout(() => { document.body.removeChild(iframe); }, 10000);
+        }).withFailureHandler(err => {
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+            alert("Export failed: " + err.message);
+        }).generateProfitabilityExportUrl(JSON.stringify(appState.profitHierarchy));
+    };
+
+    // ==========================================
+    // BULK PRINT ENGINE (SEGMENTS & FIXES)
+    // ==========================================
+    window.openBulkPrintModal = function() {
+        let dStart = new Date(document.getElementById('profit-date-start').value).getTime();
+        let dEnd = new Date(document.getElementById('profit-date-end').value).getTime() + 86399000;
+        
+        // 1. Group active clients by Segment
+        let segmentMap = {};
+        appState.profitData.forEach(r => {
+            if (r.dateMs >= dStart && r.dateMs <= dEnd) {
+                let seg = r.segment || 'Uncategorized';
+                if (!segmentMap[seg]) segmentMap[seg] = new Set();
+                segmentMap[seg].add(r.client);
+            }
+        });
+
+        let listHtml = '';
+        // Using an index (segIndex) guarantees a perfectly unique ID regardless of Arabic/English characters
+        Object.keys(segmentMap).sort().forEach((seg, segIndex) => {
+            let clients = Array.from(segmentMap[seg]).sort();
+            let segSafe = 'idx_' + segIndex; 
+            
+            listHtml += `
+            <div class="bulk-segment-group mb-2 border border-secondary border-opacity-25 rounded-3 overflow-hidden shadow-sm">
+                <div class="bg-light p-2 border-bottom d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-dark"><i class="fas fa-layer-group text-primary me-2"></i>${seg}</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" onclick="toggleSegment('${segSafe}')">Select All</button>
+                </div>
+                <div class="segment-clients p-2" id="seg-${segSafe}">`;
+            
+            clients.forEach(c => {
+                let safeName = c.replace(/"/g, '&quot;');
+                listHtml += `
+                <label class="list-group-item d-flex gap-3 align-items-center py-1 border-0 client-label" style="cursor:pointer; background: transparent;">
+                    <input class="form-check-input flex-shrink-0 bulk-client-cb seg-cb-${segSafe}" type="checkbox" value="${safeName}">
+                    <span class="fw-bold text-secondary" style="font-size:0.85rem;">${c}</span>
+                </label>`;
+            });
+            listHtml += `</div></div>`;
+        });
+        
+        document.getElementById('bulk-client-list').innerHTML = listHtml;
+        new bootstrap.Modal(document.getElementById('bulkPrintModal')).show();
+    };
+
+    window.filterBulkClients = function() {
+        let term = document.getElementById('bulk-client-search').value.toLowerCase();
+        let labels = document.querySelectorAll('#bulk-client-list .client-label');
+        
+        labels.forEach(lbl => {
+            let txt = lbl.innerText.toLowerCase();
+            lbl.style.setProperty('display', txt.includes(term) ? 'flex' : 'none', 'important');
+        });
+
+        // Hide entirely empty segment boxes
+        document.querySelectorAll('.bulk-segment-group').forEach(group => {
+            let hasVisible = Array.from(group.querySelectorAll('.client-label')).some(lbl => lbl.style.display !== 'none');
+            group.style.display = hasVisible ? 'block' : 'none';
+        });
+    };
+
+    window.toggleSegment = function(segId) {
+        let cbs = document.querySelectorAll('.seg-cb-' + segId);
+        let visibleCbs = Array.from(cbs).filter(cb => cb.closest('label').style.display !== 'none');
+        if (visibleCbs.length === 0) return;
+        
+        let allChecked = visibleCbs.every(cb => cb.checked);
+        visibleCbs.forEach(cb => cb.checked = !allChecked);
+    };
+
+    window.toggleAllBulkClients = function() {
+        let labels = document.querySelectorAll('#bulk-client-list .client-label');
+        let visibleCbs = [];
+        labels.forEach(lbl => {
+            if (lbl.style.display !== 'none') {
+                let cb = lbl.querySelector('.bulk-client-cb');
+                if (cb) visibleCbs.push(cb);
+            }
+        });
+        
+        if (visibleCbs.length === 0) return;
+        let allChecked = visibleCbs.every(cb => cb.checked);
+        visibleCbs.forEach(cb => cb.checked = !allChecked);
+    };
+
+    window.executeBulkPrint = function() {
+        let selected = Array.from(document.querySelectorAll('.bulk-client-cb:checked')).map(cb => cb.value);
+        if (selected.length === 0) { alert("Please select at least one client."); return; }
+        
+        let dStart = new Date(document.getElementById('profit-date-start').value).getTime();
+        let dEnd = new Date(document.getElementById('profit-date-end').value).getTime() + 86399000;
+        let daysInPeriod = Math.max(1, Math.round((dEnd - dStart) / 86400000));
+        let dateRangeStr = `(${document.getElementById('profit-date-start').value} to ${document.getElementById('profit-date-end').value})`;
+        const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+
+        let bulkHtml = '';
+
+        selected.forEach(clientName => {
+            let clientDataRaw = appState.profitData.filter(r => r.client === clientName && r.dateMs >= dStart && r.dateMs <= dEnd);
+            let clientContracts = appState.profitContracts ? appState.profitContracts.filter(c => c.client === clientName) : [];
+
+            let matrixHtml = '';
+            let totalProratedCash = 0;
+            let processedCashTiers = new Set();
+
+            if (clientContracts.length === 0) {
+                matrixHtml = `<tr><td colspan="5" class="text-center text-muted py-2">No active contracts found.</td></tr>`;
+            } else {
+                clientContracts.forEach(c => {
+                    if (c.cash > 0 && !processedCashTiers.has(c.cash)) {
+                        totalProratedCash += (c.cash / 365) * daysInPeriod;
+                        processedCashTiers.add(c.cash);
+                    }
+                    matrixHtml += `
+                    <tr>
+                        <td class="text-center py-1">${c.isTawoos ? '✓' : '-'}</td>
+                        <td class="text-center py-1">${c.isPrivate ? '✓' : '-'}</td>
+                        <td class="text-center py-1 fw-bold text-danger">${(c.contractDisc*100).toFixed(1)}%</td>
+                        <td class="text-center py-1 fw-bold text-danger">${(c.invoiceDisc*100).toFixed(1)}%</td>
+                        <td class="text-end pe-3 py-1 fw-bold text-primary">${fmt.format(c.cash)}</td>
+                    </tr>`;
+                });
+            }
+
+            let products = {};
+            let tVol=0, tRev=0, tCogs=0, tGross=0;
+
+            clientDataRaw.forEach(r => {
+                let match = clientContracts.find(c => {
+                    if (r.line === 'OWN PRODUCT' && c.isTawoos) return true;
+                    if (r.line === 'Private Label' && c.isPrivate) return true;
+                    return false;
+                }) || clientContracts[0] || { contractDisc: 0, invoiceDisc: 0 }; 
+
+                let cDiscVal = r.grossRev * match.contractDisc;
+                let iDiscVal = r.grossRev * match.invoiceDisc;
+                let itemNetRev = r.grossRev - cDiscVal - iDiscVal;
+                let itemCogs = r.unitCost * r.qty;
+                let itemGross = itemNetRev - itemCogs;
+                
+                tVol += r.qty; tRev += r.grossRev; tCogs += itemCogs; tGross += itemGross;
+
+                if (!products[r.product]) {
+                    products[r.product] = { name: r.product, qty: 0, grossRev: 0, cogs: 0, gross: 0, latestDateMs: 0, latestGrossRev: 0, latestQty: 0, latestUnitCost: 0, cDiscPct: match.contractDisc, iDiscPct: match.invoiceDisc };
+                }
+                let p = products[r.product];
+                p.qty += r.qty; p.grossRev += r.grossRev; p.cogs += itemCogs; p.gross += itemGross;
+
+                if (r.dateMs > p.latestDateMs) {
+                    p.latestDateMs = r.dateMs; p.latestGrossRev = r.grossRev; p.latestQty = r.qty; p.latestUnitCost = r.unitCost;
+                }
+            });
+
+            let tNet = tGross - totalProratedCash;
+
+            let breakdownHtml = '';
+            Object.values(products).sort((a,b) => b.grossRev - a.grossRev).forEach(p => {
+                let latestGrossPrice = p.latestQty > 0 ? (p.latestGrossRev / p.latestQty) : 0;
+                let avgGrossPrice = p.qty > 0 ? (p.grossRev / p.qty) : 0;
+                let latestCost = p.latestUnitCost;
+                let avgCost = p.qty > 0 ? (p.cogs / p.qty) : 0;
+                
+                let actualNetRev = p.grossRev * (1 - (p.cDiscPct + p.iDiscPct));
+                let gMargin = actualNetRev > 0 ? (p.gross / actualNetRev * 100).toFixed(1) + "%" : "0%";
+
+                breakdownHtml += `
+                <tr style="height: 45px; border-bottom: 1px solid #e2e8f0;">
+                    <td class="ps-2 fw-bold text-secondary text-truncate" style="max-width: 150px; font-size: 0.75rem;">${p.name}</td>
+                    <td class="text-center fw-bold text-dark" style="font-size: 0.75rem;">${fmt.format(p.qty)}</td>
+                    <td class="text-end fw-bold text-primary" style="font-size: 0.75rem;">${fmt.format(p.grossRev)}</td>
+                    <td class="text-end" style="font-size: 0.75rem;">
+                        <div class="fw-bold text-danger">${fmt.format(latestCost)}</div>
+                        <div class="text-muted" style="font-size:0.6rem;">Avg: ${fmt.format(avgCost)}</div>
+                    </td>
+                    <td class="text-end" style="font-size: 0.75rem;">
+                        <div class="fw-bold text-primary">${fmt.format(latestGrossPrice)}</div>
+                        <div class="text-muted" style="font-size:0.6rem;">Avg: ${fmt.format(avgGrossPrice)}</div>
+                    </td>
+                    <td class="text-end text-danger" style="font-size: 0.75rem;">${(p.iDiscPct * 100).toFixed(1)}%</td>
+                    <td class="text-end text-danger" style="font-size: 0.75rem;">${(p.cDiscPct * 100).toFixed(1)}%</td>
+                    <td class="text-end pe-2" style="font-size: 0.75rem;">
+                        <div class="fw-bold text-success">${fmt.format(p.gross)}</div>
+                        <div class="text-success fw-bold" style="font-size:0.6rem;">${gMargin}</div>
+                    </td>
+                </tr>`;
+            });
+
+            bulkHtml += `
+            <div class="client-print-page p-4">
+                <h4 class="fw-bold text-dark mb-3"><i class="fas fa-chart-pie text-danger me-2"></i>Client Evaluator: <span class="text-danger">${clientName}</span> <span class="ms-2 fs-6 text-muted fw-normal">${dateRangeStr}</span></h4>
+                
+                <div class="row g-3 mb-3">
+                    <div class="col-5">
+                        <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 0.7rem;">
+                            <thead class="table-warning text-dark text-center">
+                                <tr>
+                                    <th colspan="2" class="py-1">Brand</th>
+                                    <th rowspan="2" class="py-1 align-middle">Contract</th>
+                                    <th rowspan="2" class="py-1 align-middle">Invoice</th>
+                                    <th rowspan="2" class="py-1 align-middle">Cash</th>
+                                </tr>
+                                <tr><th class="py-0">Tawoos</th><th class="py-0">Private</th></tr>
+                            </thead>
+                            <tbody>${matrixHtml}</tbody>
+                        </table>
+                    </div>
+                    <div class="col-7">
+                        <div class="p-2 bg-light border rounded-3 d-flex justify-content-between align-items-center text-center">
+                            <div class="px-2 border-end"><div class="text-muted" style="font-size:0.6rem;">VOL</div><div class="fw-bold text-secondary fs-6">${fmt.format(tVol)}</div></div>
+                            <div class="px-2 border-end"><div class="text-muted" style="font-size:0.6rem;">REVENUE</div><div class="fw-bold text-primary fs-6">${fmt.format(tRev)}</div></div>
+                            <div class="px-2 border-end"><div class="text-muted" style="font-size:0.6rem;">GROSS PROFIT</div><div class="fw-bold text-success fs-6">${fmt.format(tGross)}</div></div>
+                            <div class="px-2 border-end"><div class="text-muted" style="font-size:0.6rem;">FEE</div><div class="fw-bold text-danger fs-6">${fmt.format(totalProratedCash)}</div></div>
+                            <div class="px-2"><div class="text-muted" style="font-size:0.6rem;">NET PROFIT</div><div class="fw-bold text-success fs-6">${fmt.format(tNet)}</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <table class="table align-middle" style="font-size: 0.75rem; width: 100%;">
+                    <thead style="border-bottom: 2px solid #cbd5e1;">
+                        <tr>
+                            <th class="ps-2 py-2 text-muted fw-bold">PRODUCT</th>
+                            <th class="text-center py-2 text-muted fw-bold">QTY</th>
+                            <th class="text-end py-2 text-muted fw-bold">REVENUE</th>
+                            <th class="text-end py-2 text-muted fw-bold">UNIT COST</th>
+                            <th class="text-end py-2 text-muted fw-bold">UNIT PRICE</th>
+                            <th class="text-end py-2 text-muted fw-bold">I. DISC</th>
+                            <th class="text-end py-2 text-muted fw-bold">C. DISC</th>
+                            <th class="text-end pe-2 py-2 text-success fw-bold">GROSS PROFIT</th>
+                        </tr>
+                    </thead>
+                    <tbody>${breakdownHtml}</tbody>
+                </table>
+            </div>`;
+        });
+
+        let container = document.getElementById('bulk-print-container');
+        container.innerHTML = bulkHtml;
+
+        // CRITICAL FIX: Close modal instantly to remove Bootstrap's body locks
+        let modalEl = document.getElementById('bulkPrintModal');
+        let modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+
+        // Remove locking classes immediately
+        document.body.classList.remove('modal-open');
+        document.body.style.paddingRight = '';
+        
+        // Safely move container to direct body child
+        document.body.appendChild(container);
+
+        // Wait 500ms for Bootstrap fade animation to completely vanish
+        setTimeout(() => {
+            // Hide everything else
+            for (let i = 0; i < document.body.children.length; i++) {
+                let child = document.body.children[i];
+                if (child.id !== 'bulk-print-container' && child.tagName !== 'SCRIPT' && child.tagName !== 'STYLE') {
+                    child.classList.add('temp-hide-for-print');
+                }
+            }
+            
+            document.body.classList.add('printing-bulk');
+            
+            window.print();
+            
+            // Restore normal state
+            document.body.classList.remove('printing-bulk');
+            document.querySelectorAll('.temp-hide-for-print').forEach(el => el.classList.remove('temp-hide-for-print'));
+            container.innerHTML = ''; 
+        }, 500);
     };
   </script>
 </body>
