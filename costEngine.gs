@@ -302,17 +302,16 @@ function syncCostLedger() {
   const productsSheet = ss.getSheetByName("Products");
   const maps = buildCostEngineMaps();
 
-  // NEW: EXTRACT PRODUCT VAT RATIOS (Maps concise name to VAT Rate)
+  // 1. EXTRACT PRODUCT VAT RATIOS
   const prodData = productsSheet.getDataRange().getValues();
   let productVatMap = {};
   for (let i = 1; i < prodData.length; i++) {
-     // FIX: Use Column B (Index 1) for the Concise Name to match the Pallets sheet
      let pName = String(prodData[i][1]).trim(); 
-     let pVat = Number(prodData[i][6]) || 0; // Col G is the VAT Rate
+     let pVat = Number(prodData[i][6]) || 0;
      if (pName) productVatMap[pName] = pVat;
   }
 
-  // 1. GATHER DATES AND TRACK MATS
+  // 2. GATHER MATERIAL PURCHASE & MARKET PRICE DATES
   let dateToMats = {}; 
   let eventDates = new Set();
 
@@ -336,27 +335,93 @@ function syncCostLedger() {
     processPriceMap(maps.marketPrices.bySpecId || {});
   }
 
-  let sortedDatesMs = Array.from(eventDates).sort((a, b) => a - b);
-  if (sortedDatesMs.length === 0) return "No valid purchase/update events found.";
-  
-  const minDateMs = sortedDatesMs[0];
-
-  // 2. MAP PRODUCTS AND RECIPES
+  // 3. MAP PALLETS (STRICT DATE PARSER + DAILY OVERWRITE "LATEST WINS")
   const palletsData = palletsSheet.getDataRange().getValues();
-  let activeProducts = {};
+  let dailyPallets = {};           // dateMs -> { conciseName: { planId, recipeId, dateMs } }
+  let productTimeline = {};        // conciseName -> [ { dateMs, planId, recipeId }, ... ]
+  let palletDateToProducts = {};   // dateMs -> Set of conciseNames produced on this day
   let matToProducts = {}; 
+
+  // Strict Date Parser: Only matches authentic Date objects or DD/MM/YYYY / YYYY-MM-DD strings
+  var parsePalletDateMs = function(row) {
+    for (var col = 0; col <= 4; col++) {
+      var raw = row[col];
+      if (!raw) continue;
+      
+      if (raw instanceof Date) {
+        if (!isNaN(raw.getTime())) {
+          var d = new Date(raw.getTime());
+          d.setHours(0, 0, 0, 0);
+          return d.getTime();
+        }
+      }
+      
+      var str = String(raw).trim();
+      // Match YYYY-MM-DD or YYYY/MM/DD
+      if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(str)) {
+        var parts = str.split(/[\/\-]/);
+        var d1 = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        if (!isNaN(d1.getTime())) {
+          d1.setHours(0, 0, 0, 0);
+          return d1.getTime();
+        }
+      }
+      // Match DD-MM-YYYY or DD/MM/YYYY
+      if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(str)) {
+        var parts = str.split(/[\/\-]/);
+        var day = parseInt(parts[0], 10);
+        var month = parseInt(parts[1], 10) - 1;
+        var year = parseInt(parts[2], 10);
+        if (year < 100) year += 2000;
+        var d2 = new Date(year, month, day);
+        if (!isNaN(d2.getTime())) {
+          d2.setHours(0, 0, 0, 0);
+          return d2.getTime();
+        }
+      }
+    }
+    return 0; // Fallback for pallet rows without dates
+  };
 
   for (let i = 1; i < palletsData.length; i++) {
     if (String(palletsData[i][0]).toUpperCase() !== "TRUE") continue; 
-    let conciseName = String(palletsData[i][5]).trim(); 
-    let planId = String(palletsData[i][6]).trim(); 
-    let recipeId = String(palletsData[i][7]).trim(); 
+    let conciseName = String(palletsData[i][5] || '').trim(); 
+    let planId = String(palletsData[i][6] || '').trim(); 
+    let recipeId = String(palletsData[i][7] || '').trim(); 
     
-    if (planId && recipeId && !activeProducts[conciseName]) {
-      activeProducts[conciseName] = { planId, recipeId };
+    if (conciseName && planId && recipeId) {
+      let rowDateMs = parsePalletDateMs(palletsData[i]);
       
-      let recipe = maps.recipes[recipeId];
-      let plan = maps.plans[planId];
+      if (!dailyPallets[rowDateMs]) dailyPallets[rowDateMs] = {};
+      // "LATEST ON DATE WINS": Downward loop naturally overwrites earlier rows on the same date
+      dailyPallets[rowDateMs][conciseName] = { planId: planId, recipeId: recipeId, dateMs: rowDateMs };
+
+      // Register pallet production dates into the master calculation calendar
+      if (rowDateMs > 0) {
+        eventDates.add(rowDateMs);
+        if (!palletDateToProducts[rowDateMs]) palletDateToProducts[rowDateMs] = new Set();
+        palletDateToProducts[rowDateMs].add(conciseName);
+      }
+    }
+  }
+
+  // Build sorted chronological timeline per product
+  Object.keys(dailyPallets).forEach(dateKey => {
+    let dMs = Number(dateKey);
+    let dayProds = dailyPallets[dateKey];
+    Object.keys(dayProds).forEach(conciseName => {
+      if (!productTimeline[conciseName]) productTimeline[conciseName] = [];
+      productTimeline[conciseName].push(dayProds[conciseName]);
+    });
+  });
+
+  Object.keys(productTimeline).forEach(conciseName => {
+    productTimeline[conciseName].sort((a, b) => a.dateMs - b.dateMs);
+    
+    // Map material dependencies across all recipe versions for this product
+    productTimeline[conciseName].forEach(cfg => {
+      let recipe = maps.recipes[cfg.recipeId];
+      let plan = maps.plans[cfg.planId];
       if (recipe) {
         Object.keys(recipe.materials).forEach(genMat => {
           if (!matToProducts[genMat]) matToProducts[genMat] = new Set();
@@ -375,10 +440,32 @@ function syncCostLedger() {
           }
         });
       }
-    }
-  }
+    });
+  });
 
-  // 3. GENERATE TARGETED ROWS WITH INTELLIGENT VAT ROUTING
+  // Helper: Resolves active recipe active on or before targetDateMs (latest deployed takes effect)
+  var getActiveProductConfig = function(conciseName, targetDateMs) {
+    var timeline = productTimeline[conciseName];
+    if (!timeline || timeline.length === 0) return null;
+    
+    var activeCfg = timeline[0];
+    for (var k = 0; k < timeline.length; k++) {
+      if (timeline[k].dateMs <= targetDateMs) {
+        activeCfg = timeline[k];
+      } else {
+        break;
+      }
+    }
+    return activeCfg;
+  };
+
+  let sortedDatesMs = Array.from(eventDates).sort((a, b) => a - b);
+  if (sortedDatesMs.length === 0) return "No valid calculation dates found.";
+  
+  const minDateMs = sortedDatesMs[0];
+  let allActiveProducts = Object.keys(productTimeline);
+
+  // 4. GENERATE COST ROWS WITH RECIPE EVOLUTION & INTELLIGENT VAT
   let newRows = [];
   let timeZone = ss.getSpreadsheetTimeZone() || "GMT";
 
@@ -388,26 +475,32 @@ function syncCostLedger() {
      
      let targetProducts = [];
      if (dateMs === minDateMs) {
-       targetProducts = Object.keys(activeProducts);
+       targetProducts = allActiveProducts;
      } else {
        let affected = new Set();
-       changedMats.forEach(m => {
-         if (matToProducts[m]) matToProducts[m].forEach(p => affected.add(p));
-       });
+       if (changedMats) {
+         changedMats.forEach(m => {
+           if (matToProducts[m]) matToProducts[m].forEach(p => affected.add(p));
+         });
+       }
+       if (palletDateToProducts[dateMs]) {
+         palletDateToProducts[dateMs].forEach(p => affected.add(p));
+       }
        targetProducts = Array.from(affected);
      }
 
      targetProducts.forEach(conciseName => {
-        let p = activeProducts[conciseName];
-        let recipe = maps.recipes[p.recipeId]; let plan = maps.plans[p.planId];
+        let p = getActiveProductConfig(conciseName, dateMs);
+        if (!p) return;
+        let recipe = maps.recipes[p.recipeId]; 
+        let plan = maps.plans[p.planId];
         if (!recipe || !plan) return;
 
-        // VAT RULE: If product has 0% VAT, materials must absorb their VAT into the cost
         let isVatExempt = (productVatMap[conciseName] === 0);
 
         let totalAct = 0; let totalMkt = 0;
         let bomAct = {}; let bomMkt = {}; 
-        let bomMeta = { _isVatExempt: isVatExempt }; // NEW: Flag the product's VAT status in the payload
+        let bomMeta = { _isVatExempt: isVatExempt };
 
         Object.keys(recipe.materials).forEach(genMat => {
           let reqQty = recipe.materials[genMat];
@@ -417,11 +510,9 @@ function syncCostLedger() {
               let qty = mfg.rawMats[raw] * (reqQty / mfg.yield);
               let r = getMaterialRates(dateMs, null, maps.marketPrices.byMatName[raw]);
               
-              // Smart Switch: Selects Base Price or VAT Price based on Product's VAT status
               let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
               let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
 
-              // NEW: Store BOTH Base and VAT rates for the Global Ledger to use
               bomMeta[raw] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit, actDateMs: r.actDateMs, mktDateMs: r.mktDateMs, hasMktOverride: r.hasMktOverride, actBaseRate: r.actBaseRate, actVatRate: r.actVatRate };
               totalAct += (actRateToUse * qty); totalMkt += (mktRateToUse * qty);
               bomAct[raw] = Number((actRateToUse * qty).toFixed(2)); bomMkt[raw] = Number((mktRateToUse * qty).toFixed(2));
@@ -430,11 +521,9 @@ function syncCostLedger() {
             let specId = plan.materials[genMat];
             let r = getMaterialRates(dateMs, specId ? maps.marketPrices.bySpecId[specId] : null, maps.marketPrices.byMatName[genMat]);
             
-            // Smart Switch: Selects Base Price or VAT Price based on Product's VAT status
             let actRateToUse = isVatExempt ? r.actVatRate : r.actBaseRate;
             let mktRateToUse = r.hasMktOverride ? r.mktRate : actRateToUse;
 
-            // NEW: Store BOTH Base and VAT rates for the Global Ledger to use
             bomMeta[genMat] = { actRate: actRateToUse, mktRate: mktRateToUse, unit: r.unit, actDateMs: r.actDateMs, mktDateMs: r.mktDateMs, hasMktOverride: r.hasMktOverride, actBaseRate: r.actBaseRate, actVatRate: r.actVatRate };
             totalAct += (actRateToUse * reqQty); totalMkt += (mktRateToUse * reqQty);
             bomAct[genMat] = Number((actRateToUse * reqQty).toFixed(2)); bomMkt[genMat] = Number((mktRateToUse * reqQty).toFixed(2));
@@ -447,11 +536,11 @@ function syncCostLedger() {
      });
   });
 
-  // 4. DEEP CLEAN & WRITE
+  // 5. DEEP CLEAN & WRITE ITEMS COSTS
   costSheet.getRange(2, 1, Math.max(costSheet.getMaxRows()-1, 1), 12).clearContent();
   if (newRows.length > 0) costSheet.getRange(2, 1, newRows.length, 12).setValues(newRows);
 
-  return "Cost Engine Synced (Intelligent VAT Routing).";
+  return "Cost Engine Synced (Daily Scan + Latest Recipe Resolved).";
 }
 // --- DASHBOARD API ---
 
@@ -583,8 +672,10 @@ function generateNetSalesCache(forceFullRebuild = true) {
   let allData = allDataSheet.getDataRange().getValues();
   
   const ROW_PROD_NAMES = 7;     
-  const ROW_DATA_START = 9;     
+  const ROW_DATA_START = 9;  
+  const COL_BRANCH = 2;         // NEW: Capture Branch
   const COL_MAIN_CLIENT = 3;    
+  const COL_SEGMENT = 4;        // NEW: Capture Segment
   const COL_DATE = 6;           
   const COL_PROD_START = 17;    
 
@@ -601,7 +692,9 @@ function generateNetSalesCache(forceFullRebuild = true) {
   }
 
   for(let i = ROW_DATA_START; i < allData.length; i++) {
+      let branch = String(allData[i][COL_BRANCH]).trim();
       let client = String(allData[i][COL_MAIN_CLIENT]).trim(); 
+      let segment = String(allData[i][COL_SEGMENT]).trim();
       let rawDate = allData[i][COL_DATE];               
       
       if(!rawDate || !client) continue;
@@ -641,7 +734,9 @@ function generateNetSalesCache(forceFullRebuild = true) {
                   dateMs: dateMs,
                   date: dateStr,
                   client: client,
-                  product: tc.full, // CRITICAL FIX: We output the FULL name so it matches the Costing Dashboard!
+                  branch: branch || client,
+                  segment: segment || 'Unassigned',
+                  product: tc.full, 
                   productConcise: tc.concise,
                   qty: qty,
                   grossRev: grossRev,
@@ -657,6 +752,10 @@ function generateNetSalesCache(forceFullRebuild = true) {
   output.sort((a, b) => b.dateMs - a.dateMs);
 
   writeCacheFile("Tawoos_Cache_NetSales.json", output);
+  
+  // Clear the Profitability Cache so it forces a fresh rebuild upon next load
+  writeCacheFile("Tawoos_Cache_ProfitabilityMerged.json", {});
+  
   return { lastUpdated: new Date().getTime(), latestData: output[0] ? output[0].date : "N/A", data: output };
 }
 
@@ -693,4 +792,187 @@ function DIAGNOSE_NET_SALES() {
   Logger.log("   -> Revenue (Col S): [" + String(allData[9][18]) + "]");
   
   Logger.log("--- DIAGNOSTIC COMPLETE ---");
+}
+
+// ==========================================
+// PROFITABILITY & INVOICE INSPECTOR ENGINE
+// ==========================================
+function getProfitabilityMergedData() {
+   // 1. ATTEMPT TO LOAD FROM CACHE FIRST (Lightning Fast)
+   let cache = readCacheFile("Tawoos_Cache_ProfitabilityMerged.json");
+   if (cache && cache.data && cache.data.length > 0) {
+       return cache;
+   }
+   // 2. IF NO CACHE EXISTS, BUILD IT
+   return buildProfitabilityCache();
+}
+
+// Separate Builder Function to handle the heavy lifting
+function buildProfitabilityCache() {
+   let salesCache = readCacheFile("Tawoos_Cache_NetSales.json");
+   let costCache = readCacheFile("Tawoos_Cache_Costing.json");
+   
+   if (!salesCache || !salesCache.data) return { error: "Net Sales cache missing. Please sync Net Sales." };
+   if (!costCache || !costCache.data) return { error: "Costing cache missing. Please sync Costing." };
+
+   let salesData = salesCache.data;
+   let costData = costCache.data;
+   let pMap = buildProductHashMap(); 
+   
+   // 1. Build Chronological Cost Timeline Map
+   let costTimeline = {};
+   costData.forEach(c => {
+      if (!costTimeline[c.product]) costTimeline[c.product] = [];
+      costTimeline[c.product].push({ dateMs: new Date(c.date).getTime(), cost: c.unitActual || 0 });
+   });
+   
+   Object.keys(costTimeline).forEach(p => costTimeline[p].sort((a,b) => a.dateMs - b.dateMs));
+   
+   // 🧠 ENGINE UPGRADE: Binary Search Algorithm
+   // This instantly drops the execution time from minutes to milliseconds
+   const getCostAtDate = (product, dateMs) => {
+      let timeline = costTimeline[product];
+      if (!timeline || timeline.length === 0) return 0;
+      
+      let low = 0;
+      let high = timeline.length - 1;
+      let activeCost = timeline[0].cost;
+      
+      while (low <= high) {
+          let mid = Math.floor((low + high) / 2);
+          if (timeline[mid].dateMs <= dateMs) {
+              activeCost = timeline[mid].cost;
+              low = mid + 1; // It's valid, but try to find a closer date ahead
+          } else {
+              high = mid - 1; // Too far ahead, step back
+          }
+      }
+      return activeCost;
+   };
+
+   // 2. FETCH ADVANCED COMMERCIAL CONTRACTS
+   let contractsData = [];
+   try {
+       let contractsSS = SpreadsheetApp.openById("11WPuCwQn5LKceSB0NRsk9znEqYc02smdoGt7bLqTY84");
+       let contractsSheet = contractsSS.getSheetByName("Contracts");
+       if (contractsSheet) {
+           let cVals = contractsSheet.getDataRange().getValues();
+           for(let i = 1; i < cVals.length; i++) {
+               let client = String(cVals[i][0]).trim();
+               if (!client) continue;
+               
+               let isPrivate = cVals[i][4] === true || String(cVals[i][4]).toUpperCase() === 'TRUE';
+               let isTawoos = cVals[i][5] === true || String(cVals[i][5]).toUpperCase() === 'TRUE';
+               let cDisc = parseFloat(cVals[i][6]) || 0;
+               if (cDisc > 1) cDisc = cDisc / 100;
+               let iDisc = parseFloat(cVals[i][7]) || 0;
+               if (iDisc > 1) iDisc = iDisc / 100;
+               let cashAmt = parseFloat(cVals[i][8]) || 0;
+
+               contractsData.push({
+                   client: client, isPrivate: isPrivate, isTawoos: isTawoos,
+                   contractDisc: cDisc, invoiceDisc: iDisc, cash: cashAmt
+               });
+           }
+       }
+   } catch(e) {
+       Logger.log("Failed to load Contracts spreadsheet.");
+   }
+
+   // 3. MERGE BASE DATA 
+   let merged = [];
+   salesData.forEach(s => {
+      let pMeta = pMap[s.productConcise] || pMap[s.product] || { type: 'OWN PRODUCT', category: 'Uncategorized' };
+      let unitCost = getCostAtDate(s.product, s.dateMs);
+      
+      merged.push({
+         dateMs: s.dateMs, date: s.date, client: s.client,
+         branch: s.branch, segment: s.segment, category: pMeta.category,
+         line: pMeta.type, product: s.product, qty: s.qty,
+         grossRev: s.grossRev, unitCost: unitCost
+      });
+   });
+   
+   merged.sort((a, b) => b.dateMs - a.dateMs);
+   
+   let finalOutput = { data: merged, contracts: contractsData, lastUpdated: new Date().getTime() };
+   
+   // 🧠 CACHE THE RESULTS: We save the finished math to a file, so the next load is instant.
+   writeCacheFile("Tawoos_Cache_ProfitabilityMerged.json", finalOutput);
+   
+   return finalOutput;
+}
+
+function generateProfitabilityExportUrl(payloadStr) {
+   const tree = JSON.parse(payloadStr);
+   const ss = SpreadsheetApp.create("[TEMP EXPORT] Profitability Inspector");
+   const sheet = ss.getSheets()[0];
+   
+   const headers = ["Hierarchy", "Volume (Qty)", "Net Revenue (EGP)", "COGS (EGP)", "Gross Profit (EGP)", "Gross Margin %", "Fixed Fees & OPEX (EGP)", "Net Profit (EGP)", "Net Margin %"];
+   sheet.appendRow(headers);
+   sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#0284c7").setFontColor("white");
+   
+   let rowIndex = 2;
+
+   function writeNode(nodeList, depth) {
+       nodeList.forEach(node => {
+           let indent = Array(depth).fill("      ").join("");
+           let gMargin = node.netRev > 0 ? (node.grossProfit / node.netRev * 100).toFixed(1) + "%" : "0%";
+           let nMargin = node.netRev > 0 ? (node.netProfit / node.netRev * 100).toFixed(1) + "%" : "0%";
+           
+           let prefix = depth === 0 ? "" : (node.level === 'product' ? "        • " : "▸ ");
+           sheet.appendRow([indent + prefix + node.name, node.qty, node.netRev, node.cogs, node.grossProfit, gMargin, node.opexFees, node.netProfit, nMargin]);
+           
+           let currentRowIdx = rowIndex;
+           let bgColors = ["#f1f5f9", "#f8fafc", "#ffffff", "#ffffff"];
+           let fontColors = ["#0f172a", "#334155", "#475569", "#64748b"];
+           
+           if (node.level === 'product') {
+               sheet.getRange(currentRowIdx, 1, 1, headers.length).setFontColor("#64748b");
+           } else {
+               sheet.getRange(currentRowIdx, 1, 1, headers.length)
+                    .setBackground(bgColors[Math.min(depth, bgColors.length-1)])
+                    .setFontColor(fontColors[Math.min(depth, fontColors.length-1)])
+                    .setFontWeight("bold");
+           }
+           
+           rowIndex++;
+           
+           if (node.children && Object.keys(node.children).length > 0) {
+               let childrenArr = Object.values(node.children).sort((a,b) => b.netRev - a.netRev);
+               let childCount = getDescendantCount(childrenArr);
+               writeNode(childrenArr, depth + 1);
+               if (childCount > 0) {
+                   sheet.getRange(currentRowIdx + 1, 1, childCount, 1).shiftRowGroupDepth(depth + 1);
+               }
+           }
+       });
+   }
+
+   function getDescendantCount(nodeList) {
+       let count = 0;
+       nodeList.forEach(n => {
+           count++;
+           if (n.children && Object.keys(n.children).length > 0) {
+               count += getDescendantCount(Object.values(n.children));
+           }
+       });
+       return count;
+   }
+
+   let rootNodes = Object.values(tree.children).sort((a,b) => b.netRev - a.netRev);
+   writeNode(rootNodes, 0);
+
+   // Add Grand Total Row at the bottom
+   let rootGM = tree.netRev > 0 ? (tree.grossProfit / tree.netRev * 100).toFixed(1) + "%" : "0%";
+   let rootNM = tree.netRev > 0 ? (tree.netProfit / tree.netRev * 100).toFixed(1) + "%" : "0%";
+   sheet.appendRow(["GRAND TOTAL (INCL. GLOBAL OPEX)", tree.qty, tree.netRev, tree.cogs, tree.grossProfit, rootGM, tree.opexFees, tree.netProfit, rootNM]);
+   sheet.getRange(rowIndex, 1, 1, headers.length).setFontWeight("bold").setBackground("#0f172a").setFontColor("white");
+
+   sheet.collapseAllRowGroups();
+   sheet.autoResizeColumns(1, headers.length);
+   if (sheet.getColumnWidth(1) < 300) sheet.setColumnWidth(1, 400);
+   
+   let url = `https://docs.google.com/spreadsheets/d/${ss.getId()}/export?format=xlsx&portrait=false&fitw=true`;
+   return { url: url, fileId: ss.getId() };
 }
